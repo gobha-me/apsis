@@ -179,6 +179,48 @@ class RenderTableTests(unittest.TestCase):
                 [["a", "1", "2", "3"], ["b", "4", "5", "6"], ["bad", "7", "8"]],
             )
 
+    def test_code_spans_keep_literal_character_references_and_line_break_markup(self):
+        self.assertEqual(
+            render_table(
+                ["`M|etric`", "`B&<>`", "`C\\andidate`"],
+                [
+                    ["`x|y`", "`a&b <x> \\path`", "`one\r\ntwo\rthree\nfour`"],
+                    ["``a`b|c``", "`&#124;`", "before `x|y` after"],
+                ],
+            ),
+            "| `M&#124;etric` | `B&amp;&lt;&gt;` | `C&#92;andidate` |\n"
+            "| --- | --- | --- |\n"
+            "| `x&#124;y` | `a&amp;b &lt;x&gt; &#92;path` | `one<br>two<br>three<br>four` |\n"
+            "| ``a`b&#124;c`` | `&amp;#124;` | before `x&#124;y` after |",
+        )
+
+    def test_nul_tab_and_unicode_line_separator_are_escaped_in_every_column(self):
+        for character, reference in (
+            ("\x00", "&#0;"),
+            ("\t", "&#9;"),
+            ("\u2028", "&#8232;"),
+        ):
+            for index in range(3):
+                with self.subTest(character=ascii(character), index=index):
+                    columns = ["Metric", "Baseline", "Candidate"]
+                    row = ["rate", "95.00%", "96.00%"]
+                    columns[index] = f"before{character}after"
+                    row[index] = f"left{character}right"
+                    table = render_table(columns, [row])
+                    expected_headers = ["Metric", "Baseline", "Candidate"]
+                    expected_cells = ["rate", "95.00%", "96.00%"]
+                    expected_headers[index] = f"before{reference}after"
+                    expected_cells[index] = f"left{reference}right"
+                    self.assertEqual(
+                        table,
+                        "| "
+                        + " | ".join(expected_headers)
+                        + " |\n| --- | --- | --- |\n| "
+                        + " | ".join(expected_cells)
+                        + " |",
+                    )
+                    self.assertNotIn(character, table)
+
 
 if __name__ == "__main__":
     unittest.main()
