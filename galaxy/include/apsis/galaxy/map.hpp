@@ -66,6 +66,8 @@ std::string_view status_name(Status status);
 
 // Serialize mutations of a Map. Independent Maps can compute on workers;
 // generation is a pure function of seed, immutable config, version and cell ID.
+// Observers and view_region throw std::logic_error on a moved-from Map;
+// move assignment from a live Map restores normal use.
 class Map {
 public:
   explicit Map(std::uint64_t universe_seed, Config config = {},
@@ -94,6 +96,7 @@ public:
   std::uint32_t format_version() const;
 
 private:
+  void require_impl() const;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

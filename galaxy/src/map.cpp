@@ -5,6 +5,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -152,10 +153,11 @@ public:
       if (radius_squared < rin * rin || radius_squared >= rout * rout) {
         continue;
       }
-      result.push_back(
-          {{region, slot},
-           point,
-           {static_cast<std::int64_t>(nearest_sqrt(radius_squared)), point}});
+      result.push_back({{region, slot},
+                        point,
+                        {static_cast<std::int64_t>(
+                             std::min(nearest_sqrt(radius_squared), rout - 1)),
+                         point}});
     }
     return result;
   }
@@ -343,18 +345,30 @@ Map::~Map() = default;
 Map::Map(Map &&) noexcept = default;
 Map &Map::operator=(Map &&) noexcept = default;
 
-Status Map::view_region(RegionId region) { return impl_->view_region(region); }
+void Map::require_impl() const {
+  if (!impl_) {
+    throw std::logic_error("operation on a moved-from Map");
+  }
+}
+
+Status Map::view_region(RegionId region) {
+  require_impl();
+  return impl_->view_region(region);
+}
 
 std::span<const System> Map::revealed_systems() const {
+  require_impl();
   return impl_->systems_snapshot;
 }
 
 std::span<const Lane> Map::revealed_lanes() const {
+  require_impl();
   return impl_->lanes_snapshot;
 }
 
 std::optional<std::int64_t> Map::distance_milli_j(SystemId a,
                                                   SystemId b) const {
+  require_impl();
   const auto first = impl_->visible_systems.find(a);
   const auto second = impl_->visible_systems.find(b);
   if (!impl_->raw_j || first == impl_->visible_systems.end() ||
@@ -367,11 +381,21 @@ std::optional<std::int64_t> Map::distance_milli_j(SystemId a,
 }
 
 std::optional<std::int64_t> Map::raw_units_per_j() const {
+  require_impl();
   return impl_->raw_j;
 }
 
-const Config &Map::config() const { return impl_->config; }
-std::uint64_t Map::universe_seed() const { return impl_->seed; }
-std::uint32_t Map::format_version() const { return impl_->version; }
+const Config &Map::config() const {
+  require_impl();
+  return impl_->config;
+}
+std::uint64_t Map::universe_seed() const {
+  require_impl();
+  return impl_->seed;
+}
+std::uint32_t Map::format_version() const {
+  require_impl();
+  return impl_->version;
+}
 
 } // namespace apsis::galaxy

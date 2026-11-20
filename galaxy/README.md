@@ -20,6 +20,8 @@ The library target is `apsis::galaxy`; include `<apsis/galaxy/map.hpp>`. Both ta
 
 Private neighbor generation and calibration never reveal cells. A lane becomes visible only when both endpoint systems are revealed; viewing an adjacent cell refreshes boundary lanes. A viewer must present every requested cell as viewed, including portions outside its viewport.
 
+Observers and `view_region()` throw `std::logic_error` on a moved-from `Map`. It can be destroyed or restored by move assignment from a live `Map`. Private generated cells are cached for the lifetime of each live `Map`; long-lived viewers should account for cache growth as more cells are viewed.
+
 ## Geometry and scale
 
 The SMBH is at `(0,0)`. Positions use 1,000 raw ticks per map unit. Defaults are an even cell side `S = 64000`, inner radius `2*S = 128000`, and outer radius `32*S = 2048000`. The annulus includes the inner boundary and excludes the outer boundary. A region's half-open bounds are `[cx*S,(cx+1)*S) × [cy*S,(cy+1)*S)`; negative positions follow mathematical floor division.
@@ -28,7 +30,7 @@ Supported configurations require even `4 <= S <= INT32_MAX` and `0 <= Rin < Rout
 
 Each region has four fixed candidate slots, `slot = 2*qy + qx`. Coordinates within a cell use `q*(S/2) + 1 + draw % (S/2 - 1)` in each axis. Candidates outside the annulus are clipped without renumbering. Each star has a circular orbit around the origin, with a raw radius and fixed-epoch position vector. There are no mass, period, motion, gravity or hazard mechanics.
 
-Every distinct system pair at squared distance at most `S*S` has a lane. Generation needs only its cell and the eight neighboring cells. The smaller endpoint owns the lane. There is no global bridging or connectivity guarantee. Integer square roots round radii and lengths to nearest, ties upward.
+Every distinct system pair at squared distance at most `S*S` has a lane. Generation needs only its cell and the eight neighboring cells. The smaller endpoint owns the lane. There is no global bridging or connectivity guarantee. Integer square roots round radii and lengths to nearest, ties upward; orbital radii are then clamped to at most `Rout - 1` raw ticks. Clipping uses the exact squared position radius before rounding.
 
 The first successful view privately addresses 64 calibration counters into the bounding cell grid `[-ceil(Rout/S), ceil(Rout/S)-1]` on each axis. Cells are deduplicated without redraws, including empty cells. The calibration collects and deduplicates lanes owned by systems in sampled cells, using private one-cell halos. `raw_units_per_j()` freezes the upper median, `sorted_lengths[size/2]`; an empty sample is an explicit calibration error. Later discovery never changes this scale. Coordinates and radii remain raw ticks. Distances are reported as `roundNearest(1000 * raw_distance / raw_units_per_j)`, ties upward, with checked intermediates.
 
@@ -57,7 +59,7 @@ Calibration maps each draw modulo the grid width, then subtracts `ceil(Rout/S)`.
 
 ## CLI JSON
 
-`--seed N` is required exactly once; `--region cx,cy` is repeatable. Integers are strict decimal values: seed is unsigned 64-bit, cell coordinates are signed 32-bit. With no regions, JSON contains empty reveal arrays and a null J. `--help` prints usage.
+`--seed N` is required exactly once; `--region cx,cy` is repeatable. Integers are strict decimal values: seed is unsigned 64-bit, cell coordinates are signed 32-bit. Leading zeros, negative zero, plus signs and whitespace are rejected; zero is written as `0`. With no regions, JSON contains empty reveal arrays and a null J. `--help` prints usage.
 
 Output records `format_version`, the seed as a decimal **string** (preserving all 64 bits in JavaScript), configuration and raw-tick scale, status, immutable `raw_units_per_j`, sorted unique `viewed_regions`, and ID-sorted `systems` and `lanes`. Systems include raw positions and orbital geometry; lanes include raw length and `milli_j`. Argument errors produce a JSON error on stderr and exit `2`; generator status failures produce map JSON on stdout and exit `1`. Successful output exits `0`.
 

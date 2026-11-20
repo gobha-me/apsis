@@ -1,0 +1,10 @@
+stranded next to home, life support healthy: rescued                           PASS
+stranded, life support failed (suit only, 5 days; crew needs 10): death lost in space PASS
+  rule lifesupport off: same case is rescued                                   PASS
+unpayable debt: warnings at 5, 8 and 9 years, bankrupt at 10 years to the day  PASS
+  rule bankrupt off: same pilot still flying after 11 years                    PASS
+repay clears the debt and resets the bankruptcy clock                          PASS
+fatal chance 1000 per mille: the first bad landing kills                       PASS
+  rule hazdeath off: the same landing doesn't                                  PASS
+life support refit adds days; a hull swap keeps it                             PASS
+9 / 9

@@ -1,0 +1,10 @@
+rule rescue   off: ledgers exact 15/15 PASS; careers changed by the switch 0/15
+rule shields  off: ledgers exact 15/15 PASS; careers changed by the switch 11/15
+rule weapons  off: ledgers exact 15/15 PASS; careers changed by the switch 5/15
+rule law      off: ledgers exact 15/15 PASS; careers changed by the switch 15/15
+rule interest off: ledgers exact 15/15 PASS; careers changed by the switch 15/15
+rule meet     off: ledgers exact 15/15 PASS; careers changed by the switch 5/15
+rule pirates  off: ledgers exact 15/15 PASS; careers changed by the switch 12/15
+rule lifesupport off: ledgers exact 15/15 PASS; careers changed by the switch 15/15
+rule hazdeath off: ledgers exact 15/15 PASS; careers changed by the switch 0/15
+rule bankrupt off: ledgers exact 15/15 PASS; careers changed by the switch 0/15
