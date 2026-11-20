@@ -1,0 +1,11 @@
+# One bounded run. Defaults are resolved and exported by the adapter.
+# seed   majors startDay horizon station
+333860   4      9000     720     0
+# Absolute pre-tick day, Action kind, then all six Action fields.
+# A_START is recorded automatically at startDay. These are ordinary FLY inputs;
+# the sim decides whether each input is applicable, and all inputs are retained.
+# day kind to good units push purpose unused
+9001  6    1  -1   0     1    0       0
+9180  6    2  -1   0     1    0       0
+9360  6    3  -1   0     1    0       0
+9540  6    0  -1   0     1    0       0
