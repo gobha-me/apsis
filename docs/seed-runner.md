@@ -13,8 +13,9 @@ python -m tools.seed_runner --seeds 1 2 3 --confidence 0.95
 With no hook, every seed is `skipped`, the summary is `no_data`, and the command
 exits with code 2. Placeholder execution never counts as a passing run. Seeds
 are integers, deduplicated in input order; negative seeds are allowed by the
-interface. Empty seed collections are allowed through the Python API and have
-the same `no_data` summary.
+interface. CLI seed tokens must contain ASCII digits with an optional sign,
+without surrounding whitespace or underscores. Empty seed collections are
+allowed through the Python API and have the same `no_data` summary.
 
 ## Adapter interface
 
@@ -34,6 +35,11 @@ Python code. Adapters should import `SeedOutcome` from `tools.seed_runner`.
 Hook exceptions or invalid returns produce an `error` record and execution
 continues with the next seed. Error notes contain the exception type, without
 exception text.
+
+The Python API propagates `SystemExit` and `KeyboardInterrupt`. The CLI catches
+these interruptions, writes a diagnostic to stderr, and exits without a report.
+Hook stdout is redirected to stderr during CLI execution so progress messages
+do not corrupt the JSON document.
 
 ## JSON record format
 
@@ -60,11 +66,16 @@ the same calculation without executing seeds.
 
 CLI exit codes are 0 for `passed`, 1 for `failed`, and 2 for `no_data` or
 `incomplete`. Invalid CLI input also exits with argparse's code 2 and writes no
-result document. No simulation-specific threshold or balance decision is made.
+result document. Hook import errors are invalid CLI input. Interrupted execution
+or a report that cannot be serialized exits with code 2, a stderr diagnostic,
+and no result document. Callers distinguish these errors from `no_data` or
+`incomplete` by the absence of a JSON report on stdout. No simulation-specific
+threshold or balance decision is made.
 
 ## Validation ownership
 
 Lint with `python -m ruff check tools` and `python -m ruff format --check tools`
-using Ruff 0.14.6. The existing `ci` job keeps its bootstrap checks and adds this
-lint step. No tests, mocks, or test doubles are included. Tests are deferred to a
-follow-up session whose commits will use `Agent-Role: tests`.
+using Ruff 0.14.6. Run the existing tests with
+`python -m unittest discover -s tests -v`. The `ci` job runs lint, tests, and the
+bootstrap checks. Test changes belong to separate sessions whose commits use
+`Agent-Role: tests`; production-code sessions leave tests unchanged.

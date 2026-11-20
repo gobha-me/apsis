@@ -1,11 +1,14 @@
 """Seed execution records and pass-rate summaries, without a simulation."""
 
 import argparse
+from contextlib import redirect_stdout
 from dataclasses import dataclass, field
 import importlib
 import json
 import math
+import re
 from statistics import NormalDist
+import sys
 from typing import Callable, Iterable, Literal
 
 
@@ -22,7 +25,7 @@ SeedHook = Callable[[int], SeedOutcome]
 
 
 def _validate_confidence(confidence: float) -> None:
-    if isinstance(confidence, bool) or not 0 < confidence < 1:
+    if type(confidence) not in (int, float) or not 0 < confidence < 1:
         raise ValueError("confidence must be a finite number between 0 and 1")
 
 
@@ -143,12 +146,22 @@ def run_seeds(
     }
 
 
+def _parse_seed(value: str) -> int:
+    try:
+        if re.fullmatch(r"[+-]?[0-9]+", value) is None:
+            raise ValueError
+        return int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seeds", type=int, nargs="+", required=True)
+    parser.add_argument("--seeds", type=_parse_seed, nargs="+", required=True)
     parser.add_argument("--confidence", type=float, default=0.95)
     parser.add_argument("--hook", help="trusted Python adapter as module:function")
     args = parser.parse_args()
+    stdout = sys.stdout
     hook = None
     try:
         _validate_confidence(args.confidence)
@@ -156,13 +169,30 @@ def main() -> int:
             module, separator, name = args.hook.partition(":")
             if not separator or not module or not name or ":" in name:
                 raise ValueError("hook must have the form module:function")
-            hook = getattr(importlib.import_module(module), name)
+            with redirect_stdout(sys.stderr):
+                hook = getattr(importlib.import_module(module), name)
             if not callable(hook):
                 raise TypeError("hook must be callable")
-    except (ValueError, TypeError, ImportError, AttributeError) as exc:
+    except Exception as exc:
         parser.error(str(exc))
-    report = run_seeds(args.seeds, hook, args.confidence)
-    print(json.dumps(report, indent=2, sort_keys=True, allow_nan=False))
+    except (SystemExit, KeyboardInterrupt) as exc:
+        print(f"seed runner: hook raised {type(exc).__name__}.", file=sys.stderr)
+        return 2
+    try:
+        with redirect_stdout(sys.stderr):
+            report = run_seeds(args.seeds, hook, args.confidence)
+    except (SystemExit, KeyboardInterrupt) as exc:
+        print(f"seed runner: hook raised {type(exc).__name__}.", file=sys.stderr)
+        return 2
+    try:
+        document = json.dumps(report, indent=2, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError, OverflowError) as exc:
+        print(
+            f"seed runner: cannot serialize report ({type(exc).__name__}).",
+            file=sys.stderr,
+        )
+        return 2
+    print(document, file=stdout)
     status = report["summary"]["status"]
     return 0 if status == "passed" else 1 if status == "failed" else 2
 
