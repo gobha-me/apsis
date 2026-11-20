@@ -284,7 +284,7 @@ class ReportTableCliTests(unittest.TestCase):
         self.assertNotIn("Exception ignored", result.stderr)
 
     def test_paragraph_separator_and_nel_are_escaped_after_json_decoding(self):
-        for character, escaped in (("\u2029", "&#8233;"), ("\x85", "&#133;")):
+        for character, escaped in (("\u2029", "&#8233;"), ("\x85", "&#9252;")):
             with self.subTest(character=ascii(character)):
                 report = {
                     "columns": [f"M{character}", f"B{character}", f"C{character}"],
@@ -300,6 +300,32 @@ class ReportTableCliTests(unittest.TestCase):
                 )
                 self.assertEqual(result.stderr, "")
                 self.assertNotIn(character, result.stdout)
+
+    def test_nel_stand_in_with_literal_entities_from_stdin_and_utf8_file(self):
+        report = {
+            "columns": ["\x85M\x85", "&#133;", "&#9252;"],
+            "rows": [["\x85\x85", "\u2424", "a\x85\r\nb\nc\rd|&<>\\"]],
+        }
+        expected = (
+            "| &#9252;M&#9252; | &amp;#133; | &amp;#9252; |\n"
+            "| --- | --- | --- |\n"
+            "| &#9252;&#9252; | \u2424 | a&#9252;<br>b<br>c<br>d&#124;&amp;&lt;&gt;&#92; |\n"
+        )
+        with tempfile.TemporaryDirectory(prefix="report-table-tests-") as directory:
+            path = Path(directory) / "nel.json"
+            for ensure_ascii in (True, False):
+                source = json.dumps(report, ensure_ascii=ensure_ascii)
+                path.write_text(source, encoding="utf-8")
+                for arguments, stdin in (
+                    ((), source),
+                    (("-",), source),
+                    ((str(path),), "not JSON"),
+                ):
+                    with self.subTest(ensure_ascii=ensure_ascii, arguments=arguments):
+                        result = self.run_cli(*arguments, source=stdin)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout, expected)
+                        self.assertEqual(result.stderr, "")
 
     def test_code_spans_and_control_characters_are_escaped_after_json_decoding(self):
         report = {

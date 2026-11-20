@@ -76,6 +76,15 @@ class SeedRunnerControlCliTests(unittest.TestCase):
                 process = self.run_control_adapter(f"sys.exit({exit_code!r})")
                 self.assert_control_error(process, "SystemExit")
 
+    def test_system_exit_messages_stay_private_during_import_and_hook_execution(self):
+        for during_import in (True, False):
+            with self.subTest(during_import=during_import):
+                process = self.run_control_adapter(
+                    f"sys.exit({PRIVATE_DETAIL!r})", during_import=during_import
+                )
+                self.assert_control_error(process, "SystemExit")
+                self.assertNotIn(PRIVATE_DETAIL, process.stderr)
+
     def test_hook_keyboard_interrupt_has_no_json_or_traceback(self):
         process = self.run_control_adapter(
             f"raise KeyboardInterrupt({PRIVATE_DETAIL!r})"
