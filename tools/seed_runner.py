@@ -152,7 +152,7 @@ def main() -> int:
     hook = None
     try:
         _validate_confidence(args.confidence)
-        if args.hook:
+        if args.hook is not None:
             module, separator, name = args.hook.partition(":")
             if not separator or not module or not name or ":" in name:
                 raise ValueError("hook must have the form module:function")
