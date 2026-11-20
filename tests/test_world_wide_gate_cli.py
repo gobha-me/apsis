@@ -41,21 +41,16 @@ class WorldWideGateCliTests(unittest.TestCase):
 
     def write_binary(self, report=None, *, seeds=2, extra="", returncode=0):
         # This executable replaces only the dependency; the harness is unmodified.
-        source = (
-            f"#!{sys.executable}\n"
-            "from pathlib import Path\n"
-            "import sys\n"
-            f"Path({str(self.marker)!r}).write_text('executed', encoding='utf-8')\n"
-            f"if sys.argv[1:] != [{str(seeds)!r}]:\n"
-            "    sys.exit(97)\n"
-            "print('fixture stdout', flush=True)\n"
-            "print('fixture stderr', file=sys.stderr, flush=True)\n"
-        )
+        source = f"#!{sys.executable}\n"
+        source += "from pathlib import Path\nimport sys\n"
+        marker = str(self.marker)
+        source += f"Path({marker!r}).write_text('executed', encoding='utf-8')\n"
+        source += f"if sys.argv[1:] != [{str(seeds)!r}]:\n    sys.exit(97)\n"
+        source += "print('fixture stdout', flush=True)\n"
+        source += "print('fixture stderr', file=sys.stderr, flush=True)\n"
         if report is not None:
-            source += (
-                f"Path('world_wide_l2.json').write_text({report!r}, "
-                "encoding='utf-8')\n"
-            )
+            source += f"Path('world_wide_l2.json').write_text({report!r}, "
+            source += "encoding='utf-8')\n"
         source += extra + "\n" + f"sys.exit({returncode})\n"
         self.binary.write_text(source, encoding="utf-8")
         self.binary.chmod(0o755)
@@ -126,7 +121,9 @@ class WorldWideGateCliTests(unittest.TestCase):
             "aggregate n per arm; per-seed records unavailable",
         )
         revision = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            text=True,
         ).strip()
         self.assertEqual(result["revision"], revision)
         self.assertIsInstance(result["source_dirty"], bool)
@@ -140,13 +137,16 @@ class WorldWideGateCliTests(unittest.TestCase):
             {"status": "unavailable", "reason": "frozen v0.20 absent"},
         )
         self.assertEqual(
-            (self.output / "world_wide_l2.json").read_text(encoding="utf-8"), report
+            (self.output / "world_wide_l2.json").read_text(encoding="utf-8"),
+            report,
         )
         self.assertEqual(
-            (self.output / "stdout.txt").read_text(encoding="utf-8"), "fixture stdout\n"
+            (self.output / "stdout.txt").read_text(encoding="utf-8"),
+            "fixture stdout\n",
         )
         self.assertEqual(
-            (self.output / "stderr.txt").read_text(encoding="utf-8"), "fixture stderr\n"
+            (self.output / "stderr.txt").read_text(encoding="utf-8"),
+            "fixture stderr\n",
         )
         self.assertEqual(result["arms"]["off"]["war"]["denominator"], 2)
         self.assertEqual(result["arms"]["on"]["war"]["count"], 1)
@@ -218,19 +218,22 @@ class WorldWideGateCliTests(unittest.TestCase):
         self.assertEqual(result["returncode"], 7)
         self.assertTrue((self.output / "world_wide_l2.json").is_file())
         self.assertEqual(
-            (self.output / "stderr.txt").read_text(encoding="utf-8"), "fixture stderr\n"
+            (self.output / "stderr.txt").read_text(encoding="utf-8"),
+            "fixture stderr\n",
         )
 
     def test_timeout_exits_two_even_if_dependency_already_wrote_report(self):
         self.write_binary(json.dumps(aggregate()), extra="import time\ntime.sleep(30)")
         result = self.assert_runtime_error(
-            self.run_cli("--timeout-seconds", "1"), "TimeoutExpired"
+            self.run_cli("--timeout-seconds", "1"),
+            "TimeoutExpired",
         )
         self.assertEqual(result["timeout_seconds"], 1)
         self.assertNotIn("returncode", result)
         self.assertTrue((self.output / "world_wide_l2.json").is_file())
         self.assertIn(
-            "fixture stdout", (self.output / "stdout.txt").read_text(encoding="utf-8")
+            "fixture stdout",
+            (self.output / "stdout.txt").read_text(encoding="utf-8"),
         )
 
     def test_existing_output_is_never_overwritten_or_executed(self):
