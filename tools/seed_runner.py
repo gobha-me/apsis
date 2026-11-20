@@ -1,11 +1,13 @@
 """Seed execution records and pass-rate summaries, without a simulation."""
 
 import argparse
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass, field
 import importlib
 import json
 import math
+from numbers import Real
+import os
 import re
 from statistics import NormalDist
 import sys
@@ -24,13 +26,17 @@ class SeedOutcome:
 SeedHook = Callable[[int], SeedOutcome]
 
 
-def _validate_confidence(confidence: float) -> None:
-    if type(confidence) not in (int, float) or not 0 < confidence < 1:
+def _validate_confidence(confidence: Real) -> None:
+    if (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, Real)
+        or not 0 < confidence < 1
+    ):
         raise ValueError("confidence must be a finite number between 0 and 1")
 
 
 def wilson_interval(
-    passed: int, completed: int, confidence: float = 0.95
+    passed: int, completed: int, confidence: Real = 0.95
 ) -> dict[str, str | float | None]:
     """Two-sided Wilson score interval for a binary pass rate; null if empty."""
     _validate_confidence(confidence)
@@ -42,7 +48,7 @@ def wilson_interval(
         raise ValueError("counts must be integers with 0 <= passed <= completed")
     interval = {
         "method": "wilson",
-        "confidence": confidence,
+        "confidence": float(confidence),
         "lower": None,
         "upper": None,
     }
@@ -80,7 +86,7 @@ def _validate_outcome(outcome: SeedOutcome) -> None:
 
 
 def run_seeds(
-    seeds: Iterable[int], hook: SeedHook | None = None, confidence: float = 0.95
+    seeds: Iterable[int], hook: SeedHook | None = None, confidence: Real = 0.95
 ) -> dict[str, object]:
     """Run each distinct seed in input order; adapter errors remain explicit."""
     _validate_confidence(confidence)
@@ -155,46 +161,129 @@ def _parse_seed(value: str) -> int:
         raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+def _parse_confidence(value: str) -> float:
+    try:
+        if value != value.strip():
+            raise ValueError
+        return float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid float value: {value!r}") from exc
+
+
+def _write_cli_output(fd: int, message: str) -> None:
+    # Use unbuffered writes so a failed pipe is not retried at interpreter exit.
+    remaining = memoryview(message.encode("utf-8", errors="backslashreplace"))
+    while remaining:
+        written = os.write(fd, remaining)
+        if not written:
+            raise OSError("cannot write CLI output")
+        remaining = remaining[written:]
+
+
+class _CliArgumentParser(argparse.ArgumentParser):
+    def _print_message(self, message, file=None):
+        if message:
+            _write_cli_output(1 if file is sys.stdout else 2, message)
+
+
+def _flush_cli_stream(stream) -> None:
+    if stream is None:
+        raise OSError("CLI output stream is unavailable")
+    try:
+        stream.flush()
+    except (OSError, ValueError) as exc:
+        # A failed hook-output flush must not be retried after fd 1 is restored.
+        try:
+            stream.close()
+        except (OSError, ValueError):
+            pass
+        raise OSError("cannot flush CLI output") from exc
+
+
+@contextmanager
+def _cli_stdout():
+    _flush_cli_stream(sys.stdout)
+    # Check stderr before dup(1) can reuse a closed fd 2.
+    os.fstat(2)
+    original_stdout = os.dup(1)
+    try:
+        os.dup2(2, 1)
+        yield original_stdout
+    finally:
+        try:
+            os.dup2(original_stdout, 1)
+        finally:
+            os.close(original_stdout)
+
+
+def _run_cli_hooks(parser, args) -> dict[str, object] | None:
+    hook = None
+    if args.hook is not None:
+        module, _, name = args.hook.partition(":")
+        try:
+            hook = getattr(importlib.import_module(module), name)
+        except Exception as exc:
+            parser.error(f"hook raised {type(exc).__name__}.")
+        except BaseException as exc:
+            _write_cli_output(2, f"seed runner: hook raised {type(exc).__name__}.\n")
+            return None
+        if not callable(hook):
+            parser.error("hook must be callable")
+    try:
+        return run_seeds(args.seeds, hook, args.confidence)
+    except BaseException as exc:
+        _write_cli_output(2, f"seed runner: hook raised {type(exc).__name__}.\n")
+        return None
+
+
+def _main() -> int:
+    parser = _CliArgumentParser(description=__doc__)
     parser.add_argument("--seeds", type=_parse_seed, nargs="+", required=True)
-    parser.add_argument("--confidence", type=float, default=0.95)
+    parser.add_argument("--confidence", type=_parse_confidence, default=0.95)
     parser.add_argument("--hook", help="trusted Python adapter as module:function")
     args = parser.parse_args()
-    stdout = sys.stdout
-    hook = None
     try:
         _validate_confidence(args.confidence)
-        if args.hook is not None:
-            module, separator, name = args.hook.partition(":")
-            if not separator or not module or not name or ":" in name:
-                raise ValueError("hook must have the form module:function")
-            with redirect_stdout(sys.stderr):
-                hook = getattr(importlib.import_module(module), name)
-            if not callable(hook):
-                raise TypeError("hook must be callable")
-    except Exception as exc:
+    except ValueError as exc:
         parser.error(str(exc))
-    except (SystemExit, KeyboardInterrupt) as exc:
-        print(f"seed runner: hook raised {type(exc).__name__}.", file=sys.stderr)
-        return 2
-    try:
-        with redirect_stdout(sys.stderr):
-            report = run_seeds(args.seeds, hook, args.confidence)
-    except (SystemExit, KeyboardInterrupt) as exc:
-        print(f"seed runner: hook raised {type(exc).__name__}.", file=sys.stderr)
-        return 2
-    try:
-        document = json.dumps(report, indent=2, sort_keys=True, allow_nan=False)
-    except (TypeError, ValueError, OverflowError) as exc:
-        print(
-            f"seed runner: cannot serialize report ({type(exc).__name__}).",
-            file=sys.stderr,
-        )
-        return 2
-    print(document, file=stdout)
+    if args.hook is not None:
+        module, separator, name = args.hook.partition(":")
+        if not separator or not module or not name or ":" in name:
+            parser.error("hook must have the form module:function")
+    stdout = sys.stdout
+    with _cli_stdout() as report_fd:
+        try:
+            with redirect_stdout(sys.stderr):
+                report = _run_cli_hooks(parser, args)
+        finally:
+            # Drain even writes through sys.__stdout__ before fd 1 is restored
+            # or any JSON is emitted through the saved original stdout.
+            try:
+                _flush_cli_stream(stdout)
+            finally:
+                _flush_cli_stream(sys.stderr)
+        if report is None:
+            return 2
+        try:
+            document = json.dumps(report, indent=2, sort_keys=True, allow_nan=False)
+        except (TypeError, ValueError, OverflowError) as exc:
+            _write_cli_output(
+                2,
+                f"seed runner: cannot serialize report ({type(exc).__name__}).\n",
+            )
+            return 2
+        _write_cli_output(report_fd, document + "\n")
     status = report["summary"]["status"]
     return 0 if status == "passed" else 1 if status == "failed" else 2
+
+
+def main() -> int:
+    try:
+        return _main()
+    except OSError:
+        # The report and diagnostics both use raw writes, with nothing buffered
+        # for Python to flush again after a broken or closed output pipe.
+        return 2
 
 
 if __name__ == "__main__":
