@@ -9,8 +9,9 @@ the golden files locally, run `sha256sum --check --strict SHA256SUMS` from this
 directory.
 
 Owner decisions dated 2026-11-20 take effect in the v4 rules file, not by editing
-these v3 copies. Jeff's picks via Luna question cards are quoted verbatim below;
-interpretation is labeled separately.
+these v3 copies. The 5:24–5:25 PM ET dock picks are recorded in `DESIGN.md` /
+FINDINGS F18 and do not affect the v3 copies. Jeff's picks via Luna question
+cards are quoted verbatim below; interpretation is labeled separately.
 
 Owner pick, 2026-11-20 4:53 PM ET (Luna question card): "Jump drives: scale price with range, 1,500 / 2,500 / 7,500"
 
@@ -30,7 +31,7 @@ Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F09: rules file wins, 8
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
-Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Budget limits I thought it would be up to whatever could be afforded?"
+Jeff's typed question, 2026-11-20 5:14 PM ET (Luna question card): "Budget limits I thought it would be up to whatever could be afforded?"
 
 Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Keep 100M as a technical sanity limit only; in game, budget is what the player can afford"
 
