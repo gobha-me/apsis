@@ -1,0 +1,175 @@
+{
+ "nets": {
+  "base": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  },
+  "bankrupt": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  },
+  "hazdeath": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  },
+  "interest": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 1019,
+   "bold": 782,
+   "reckless": 2143,
+   "payer": 1161,
+   "forgetful": 896,
+   "double agent": 765
+  },
+  "law": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 974,
+   "bold": 974,
+   "reckless": 928,
+   "payer": 928,
+   "forgetful": 928,
+   "double agent": 928
+  },
+  "lifesupport": {
+   "hauler": 1310,
+   "crisis": 1372,
+   "pathfinder": 329,
+   "careful": 799,
+   "bold": 966,
+   "reckless": 2231,
+   "payer": 971,
+   "forgetful": 901,
+   "double agent": 869
+  },
+  "meet": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 793,
+   "bold": 1018,
+   "reckless": 1185,
+   "payer": 1122,
+   "forgetful": 945,
+   "double agent": 816
+  },
+  "pirates": {
+   "hauler": 1291,
+   "crisis": 1340,
+   "pathfinder": 335,
+   "careful": 927,
+   "bold": 890,
+   "reckless": 2119,
+   "payer": 778,
+   "forgetful": 878,
+   "double agent": 770
+  },
+  "rescue": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  },
+  "shields": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  },
+  "weapons": {
+   "hauler": 1319,
+   "crisis": 1484,
+   "pathfinder": 332,
+   "careful": 770,
+   "bold": 868,
+   "reckless": 2016,
+   "payer": 858,
+   "forgetful": 808,
+   "double agent": 771
+  }
+ },
+ "rendezvous": {
+  "careful": {
+   "direct": 96.1,
+   "meet": 139.9,
+   "meets": 146,
+   "ok": true
+  },
+  "bold": {
+   "direct": 98.4,
+   "meet": 132.3,
+   "meets": 77,
+   "ok": true
+  },
+  "reckless": {
+   "direct": 97.0,
+   "meet": 151.2,
+   "meets": 1115,
+   "ok": true
+  },
+  "payer": {
+   "direct": 96.9,
+   "meet": 119.6,
+   "meets": 69,
+   "ok": true
+  },
+  "forgetful": {
+   "direct": 96.3,
+   "meet": 145.0,
+   "meets": 205,
+   "ok": true
+  },
+  "double agent": {
+   "direct": 109.0,
+   "meet": 83.7,
+   "meets": 12,
+   "ok": false
+  }
+ },
+ "logged": {
+  "logged": 2815,
+  "deps": 6283
+ },
+ "interestMove": {
+  "careful": 32.3,
+  "bold": -9.9,
+  "reckless": 6.3,
+  "payer": 35.3,
+  "forgetful": 10.9,
+  "double agent": -0.8
+ }
+}

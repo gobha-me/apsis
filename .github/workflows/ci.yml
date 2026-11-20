@@ -13,8 +13,8 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
       - name: Lint scaffolding
@@ -36,3 +36,23 @@ jobs:
           test -s README.md
           test -s LICENSE
           test -s build/placeholder.txt
+      - name: Install native sim build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cmake make g++-13
+      - name: Build native sim
+        run: |
+          cmake -S sim -B "$RUNNER_TEMP/apsis-sim-build" -DCMAKE_CXX_COMPILER=g++-13
+          cmake --build "$RUNNER_TEMP/apsis-sim-build" --parallel 2
+      - name: Run native layer-1 gates
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/apsis-sim-build/gates" "$GITHUB_WORKSPACE/sim/ref/vectors.txt" 3600 "$RUNNER_TEMP/gates_l1.json"
+      - name: Run native world and pilot standing gates
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/apsis-sim-build/world_core" gates
+          "$RUNNER_TEMP/apsis-sim-build/pilot_gates" gates
+          "$RUNNER_TEMP/apsis-sim-build/pilot_gates" switches
+          "$RUNNER_TEMP/apsis-sim-build/pilot_gates" endstates
+          "$RUNNER_TEMP/apsis-sim-build/pilot_gates" law

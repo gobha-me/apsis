@@ -1,0 +1,5 @@
+replay (inputs only, no bot) = live, every month, full state: 5/5 PASS
+checkpoint mid-career resume = uninterrupted: 5/5 PASS
+checkpoint round trip byte-exact (with pilot): 5/5 PASS
+same-tick actions reversed, canonical order: same world: 5/5 PASS
+  teeth: in raw arrival order the reversed actions change the world: 4/5 (careers with several actions in one tick: 4)

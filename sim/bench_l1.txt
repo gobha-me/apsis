@@ -1,0 +1,6 @@
+{"stations":26,"factions":9,"threads":1,"years_per_s":4710,"us_per_day":0.59}
+{"stations":26,"factions":9,"threads":2,"years_per_s":4582,"us_per_day":0.61}
+{"stations":26,"factions":9,"threads":8,"years_per_s":4682,"us_per_day":0.59}
+{"stations":200,"factions":64,"threads":1,"years_per_s":527,"us_per_day":5.27}
+{"stations":200,"factions":64,"threads":2,"years_per_s":282,"us_per_day":9.86}
+{"stations":200,"factions":64,"threads":8,"years_per_s":241,"us_per_day":11.51}
