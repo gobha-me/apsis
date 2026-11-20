@@ -321,10 +321,25 @@ class SeedRunnerCliTests(unittest.TestCase):
                     "hook must have the form module:function",
                 )
 
+    def test_surrounding_whitespace_in_confidence_is_a_usage_error(self):
+        for confidence in (" 0.5 ", "0.5 ", "\t0.5\n"):
+            with self.subTest(confidence=confidence):
+                self.assert_usage_error(
+                    self.run_cli(
+                        "--seeds",
+                        "10",
+                        "--hook",
+                        "apsis_cli_adapter:outcome",
+                        "--confidence",
+                        confidence,
+                    ),
+                    "invalid float value",
+                )
+
     def test_unimportable_missing_and_noncallable_hooks_report_usage_errors(self):
         cases = [
-            ("apsis_cli_missing_adapter:outcome", "No module named"),
-            ("apsis_cli_adapter:missing", "has no attribute 'missing'"),
+            ("apsis_cli_missing_adapter:outcome", "ModuleNotFoundError"),
+            ("apsis_cli_adapter:missing", "AttributeError"),
             ("apsis_cli_adapter:not_callable", "hook must be callable"),
         ]
         for hook, message in cases:
@@ -342,8 +357,8 @@ class SeedRunnerCliTests(unittest.TestCase):
 
     def test_import_syntax_and_runtime_errors_are_usage_errors_without_json(self):
         cases = (
-            ("apsis_cli_syntax_adapter:outcome", "invalid syntax"),
-            ("apsis_cli_runtime_adapter:outcome", "broken adapter import"),
+            ("apsis_cli_syntax_adapter:outcome", "SyntaxError"),
+            ("apsis_cli_runtime_adapter:outcome", "RuntimeError"),
         )
         for hook, message in cases:
             with self.subTest(hook=hook):
