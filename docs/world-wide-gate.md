@@ -55,7 +55,8 @@ hook. This adapter does not change that sim behavior.
 
 ## Decisions and failure handling
 
-The existing `sim/gates_l2.sh` war decision is preserved:
+For a nonzero off-arm war rate, the adapter preserves the existing
+`sim/gates_l2.sh` war decision:
 
 ```text
 PASS if 0.75 <= (on war rate / off war rate) <= 1.25
@@ -63,9 +64,11 @@ PASS if 0.75 <= (on war rate / off war rate) <= 1.25
 ```
 
 Both arm counts, seed denominators, rates and intervals are printed and saved.
-Wilson uses the existing `z = 1.96`. If off has zero wars, the ratio is null
-and the overlap alternative still applies; this avoids division by zero
-without adding a new balance rule. Wilson intervals concern seed-level war
+Wilson uses the existing `z = 1.96`. If off has zero wars, the adapter skips
+the ratio check and records the ratio as `null`. The interval-overlap
+alternative still applies and can produce PASS. This differs from the legacy
+script's unguarded division by the off-arm rate, so the decision is not
+preserved exactly in this case. Wilson intervals concern seed-level war
 events, not the paired difference or correlated dip observations.
 
 Exit codes are 0 for PASS, 1 for a failed war decision, and 2 for execution,
@@ -129,12 +132,12 @@ The adapter checks that each aggregate `n` equals the requested seed count.
 are exposed**, so it cannot independently confirm all 1,000 individual
 records. That missing hook is reported rather than fabricating records.
 
-Issue #1 / PR #3's seed-runner scaffolding is absent from this base. The
-local Wilson helper follows its public interval object shape (`method`,
-`confidence`, `lower`, `upper`), adding `z` to make the legacy constant
-explicit. A later integration can compose the statistics helper while
-preserving `z = 1.96`; the aggregate binary cannot honestly implement the
-runner's individual-seed outcome hook yet.
+Issue #1 / PR #3's seed-runner scaffolding is already on `main` (see
+[seed-runner.md](seed-runner.md)). The local Wilson helper follows its public
+interval object shape (`method`, `confidence`, `lower`, `upper`), adding `z`
+to make the legacy constant explicit. A later integration can compose the
+statistics helper while preserving `z = 1.96`; the aggregate binary still
+cannot implement the runner's individual-seed outcome hook yet.
 
 Hooks: `sim/tools/world_wide.cpp`, `sim/gates_l2.sh`, `sim/world_wide_l2.json`
 (schema context), `sim/world_wide_l3.txt` (historical explanation), and
