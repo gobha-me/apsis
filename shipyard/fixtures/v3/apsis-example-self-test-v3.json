@@ -1,0 +1,36 @@
+{
+  "pass": true,
+  "results": [
+    {
+      "name": "flat",
+      "pass": true,
+      "issues": []
+    },
+    {
+      "name": "kestrel",
+      "pass": true,
+      "issues": []
+    },
+    {
+      "name": "skiff",
+      "pass": true,
+      "issues": [
+        {
+          "severity": "warning",
+          "code": "no_cargo",
+          "text": "No cargo hold. This one will have to earn its keep another way."
+        }
+      ]
+    },
+    {
+      "name": "tender",
+      "pass": true,
+      "issues": []
+    },
+    {
+      "name": "station",
+      "pass": true,
+      "issues": []
+    }
+  ]
+}

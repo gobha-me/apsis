@@ -1,0 +1,1976 @@
+{
+  "schema": "apsis-ship-definition-v3",
+  "blueprint": {
+    "schema": "apsis-shipyard-v3",
+    "name": "Wayfarer Anchorage",
+    "buildType": "station",
+    "budget": 150000,
+    "loads": {
+      "cargo": 0,
+      "jumpFuel": 1,
+      "sublightFuel": 1
+    },
+    "decks": [
+      {
+        "name": "Engineering",
+        "floors": {
+          "8,6": true,
+          "9,6": true,
+          "10,6": true,
+          "11,6": true,
+          "12,6": true,
+          "13,6": true,
+          "14,6": true,
+          "15,6": true,
+          "16,6": true,
+          "17,6": true,
+          "8,7": true,
+          "9,7": true,
+          "10,7": true,
+          "11,7": true,
+          "12,7": true,
+          "13,7": true,
+          "14,7": true,
+          "15,7": true,
+          "16,7": true,
+          "17,7": true,
+          "8,8": true,
+          "9,8": true,
+          "10,8": true,
+          "11,8": true,
+          "12,8": true,
+          "13,8": true,
+          "14,8": true,
+          "15,8": true,
+          "16,8": true,
+          "17,8": true,
+          "8,9": true,
+          "9,9": true,
+          "10,9": true,
+          "11,9": true,
+          "12,9": true,
+          "13,9": true,
+          "14,9": true,
+          "15,9": true,
+          "16,9": true,
+          "17,9": true,
+          "8,10": true,
+          "9,10": true,
+          "10,10": true,
+          "11,10": true,
+          "12,10": true,
+          "13,10": true,
+          "14,10": true,
+          "15,10": true,
+          "16,10": true,
+          "17,10": true,
+          "8,11": true,
+          "9,11": true,
+          "10,11": true,
+          "11,11": true,
+          "12,11": true,
+          "13,11": true,
+          "14,11": true,
+          "15,11": true,
+          "16,11": true,
+          "17,11": true,
+          "8,12": true,
+          "9,12": true,
+          "10,12": true,
+          "11,12": true,
+          "12,12": true,
+          "13,12": true,
+          "14,12": true,
+          "15,12": true,
+          "16,12": true,
+          "17,12": true,
+          "8,13": true,
+          "9,13": true,
+          "10,13": true,
+          "11,13": true,
+          "12,13": true,
+          "13,13": true,
+          "14,13": true,
+          "15,13": true,
+          "16,13": true,
+          "17,13": true,
+          "8,14": true,
+          "9,14": true,
+          "10,14": true,
+          "11,14": true,
+          "12,14": true,
+          "13,14": true,
+          "14,14": true,
+          "15,14": true,
+          "16,14": true,
+          "17,14": true,
+          "8,15": true,
+          "9,15": true,
+          "10,15": true,
+          "11,15": true,
+          "12,15": true,
+          "13,15": true,
+          "14,15": true,
+          "15,15": true,
+          "16,15": true,
+          "17,15": true,
+          "8,16": true,
+          "9,16": true,
+          "10,16": true,
+          "11,16": true,
+          "12,16": true,
+          "13,16": true,
+          "14,16": true,
+          "15,16": true,
+          "16,16": true,
+          "17,16": true,
+          "8,17": true,
+          "9,17": true,
+          "10,17": true,
+          "11,17": true,
+          "12,17": true,
+          "13,17": true,
+          "14,17": true,
+          "15,17": true,
+          "16,17": true,
+          "17,17": true
+        },
+        "modules": [
+          {
+            "id": 1,
+            "type": "reactor",
+            "x": 9,
+            "y": 7,
+            "r": 0
+          },
+          {
+            "id": 2,
+            "type": "reactor",
+            "x": 15,
+            "y": 7,
+            "r": 0
+          },
+          {
+            "id": 3,
+            "type": "lifeSupport",
+            "x": 9,
+            "y": 12,
+            "r": 0
+          },
+          {
+            "id": 4,
+            "type": "lifeReserve",
+            "x": 15,
+            "y": 12,
+            "r": 0
+          },
+          {
+            "id": 5,
+            "type": "cargo",
+            "x": 9,
+            "y": 15,
+            "r": 0
+          },
+          {
+            "id": 6,
+            "type": "cargo",
+            "x": 15,
+            "y": 15,
+            "r": 0
+          },
+          {
+            "id": 23,
+            "type": "ladder",
+            "x": 13,
+            "y": 10,
+            "r": 0
+          }
+        ]
+      },
+      {
+        "name": "Concourse",
+        "floors": {
+          "7,5": true,
+          "8,5": true,
+          "9,5": true,
+          "10,5": true,
+          "11,5": true,
+          "12,5": true,
+          "13,5": true,
+          "14,5": true,
+          "15,5": true,
+          "16,5": true,
+          "17,5": true,
+          "18,5": true,
+          "7,6": true,
+          "8,6": true,
+          "9,6": true,
+          "10,6": true,
+          "11,6": true,
+          "12,6": true,
+          "13,6": true,
+          "14,6": true,
+          "15,6": true,
+          "16,6": true,
+          "17,6": true,
+          "18,6": true,
+          "7,7": true,
+          "8,7": true,
+          "9,7": true,
+          "10,7": true,
+          "11,7": true,
+          "12,7": true,
+          "13,7": true,
+          "14,7": true,
+          "15,7": true,
+          "16,7": true,
+          "17,7": true,
+          "18,7": true,
+          "7,8": true,
+          "8,8": true,
+          "9,8": true,
+          "10,8": true,
+          "11,8": true,
+          "12,8": true,
+          "13,8": true,
+          "14,8": true,
+          "15,8": true,
+          "16,8": true,
+          "17,8": true,
+          "18,8": true,
+          "7,9": true,
+          "8,9": true,
+          "9,9": true,
+          "10,9": true,
+          "11,9": true,
+          "12,9": true,
+          "13,9": true,
+          "14,9": true,
+          "15,9": true,
+          "16,9": true,
+          "17,9": true,
+          "18,9": true,
+          "7,10": true,
+          "8,10": true,
+          "9,10": true,
+          "10,10": true,
+          "11,10": true,
+          "12,10": true,
+          "13,10": true,
+          "14,10": true,
+          "15,10": true,
+          "16,10": true,
+          "17,10": true,
+          "18,10": true,
+          "7,11": true,
+          "8,11": true,
+          "9,11": true,
+          "10,11": true,
+          "11,11": true,
+          "12,11": true,
+          "13,11": true,
+          "14,11": true,
+          "15,11": true,
+          "16,11": true,
+          "17,11": true,
+          "18,11": true,
+          "7,12": true,
+          "8,12": true,
+          "9,12": true,
+          "10,12": true,
+          "11,12": true,
+          "12,12": true,
+          "13,12": true,
+          "14,12": true,
+          "15,12": true,
+          "16,12": true,
+          "17,12": true,
+          "18,12": true,
+          "7,13": true,
+          "8,13": true,
+          "9,13": true,
+          "10,13": true,
+          "11,13": true,
+          "12,13": true,
+          "13,13": true,
+          "14,13": true,
+          "15,13": true,
+          "16,13": true,
+          "17,13": true,
+          "18,13": true,
+          "7,14": true,
+          "8,14": true,
+          "9,14": true,
+          "10,14": true,
+          "11,14": true,
+          "12,14": true,
+          "13,14": true,
+          "14,14": true,
+          "15,14": true,
+          "16,14": true,
+          "17,14": true,
+          "18,14": true,
+          "7,15": true,
+          "8,15": true,
+          "9,15": true,
+          "10,15": true,
+          "11,15": true,
+          "12,15": true,
+          "13,15": true,
+          "14,15": true,
+          "15,15": true,
+          "16,15": true,
+          "17,15": true,
+          "18,15": true,
+          "7,16": true,
+          "8,16": true,
+          "9,16": true,
+          "10,16": true,
+          "11,16": true,
+          "12,16": true,
+          "13,16": true,
+          "14,16": true,
+          "15,16": true,
+          "16,16": true,
+          "17,16": true,
+          "18,16": true,
+          "7,17": true,
+          "8,17": true,
+          "9,17": true,
+          "10,17": true,
+          "11,17": true,
+          "12,17": true,
+          "13,17": true,
+          "14,17": true,
+          "15,17": true,
+          "16,17": true,
+          "17,17": true,
+          "18,17": true,
+          "7,18": true,
+          "8,18": true,
+          "9,18": true,
+          "10,18": true,
+          "11,18": true,
+          "12,18": true,
+          "13,18": true,
+          "14,18": true,
+          "15,18": true,
+          "16,18": true,
+          "17,18": true,
+          "18,18": true,
+          "19,7": true,
+          "20,7": true,
+          "19,8": true,
+          "20,8": true,
+          "11,19": true,
+          "12,19": true,
+          "13,19": true,
+          "14,19": true,
+          "15,19": true,
+          "11,20": true,
+          "12,20": true,
+          "13,20": true,
+          "14,20": true,
+          "15,20": true,
+          "11,21": true,
+          "12,21": true,
+          "13,21": true,
+          "14,21": true,
+          "15,21": true,
+          "11,22": true,
+          "12,22": true,
+          "13,22": true,
+          "14,22": true,
+          "15,22": true,
+          "11,23": true,
+          "12,23": true,
+          "13,23": true,
+          "14,23": true,
+          "15,23": true
+        },
+        "modules": [
+          {
+            "id": 7,
+            "type": "stationControl",
+            "x": 12,
+            "y": 5,
+            "r": 0
+          },
+          {
+            "id": 8,
+            "type": "habitation",
+            "x": 8,
+            "y": 7,
+            "r": 0
+          },
+          {
+            "id": 9,
+            "type": "habitation",
+            "x": 15,
+            "y": 7,
+            "r": 0
+          },
+          {
+            "id": 10,
+            "type": "serviceShop",
+            "x": 8,
+            "y": 11,
+            "r": 0
+          },
+          {
+            "id": 11,
+            "type": "cargo",
+            "x": 15,
+            "y": 11,
+            "r": 0
+          },
+          {
+            "id": 12,
+            "type": "shield",
+            "x": 15,
+            "y": 15,
+            "r": 0
+          },
+          {
+            "id": 13,
+            "type": "cabin",
+            "x": 8,
+            "y": 15,
+            "r": 0
+          },
+          {
+            "id": 14,
+            "type": "dockingPort",
+            "x": 19,
+            "y": 7,
+            "r": 3,
+            "interface": "standard"
+          },
+          {
+            "id": 15,
+            "type": "stationHangar",
+            "x": 11,
+            "y": 17,
+            "r": 0,
+            "interface": "standard"
+          },
+          {
+            "id": 16,
+            "type": "airlock",
+            "x": 7,
+            "y": 10,
+            "r": 1,
+            "interface": "standard"
+          },
+          {
+            "id": 24,
+            "type": "ladder",
+            "x": 13,
+            "y": 10,
+            "r": 0
+          }
+        ]
+      },
+      {
+        "name": "Habitation",
+        "floors": {
+          "9,6": true,
+          "10,6": true,
+          "11,6": true,
+          "12,6": true,
+          "13,6": true,
+          "14,6": true,
+          "15,6": true,
+          "16,6": true,
+          "9,7": true,
+          "10,7": true,
+          "11,7": true,
+          "12,7": true,
+          "13,7": true,
+          "14,7": true,
+          "15,7": true,
+          "16,7": true,
+          "9,8": true,
+          "10,8": true,
+          "11,8": true,
+          "12,8": true,
+          "13,8": true,
+          "14,8": true,
+          "15,8": true,
+          "16,8": true,
+          "9,9": true,
+          "10,9": true,
+          "11,9": true,
+          "12,9": true,
+          "13,9": true,
+          "14,9": true,
+          "15,9": true,
+          "16,9": true,
+          "9,10": true,
+          "10,10": true,
+          "11,10": true,
+          "12,10": true,
+          "13,10": true,
+          "14,10": true,
+          "15,10": true,
+          "16,10": true,
+          "9,11": true,
+          "10,11": true,
+          "11,11": true,
+          "12,11": true,
+          "13,11": true,
+          "14,11": true,
+          "15,11": true,
+          "16,11": true,
+          "9,12": true,
+          "10,12": true,
+          "11,12": true,
+          "12,12": true,
+          "13,12": true,
+          "14,12": true,
+          "15,12": true,
+          "16,12": true,
+          "9,13": true,
+          "10,13": true,
+          "11,13": true,
+          "12,13": true,
+          "13,13": true,
+          "14,13": true,
+          "15,13": true,
+          "16,13": true,
+          "9,14": true,
+          "10,14": true,
+          "11,14": true,
+          "12,14": true,
+          "13,14": true,
+          "14,14": true,
+          "15,14": true,
+          "16,14": true
+        },
+        "modules": [
+          {
+            "id": 17,
+            "type": "habitation",
+            "x": 9,
+            "y": 6,
+            "r": 0
+          },
+          {
+            "id": 18,
+            "type": "habitation",
+            "x": 14,
+            "y": 6,
+            "r": 0
+          },
+          {
+            "id": 19,
+            "type": "shield",
+            "x": 9,
+            "y": 10,
+            "r": 0
+          },
+          {
+            "id": 20,
+            "type": "weapon",
+            "x": 15,
+            "y": 10,
+            "r": 0
+          },
+          {
+            "id": 21,
+            "type": "beamLaser",
+            "x": 9,
+            "y": 12,
+            "r": 0
+          },
+          {
+            "id": 22,
+            "type": "cargo",
+            "x": 15,
+            "y": 12,
+            "r": 0
+          },
+          {
+            "id": 25,
+            "type": "ladder",
+            "x": 13,
+            "y": 10,
+            "r": 0
+          }
+        ]
+      }
+    ],
+    "nextId": 26,
+    "migrationNotes": []
+  },
+  "derived": {
+    "cost": 72310,
+    "mass": 152.45,
+    "dryMass": 152.45,
+    "currentMass": 152.45,
+    "structureMass": 58.35,
+    "componentMass": 94.1,
+    "space": 66,
+    "occupiedCells": 142,
+    "freeCells": 247,
+    "floorCount": 389,
+    "widthM": 28,
+    "lengthM": 38,
+    "areaM2": 1556,
+    "deckCount": 3,
+    "range": 0,
+    "rating": 0,
+    "fuel": 0,
+    "cargo": 40,
+    "hidden": 0,
+    "shield": 2,
+    "weapon": 2,
+    "powerUse": 40.7,
+    "powerSupply": 64,
+    "endurance": 100,
+    "role": "Orbital station",
+    "capabilities": [
+      "cargo",
+      "shields",
+      "weapons",
+      "crew-quarters",
+      "extended-life-support",
+      "visitor-docking",
+      "ship-service"
+    ],
+    "berthCount": 0,
+    "shuttleCount": 0,
+    "carriedMass": 0,
+    "carriedCurrentMass": 0,
+    "carriedDryMass": 0,
+    "carriedCost": 0,
+    "passengers": 0,
+    "crewCapacity": 34,
+    "carriedCraft": [],
+    "performance": {
+      "dryMass": 152.45,
+      "currentMass": 152.45,
+      "cargoMass": 0,
+      "jumpFuelMass": 0,
+      "sublightFuelMass": 0,
+      "carriedLoadMass": 0,
+      "thrust": 0,
+      "acceleration": 0,
+      "accelerationRating": "sluggish",
+      "underpowered": false,
+      "rating": 0,
+      "range": 0,
+      "scenarios": {
+        "empty": {
+          "mass": 152.45,
+          "acceleration": 0,
+          "range": 0,
+          "cargoMass": 0,
+          "jumpFuelMass": 0,
+          "sublightFuelMass": 0,
+          "carriedLoadMass": 0
+        },
+        "half": {
+          "mass": 172.45,
+          "acceleration": 0,
+          "range": 0,
+          "cargoMass": 20,
+          "jumpFuelMass": 0,
+          "sublightFuelMass": 0,
+          "carriedLoadMass": 0
+        },
+        "full": {
+          "mass": 192.45,
+          "acceleration": 0,
+          "range": 0,
+          "cargoMass": 40,
+          "jumpFuelMass": 0,
+          "sublightFuelMass": 0,
+          "carriedLoadMass": 0
+        },
+        "current": {
+          "mass": 152.45,
+          "acceleration": 0,
+          "range": 0,
+          "cargoMass": 0,
+          "jumpFuelMass": 0,
+          "sublightFuelMass": 0,
+          "carriedLoadMass": 0
+        }
+      },
+      "sublight": {
+        "capacity": 0,
+        "current": 0,
+        "burnRate": 0,
+        "fullBurnSeconds": 0,
+        "currentBurnSeconds": 0,
+        "exhaustVelocity": 0,
+        "deltaV": 0
+      },
+      "jump": {
+        "capacity": 0,
+        "current": 0,
+        "massPerCharge": 0.25,
+        "fuelPerJump": 1,
+        "maxRangeJumps": 0,
+        "currentJumps": 0
+      },
+      "power": {
+        "supply": 64,
+        "idle": 22,
+        "cruise": 40.7,
+        "jump": 28,
+        "marginIdle": 42,
+        "marginCruise": 23.3,
+        "marginJump": 36
+      },
+      "loads": {
+        "cargo": 0,
+        "jumpFuel": 1,
+        "sublightFuel": 1
+      }
+    },
+    "combat": {
+      "shields": {
+        "capacity": 240,
+        "recharge": 12,
+        "draw": 8,
+        "count": 2
+      },
+      "weapons": [
+        {
+          "id": "weapon",
+          "name": "Pulse cannon",
+          "count": 1,
+          "damage": 18,
+          "cooldown": 0.45,
+          "range": 3,
+          "power": 3,
+          "dps": 40
+        },
+        {
+          "id": "beamLaser",
+          "name": "Beam laser",
+          "count": 1,
+          "damage": 54,
+          "cooldown": 1.5,
+          "range": 7,
+          "power": 7,
+          "dps": 36
+        }
+      ],
+      "totalDps": 76,
+      "fullPower": true
+    },
+    "airlocks": [
+      {
+        "id": 16,
+        "deck": 1,
+        "interface": "standard",
+        "reachable": true,
+        "clear": true,
+        "x": 7,
+        "y": 10,
+        "r": 1
+      }
+    ],
+    "dockingTargets": [
+      {
+        "id": 14,
+        "deck": 1,
+        "name": "Station docking port",
+        "interface": "standard",
+        "maxWidthM": 40,
+        "maxLengthM": 48,
+        "maxDecks": 5,
+        "approachClear": true,
+        "reachable": true
+      },
+      {
+        "id": 15,
+        "deck": 1,
+        "name": "Station hangar",
+        "interface": "standard",
+        "maxWidthM": 10,
+        "maxLengthM": 18,
+        "maxDecks": 2,
+        "approachClear": true,
+        "reachable": true
+      }
+    ]
+  },
+  "validation": {
+    "ready": true,
+    "jumpReady": false,
+    "issues": []
+  },
+  "rules": {
+    "schema": "apsis-ship-rules-v3",
+    "version": 3,
+    "notes": "Provisional engineering and economy rules; shared by authoring and gameplay blueprints. Not wired to the C++ simulation.",
+    "floorMass": 0.15,
+    "floorCost": 40,
+    "cellSizeM": 2,
+    "massReference": 100,
+    "floor": {
+      "id": "floor",
+      "name": "Hull floor",
+      "description": "One 2 m × 2 m structural floor section.",
+      "category": "Structure",
+      "uiCategory": "structure",
+      "w": 1,
+      "h": 1,
+      "cost": 40,
+      "mass": 0.15,
+      "space": 0,
+      "color": "#8b9fac",
+      "power": 0,
+      "walkable": true,
+      "cellSizeM": 2
+    },
+    "grid": {
+      "w": 26,
+      "h": 24
+    },
+    "limits": {
+      "minDecks": 1,
+      "maxDecks": 5,
+      "maxCarryDepth": 1,
+      "maxBudget": 100000000,
+      "maxModuleId": 1000000000,
+      "maxBlueprintName": 80,
+      "maxDeckName": 48,
+      "maxTemplateName": 48,
+      "maxMigrationNotes": 32,
+      "maxNoteLength": 300
+    },
+    "defaults": {
+      "buildType": "ship",
+      "budget": 100000,
+      "loads": {
+        "cargo": 0,
+        "jumpFuel": 1,
+        "sublightFuel": 1
+      },
+      "shipName": "Untitled vessel",
+      "stationName": "Untitled station",
+      "deckName": "Main deck",
+      "templateAlias": {
+        "starter": "flat"
+      },
+      "defaultCraft": "skiff"
+    },
+    "numeric": {
+      "precision": 6,
+      "epsilon": 0.000001
+    },
+    "rotations": [
+      {
+        "dx": 0,
+        "dy": 1
+      },
+      {
+        "dx": -1,
+        "dy": 0
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      },
+      {
+        "dx": 1,
+        "dy": 0
+      }
+    ],
+    "docking": {
+      "interfaces": [
+        "standard",
+        "cargo"
+      ],
+      "defaultInterface": "standard",
+      "allowQuarterTurn": true,
+      "targetKinds": [
+        "port",
+        "hangar"
+      ]
+    },
+    "performance": {
+      "massReference": 100,
+      "cargoMassPerUnit": 1,
+      "jumpFuelMassPerCharge": 0.25,
+      "jumpFuelPerJump": 1,
+      "baseLifeSupportDays": 60,
+      "suitReserveDays": 10,
+      "reserveLifeSupportDays": 30,
+      "scenarioFractions": {
+        "empty": 0,
+        "half": 0.5,
+        "full": 1
+      },
+      "accelerationBands": [
+        {
+          "min": 0,
+          "label": "sluggish"
+        },
+        {
+          "min": 0.25,
+          "label": "normal"
+        },
+        {
+          "min": 3,
+          "label": "hot"
+        }
+      ],
+      "underpoweredAcceleration": 0.25,
+      "advisoryShieldCount": 3,
+      "advisoryWeaponCount": 3,
+      "units": {
+        "mass": "tonnes",
+        "thrust": "kN",
+        "acceleration": "m/s²",
+        "sublightFuel": "tonnes",
+        "burnRate": "tonnes/s",
+        "deltaV": "m/s",
+        "jumpFuel": "charges",
+        "power": "power units"
+      }
+    },
+    "validation": {
+      "requiredSystems": {
+        "ship": [
+          "bridge",
+          "reactor",
+          "lifeSupport",
+          "engine"
+        ],
+        "station": [
+          "bridge",
+          "reactor",
+          "lifeSupport"
+        ]
+      },
+      "requiredAirlock": {
+        "ship": true,
+        "station": true
+      },
+      "uniqueSystems": [
+        "bridge",
+        "lifeSupport",
+        "jumpDrive"
+      ],
+      "fundingDefault": false,
+      "checks": {
+        "required_system": {
+          "severity": "error"
+        },
+        "command_access": {
+          "severity": "error"
+        },
+        "missing_airlock": {
+          "severity": "error"
+        },
+        "blocked_approach": {
+          "severity": "error"
+        },
+        "unreachable_component": {
+          "severity": "error"
+        },
+        "disconnected_hull": {
+          "severity": "error"
+        },
+        "budget": {
+          "severity": "error"
+        },
+        "power_shortfall": {
+          "severity": "warning"
+        },
+        "weak_acceleration": {
+          "severity": "warning"
+        },
+        "no_sublight_fuel": {
+          "severity": "warning"
+        },
+        "no_jump_fuel": {
+          "severity": "warning"
+        },
+        "unpaired_ladder": {
+          "severity": "warning"
+        },
+        "carried_not_ready": {
+          "severity": "warning"
+        },
+        "excess_defence": {
+          "severity": "warning"
+        },
+        "station_propulsion": {
+          "severity": "warning"
+        },
+        "migration": {
+          "severity": "warning"
+        },
+        "docking": {
+          "severity": "error"
+        },
+        "invalid_blueprint": {
+          "severity": "error"
+        },
+        "many_engines": {
+          "severity": "warning"
+        },
+        "large_fuel_capacity": {
+          "severity": "warning"
+        },
+        "no_cargo": {
+          "severity": "warning"
+        }
+      },
+      "defaultSeverity": "error"
+    },
+    "formulas": {
+      "structureMass": [
+        "mul",
+        "floorCount",
+        "floorMass"
+      ],
+      "dryMass": [
+        "add",
+        "structureMass",
+        "componentMass"
+      ],
+      "cargoMass": [
+        "mul",
+        "cargoUnits",
+        "cargoMassPerUnit"
+      ],
+      "jumpFuelMass": [
+        "mul",
+        "jumpFuelCharges",
+        "jumpFuelMassPerCharge"
+      ],
+      "loadedMass": [
+        "add",
+        "dryMass",
+        "cargoMass",
+        "jumpFuelMass",
+        "sublightFuelMass",
+        "carriedLoadMass"
+      ],
+      "acceleration": [
+        "div",
+        "thrust",
+        "mass"
+      ],
+      "range": [
+        "div",
+        [
+          "mul",
+          "rating",
+          "massReference"
+        ],
+        "mass"
+      ],
+      "burnSeconds": [
+        "div",
+        "fuel",
+        "burnRate"
+      ],
+      "exhaustVelocity": [
+        "div",
+        "thrust",
+        "burnRate"
+      ],
+      "deltaV": [
+        "mul",
+        "exhaustVelocity",
+        [
+          "ln",
+          [
+            "div",
+            "startMass",
+            "endMass"
+          ]
+        ]
+      ],
+      "jumpCount": [
+        "floor",
+        [
+          "div",
+          "fuel",
+          "fuelPerJump"
+        ]
+      ],
+      "endurance": [
+        "add",
+        "baseDays",
+        "suitDays",
+        [
+          "mul",
+          "reserves",
+          "reserveDays"
+        ]
+      ],
+      "weaponDps": [
+        "div",
+        "damage",
+        "cooldown"
+      ],
+      "fuelCapacityMass": [
+        "add",
+        "sublightCapacity",
+        [
+          "mul",
+          "jumpCapacity",
+          "jumpFuelMassPerCharge"
+        ]
+      ],
+      "fuelToDryMassRatio": [
+        "div",
+        "fuelMass",
+        "dryMass"
+      ]
+    },
+    "parts": [
+      {
+        "id": "bridge",
+        "name": "Flight deck",
+        "category": "Crew",
+        "system": "bridge",
+        "description": "Command and navigation. Crew access starts at this module.",
+        "w": 2,
+        "h": 2,
+        "cost": 1800,
+        "mass": 2,
+        "space": 0,
+        "color": "#72cde8",
+        "power": 2,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 2,
+          "cruise": 2,
+          "jump": 2
+        }
+      },
+      {
+        "id": "cabin",
+        "name": "Crew quarters",
+        "category": "Crew",
+        "description": "A two-berth cabin for crew rest during longer journeys.",
+        "w": 2,
+        "h": 2,
+        "cost": 500,
+        "mass": 1,
+        "space": 0,
+        "color": "#9db6ca",
+        "power": 0.5,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.5,
+          "cruise": 0.5,
+          "jump": 0.5
+        },
+        "effect": {
+          "crewCapacity": 2
+        }
+      },
+      {
+        "id": "lifeSupport",
+        "name": "Life support",
+        "category": "Crew",
+        "system": "lifeSupport",
+        "description": "Base air and water recycling. One base system per ship; 60 days plus a 10-day suit reserve.",
+        "w": 2,
+        "h": 2,
+        "cost": 1200,
+        "mass": 3,
+        "space": 0,
+        "color": "#80c5a8",
+        "power": 3,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 3,
+          "cruise": 3,
+          "jump": 3
+        }
+      },
+      {
+        "id": "lifeReserve",
+        "name": "Life-support reserve",
+        "category": "Crew",
+        "description": "Adds 30 endurance days when base life support is installed. Uses 6 equipment space and adds 4 mass.",
+        "w": 2,
+        "h": 2,
+        "cost": 2500,
+        "mass": 4,
+        "space": 6,
+        "color": "#80c5a8",
+        "power": 1,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 1,
+          "jump": 1
+        },
+        "effect": {
+          "lifeReserve": 1
+        }
+      },
+      {
+        "id": "ladder",
+        "name": "Deck ladder",
+        "category": "Structure",
+        "description": "Place at the same grid coordinate on adjacent decks to connect them.",
+        "w": 1,
+        "h": 1,
+        "cost": 250,
+        "mass": 0.2,
+        "space": 0,
+        "color": "#e5bc73",
+        "power": 0,
+        "uiCategory": "structure",
+        "walkable": true,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        },
+        "verticalLink": true
+      },
+      {
+        "id": "reactor",
+        "name": "Power plant",
+        "category": "Systems",
+        "system": "reactor",
+        "description": "Supplies 32 power units to all connected ship systems.",
+        "w": 2,
+        "h": 2,
+        "cost": 3200,
+        "mass": 6,
+        "space": 0,
+        "color": "#58d7c9",
+        "power": -32,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        },
+        "generation": 32
+      },
+      {
+        "id": "engine",
+        "name": "Sublight engine",
+        "category": "Propulsion",
+        "system": "engine",
+        "description": "Exhaust must face clear space. Rotate to change its exhaust direction.",
+        "w": 2,
+        "h": 3,
+        "cost": 1800,
+        "mass": 4,
+        "space": 0,
+        "color": "#f0a66a",
+        "power": 2,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.1,
+          "cruise": 2,
+          "jump": 0.2
+        },
+        "thrustKN": 120,
+        "sublightCapacity": 2,
+        "burnRate": 0.004,
+        "clearApproach": true
+      },
+      {
+        "id": "cockpit",
+        "name": "Compact cockpit",
+        "category": "Crew",
+        "system": "bridge",
+        "description": "A compact command station for an independently built small craft.",
+        "w": 1,
+        "h": 1,
+        "cost": 900,
+        "mass": 1,
+        "space": 0,
+        "color": "#72cde8",
+        "power": 1,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 1,
+          "jump": 1
+        }
+      },
+      {
+        "id": "microReactor",
+        "name": "Compact power plant",
+        "category": "Systems",
+        "system": "reactor",
+        "description": "Supplies 12 power units; suitable for a shuttle or small utility ship.",
+        "w": 1,
+        "h": 1,
+        "cost": 1600,
+        "mass": 2,
+        "space": 0,
+        "color": "#58d7c9",
+        "power": -12,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        },
+        "generation": 12
+      },
+      {
+        "id": "microLifeSupport",
+        "name": "Compact life support",
+        "category": "Crew",
+        "system": "lifeSupport",
+        "description": "A compact base air and water recycler; replaces a full-size base unit.",
+        "w": 1,
+        "h": 1,
+        "cost": 700,
+        "mass": 1,
+        "space": 0,
+        "color": "#80c5a8",
+        "power": 1,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 1,
+          "jump": 1
+        }
+      },
+      {
+        "id": "microEngine",
+        "name": "Compact sublight engine",
+        "category": "Propulsion",
+        "system": "engine",
+        "description": "A small engine with the same exterior-exhaust requirement as larger engines.",
+        "w": 1,
+        "h": 2,
+        "cost": 900,
+        "mass": 1.5,
+        "space": 0,
+        "color": "#f0a66a",
+        "power": 1,
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.1,
+          "cruise": 1,
+          "jump": 0.2
+        },
+        "thrustKN": 18,
+        "sublightCapacity": 0.5,
+        "burnRate": 0.001,
+        "clearApproach": true
+      },
+      {
+        "id": "shuttleSeats",
+        "name": "Passenger seats",
+        "category": "Crew",
+        "description": "Four passenger seats. Usable in any ordinary ship blueprint.",
+        "w": 1,
+        "h": 1,
+        "cost": 250,
+        "mass": 0.3,
+        "space": 0,
+        "color": "#9db6ca",
+        "power": 0,
+        "effect": {
+          "passengers": 4
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        }
+      },
+      {
+        "id": "shuttleDock",
+        "name": "External shuttle berth",
+        "category": "Shuttles",
+        "description": "An open berth for a carried blueprint up to 3 × 5 cells. The default quote includes a Skiff.",
+        "w": 4,
+        "h": 6,
+        "cost": 2500,
+        "mass": 2,
+        "space": 0,
+        "color": "#dfa963",
+        "power": 1,
+        "uiCategory": "shuttles",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 1,
+          "jump": 1
+        },
+        "carrier": {
+          "maxWidthM": 6,
+          "maxLengthM": 10,
+          "maxDecks": 5,
+          "defaultTemplate": "skiff"
+        },
+        "clearApproach": true
+      },
+      {
+        "id": "shuttleBay",
+        "name": "Enclosed shuttle bay",
+        "category": "Shuttles",
+        "description": "An enclosed bay for a carried blueprint up to 3 × 5 cells. Keep its launch mouth clear.",
+        "w": 5,
+        "h": 7,
+        "cost": 6000,
+        "mass": 5,
+        "space": 0,
+        "color": "#dfa963",
+        "power": 2,
+        "uiCategory": "shuttles",
+        "walkable": false,
+        "powerModes": {
+          "idle": 2,
+          "cruise": 2,
+          "jump": 2
+        },
+        "carrier": {
+          "maxWidthM": 6,
+          "maxLengthM": 10,
+          "maxDecks": 5,
+          "defaultTemplate": "skiff"
+        },
+        "clearApproach": true
+      },
+      {
+        "id": "drive05",
+        "name": "Jump drive · 0.5 J",
+        "category": "Propulsion",
+        "description": "Compact drive. Effective range falls as ship mass increases.",
+        "w": 2,
+        "h": 2,
+        "cost": 2500,
+        "mass": 4,
+        "space": 4,
+        "color": "#b8a6ef",
+        "power": 2,
+        "effect": {
+          "rating": 0.5
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.2,
+          "cruise": 0.2,
+          "jump": 2
+        },
+        "system": "jumpDrive"
+      },
+      {
+        "id": "drive10",
+        "name": "Jump drive · 1.0 J",
+        "category": "Propulsion",
+        "description": "Standard drive. Range = rating × 100 / ship mass.",
+        "w": 2,
+        "h": 3,
+        "cost": 2500,
+        "mass": 10,
+        "space": 8,
+        "color": "#b8a6ef",
+        "power": 4,
+        "effect": {
+          "rating": 1
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.4,
+          "cruise": 0.4,
+          "jump": 4
+        },
+        "system": "jumpDrive"
+      },
+      {
+        "id": "drive15",
+        "name": "Jump drive · 1.5 J",
+        "category": "Propulsion",
+        "description": "Long-range drive for a working hauler. One jump drive per ship.",
+        "w": 2,
+        "h": 4,
+        "cost": 5000,
+        "mass": 18,
+        "space": 14,
+        "color": "#b8a6ef",
+        "power": 6,
+        "effect": {
+          "rating": 1.5
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.6000000000000001,
+          "cruise": 0.6000000000000001,
+          "jump": 6
+        },
+        "system": "jumpDrive"
+      },
+      {
+        "id": "drive20",
+        "name": "Jump drive · 2.0 J",
+        "category": "Propulsion",
+        "description": "High-output drive. Larger footprint, greater range and mass.",
+        "w": 3,
+        "h": 4,
+        "cost": 7500,
+        "mass": 28,
+        "space": 22,
+        "color": "#b8a6ef",
+        "power": 9,
+        "effect": {
+          "rating": 2
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.9,
+          "cruise": 0.9,
+          "jump": 9
+        },
+        "system": "jumpDrive"
+      },
+      {
+        "id": "drive30",
+        "name": "Jump drive · 3.0 J",
+        "category": "Propulsion",
+        "description": "Expedition drive. A large investment in space and power.",
+        "w": 4,
+        "h": 5,
+        "cost": 7500,
+        "mass": 50,
+        "space": 40,
+        "color": "#b8a6ef",
+        "power": 14,
+        "effect": {
+          "rating": 3
+        },
+        "uiCategory": "systems",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1.4000000000000001,
+          "cruise": 1.4000000000000001,
+          "jump": 14
+        },
+        "system": "jumpDrive"
+      },
+      {
+        "id": "tank",
+        "name": "Jump fuel tank",
+        "category": "Cargo",
+        "description": "One additional jump between refuelling stops.",
+        "w": 1,
+        "h": 3,
+        "cost": 2500,
+        "mass": 2,
+        "space": 3,
+        "color": "#d7ab61",
+        "power": 0,
+        "effect": {
+          "fuel": 1
+        },
+        "uiCategory": "cargo",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        }
+      },
+      {
+        "id": "cargo",
+        "name": "Cargo hold",
+        "category": "Cargo",
+        "description": "Carries 10 cargo units. Loaded cargo adds mass using the shared cargo-density rule.",
+        "w": 2,
+        "h": 3,
+        "cost": 2500,
+        "mass": 3,
+        "space": 8,
+        "color": "#c9a67b",
+        "power": 0,
+        "effect": {
+          "cargo": 10
+        },
+        "uiCategory": "cargo",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        }
+      },
+      {
+        "id": "hidden",
+        "name": "Concealed hold",
+        "category": "Cargo",
+        "description": "Carries 10 concealed cargo units. Protection from scans, not departure logs.",
+        "w": 2,
+        "h": 3,
+        "cost": 5000,
+        "mass": 4,
+        "space": 16,
+        "color": "#b69baf",
+        "power": 0,
+        "effect": {
+          "hidden": 10
+        },
+        "uiCategory": "cargo",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        }
+      },
+      {
+        "id": "shield",
+        "name": "Shield emitter",
+        "category": "Systems",
+        "description": "Shield subsystem: 120 shield units, 6 units/second recharge at full power. Multiple emitters add capacity, recharge and draw.",
+        "w": 2,
+        "h": 2,
+        "cost": 2500,
+        "mass": 6,
+        "space": 6,
+        "color": "#79b5ee",
+        "power": 4,
+        "effect": {
+          "shield": 1
+        },
+        "uiCategory": "combat",
+        "walkable": false,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 4,
+          "jump": 4
+        },
+        "system": "shield",
+        "shield": {
+          "capacity": 120,
+          "recharge": 6,
+          "draw": 4
+        }
+      },
+      {
+        "id": "weapon",
+        "name": "Pulse cannon",
+        "category": "Systems",
+        "description": "An energy pulse cannon: short cooldown, 3 km theoretical range. No ammunition consumption is modeled.",
+        "w": 2,
+        "h": 2,
+        "cost": 2500,
+        "mass": 8,
+        "space": 6,
+        "color": "#df8587",
+        "power": 3,
+        "effect": {
+          "weapon": 1
+        },
+        "uiCategory": "combat",
+        "walkable": false,
+        "powerModes": {
+          "idle": 0.1,
+          "cruise": 3,
+          "jump": 0.1
+        },
+        "system": "weapon",
+        "weapon": {
+          "damage": 18,
+          "cooldown": 0.45,
+          "range": 3,
+          "power": 3
+        }
+      },
+      {
+        "space": 0,
+        "color": "#80c5cf",
+        "power": 0.2,
+        "walkable": true,
+        "uiCategory": "structure",
+        "id": "airlock",
+        "name": "Exterior airlock",
+        "category": "Structure",
+        "system": "airlock",
+        "description": "A walkable exterior hatch. Rotate its outward face toward clear space; supports standard or cargo docking interfaces.",
+        "w": 1,
+        "h": 1,
+        "cost": 600,
+        "mass": 0.5,
+        "clearApproach": true,
+        "docking": {
+          "kind": "airlock",
+          "interface": "standard"
+        },
+        "powerModes": {
+          "idle": 0.2,
+          "cruise": 0.2,
+          "jump": 0.2
+        }
+      },
+      {
+        "space": 0,
+        "color": "#dea667",
+        "power": 1,
+        "walkable": false,
+        "uiCategory": "station",
+        "id": "dockingPort",
+        "name": "Station docking port",
+        "category": "Station",
+        "system": "docking",
+        "description": "An external docking interface for visiting ships. Its outward approach must stay clear.",
+        "w": 2,
+        "h": 2,
+        "cost": 3200,
+        "mass": 3,
+        "clearApproach": true,
+        "docking": {
+          "kind": "port",
+          "interface": "standard",
+          "maxWidthM": 40,
+          "maxLengthM": 48,
+          "maxDecks": 5
+        },
+        "powerModes": {
+          "idle": 1,
+          "cruise": 1,
+          "jump": 1
+        }
+      },
+      {
+        "space": 0,
+        "color": "#dea667",
+        "power": 3,
+        "walkable": false,
+        "uiCategory": "station",
+        "id": "stationHangar",
+        "name": "Station hangar",
+        "category": "Station",
+        "system": "docking",
+        "description": "A landing/service hangar for visitors within the listed envelope. Exterior approach and compatible airlock required.",
+        "w": 5,
+        "h": 7,
+        "cost": 8500,
+        "mass": 9,
+        "clearApproach": true,
+        "docking": {
+          "kind": "hangar",
+          "interface": "standard",
+          "maxWidthM": 10,
+          "maxLengthM": 18,
+          "maxDecks": 2
+        },
+        "powerModes": {
+          "idle": 3,
+          "cruise": 3,
+          "jump": 3
+        }
+      },
+      {
+        "space": 0,
+        "color": "#d9b383",
+        "power": 4,
+        "walkable": false,
+        "uiCategory": "station",
+        "id": "serviceShop",
+        "name": "Service workshop",
+        "category": "Station",
+        "description": "Workshop and stores for maintenance of visiting craft.",
+        "w": 3,
+        "h": 3,
+        "cost": 2200,
+        "mass": 4,
+        "powerModes": {
+          "idle": 1,
+          "cruise": 4,
+          "jump": 1
+        },
+        "effect": {
+          "service": 1
+        }
+      },
+      {
+        "space": 0,
+        "color": "#9db6ca",
+        "power": 2,
+        "walkable": false,
+        "uiCategory": "station",
+        "id": "habitation",
+        "name": "Habitation block",
+        "category": "Station",
+        "description": "Eight crew berths and shared living space.",
+        "w": 3,
+        "h": 2,
+        "cost": 1500,
+        "mass": 3,
+        "effect": {
+          "crewCapacity": 8
+        },
+        "powerModes": {
+          "idle": 2,
+          "cruise": 2,
+          "jump": 2
+        }
+      },
+      {
+        "space": 0,
+        "color": "#72cde8",
+        "power": 2,
+        "walkable": false,
+        "uiCategory": "station",
+        "id": "stationControl",
+        "name": "Station control",
+        "category": "Station",
+        "system": "bridge",
+        "description": "Station command, traffic control and a starting point for crew access.",
+        "w": 2,
+        "h": 2,
+        "cost": 2400,
+        "mass": 3,
+        "powerModes": {
+          "idle": 2,
+          "cruise": 2,
+          "jump": 2
+        }
+      },
+      {
+        "space": 3,
+        "color": "#e2a364",
+        "power": 0,
+        "walkable": false,
+        "uiCategory": "cargo",
+        "id": "sublightTank",
+        "name": "Sublight propellant tank",
+        "category": "Cargo",
+        "description": "Adds four tonnes of sublight propellant capacity. Fuel mass depends on fill level.",
+        "w": 1,
+        "h": 3,
+        "cost": 1500,
+        "mass": 1,
+        "effect": {
+          "sublightFuel": 4
+        },
+        "powerModes": {
+          "idle": 0,
+          "cruise": 0,
+          "jump": 0
+        }
+      },
+      {
+        "id": "beamLaser",
+        "name": "Beam laser",
+        "category": "Systems",
+        "uiCategory": "combat",
+        "system": "weapon",
+        "description": "Long-range energy weapon: heavier, slower shots with a 7 km theoretical envelope. No combat simulation is included.",
+        "w": 2,
+        "h": 3,
+        "cost": 5000,
+        "mass": 10,
+        "space": 10,
+        "color": "#ec91ad",
+        "power": 7,
+        "powerModes": {
+          "idle": 0.2,
+          "cruise": 7,
+          "jump": 0.2
+        },
+        "walkable": false,
+        "effect": {
+          "weapon": 1
+        },
+        "weapon": {
+          "damage": 54,
+          "cooldown": 1.5,
+          "range": 7,
+          "power": 7
+        }
+      }
+    ],
+    "buildTypes": [
+      "ship",
+      "station"
+    ],
+    "carrier": {
+      "allowedBuildTypes": [
+        "ship"
+      ],
+      "defaultPart": "shuttleDock"
+    },
+    "schemaIds": {
+      "blueprint": "apsis-shipyard-v3",
+      "definition": "apsis-ship-definition-v3",
+      "acceptedBlueprints": [
+        "apsis-shipyard-v1",
+        "apsis-shipyard-v2",
+        "apsis-shipyard-v3"
+      ],
+      "acceptedDefinitions": [
+        "apsis-ship-definition-v1",
+        "apsis-ship-definition-v2",
+        "apsis-ship-definition-v3"
+      ]
+    },
+    "migration": {
+      "legacyHulls": [
+        "light",
+        "medium",
+        "heavy"
+      ],
+      "airlockPart": "airlock"
+    },
+    "combat": {
+      "units": {
+        "damage": "damage units",
+        "capacity": "shield units",
+        "recharge": "shield units/s",
+        "range": "km",
+        "power": "power units",
+        "cooldown": "s"
+      },
+      "note": "Theoretical full-power weapon and shield statistics. Combat, targeting and damage application are not simulated."
+    },
+    "advisories": {
+      "many_engines": {
+        "buildTypes": [
+          "ship"
+        ],
+        "minEngineCount": 4,
+        "text": "That is a lot of engines. The thrust and fuel bill are yours."
+      },
+      "large_fuel_capacity": {
+        "buildTypes": [
+          "ship"
+        ],
+        "minFuelToDryMassRatio": 0.5,
+        "text": "You have built a fuel tank with somewhere to sit. Loaded performance includes the extra mass."
+      },
+      "no_cargo": {
+        "buildTypes": [
+          "ship"
+        ],
+        "minModuleCount": 1,
+        "maxCargoCapacity": 0,
+        "text": "No cargo hold. This one will have to earn its keep another way."
+      }
+    }
+  }
+}
