@@ -13,6 +13,7 @@
 #include <numeric>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -100,8 +101,7 @@ void geometry(const Map &map, const std::set<RegionId> &viewed) {
     require(radius2 >= inner * inner && radius2 < outer * outer,
             "system outside annulus");
     require(a.orbit.epoch_vector == a.position &&
-                a.orbit.radius_raw == std::min(rounded_root(radius2),
-                                               config.outer_radius_raw - 1),
+                a.orbit.radius_raw == rounded_root(radius2),
             "incorrect orbit geometry");
     require(map.distance_milli_j(a.id, a.id) == 0, "self distance is not zero");
     require(!map.distance_milli_j(a.id, {a.id.region, 4}),
@@ -240,6 +240,81 @@ void boundary_and_ties() {
               tie.distance_milli_j(b, a) == 938,
           "exact milliJ tie did not round upward");
   geometry(tie, {{-2, -2}});
+}
+
+void rounded_outer_boundary() {
+  const Config config{128, 256, 4096};
+  const SystemId boundary_id{{-32, -1}, 0};
+  Map map(0, config);
+  require(map.view_region(boundary_id.region) == Status::ok,
+          "outer-boundary fixture view failed");
+  const auto systems = map.revealed_systems();
+  const auto fixture = std::find_if(
+      systems.begin(), systems.end(),
+      [boundary_id](const System &system) { return system.id == boundary_id; });
+  require(fixture != systems.end(), "outer-boundary fixture was omitted");
+  require(fixture->position == Point{-4095, -68},
+          "outer-boundary fixture position changed");
+  const auto radius2 = squared(fixture->position, {});
+  const auto outer = static_cast<std::uint64_t>(config.outer_radius_raw);
+  require(radius2 < outer * outer && rounded_root(radius2) == 4096,
+          "outer-boundary fixture does not round upward to Rout");
+  require(fixture->orbit.radius_raw == 4096 &&
+              fixture->orbit.radius_raw == config.outer_radius_raw,
+          "outer-boundary orbital radius must round to Rout without a clamp");
+  geometry(map, {boundary_id.region});
+}
+
+template <typename Operation> void moved_from_throws(Operation operation) {
+  auto check = [&operation](Map &source) {
+    bool threw = false;
+    try {
+      operation(source);
+    } catch (const std::logic_error &) {
+      threw = true;
+    }
+    require(threw, "moved-from operation did not throw std::logic_error");
+  };
+
+  Map source(42, Config{128, 256, 4096});
+  Map destination(std::move(source));
+  check(source);
+  source = std::move(destination);
+  check(destination);
+}
+
+void moves_preserve_and_restore_state() {
+  const Config config{128, 256, 4096};
+  constexpr std::uint64_t seed = 42;
+  Map source(seed, config);
+  require(source.view_region({4, 0}) == Status::ok, "move fixture view failed");
+  require(!source.revealed_systems().empty(),
+          "move fixture has no visible systems");
+  const auto before = snapshot(source);
+
+  Map destination(std::move(source));
+  require(snapshot(destination) == before,
+          "move construction changed the public map state");
+  require(destination.view_region({5, 0}) == Status::ok &&
+              snapshot(destination) == reveal(seed, config, {{4, 0}, {5, 0}}),
+          "move-constructed Map cannot reveal another cell");
+  const auto extended = snapshot(destination);
+
+  source = std::move(destination);
+  require(snapshot(source) == extended,
+          "move assignment did not restore the moved-from Map state");
+  require(source.view_region({4, 1}) == Status::ok &&
+              snapshot(source) ==
+                  reveal(seed, config, {{4, 0}, {5, 0}, {4, 1}}),
+          "restored Map cannot reveal another cell");
+
+  Map live_target(7, Config{4, 0, 4});
+  require(live_target.view_region({0, 0}) == Status::ok,
+          "live move-assignment target view failed");
+  const auto restored = snapshot(source);
+  live_target = std::move(source);
+  require(snapshot(live_target) == restored,
+          "move assignment into a live Map changed the transferred state");
 }
 
 void generation_order() {
@@ -426,10 +501,32 @@ void failures_are_atomic() {
 } // namespace
 
 int main() {
-  const std::array<std::pair<const char *, void (*)()>, 6> tests{{
+  const std::array<std::pair<const char *, void (*)()>, 16> tests{{
       {"independent format-v1 positions and calibration",
        format_v1_known_answers},
       {"inclusive inner boundary and exact milliJ ties", boundary_and_ties},
+      {"unclamped rounding at the outer boundary", rounded_outer_boundary},
+      {"moved-from view_region throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.view_region({4, 0}); }); }},
+      {"moved-from revealed_systems throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.revealed_systems(); }); }},
+      {"moved-from revealed_lanes throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.revealed_lanes(); }); }},
+      {"moved-from distance_milli_j throws logic_error",
+       [] {
+         moved_from_throws(
+             [](Map &map) { map.distance_milli_j({{4, 0}, 0}, {{4, 0}, 1}); });
+       }},
+      {"moved-from raw_units_per_j throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.raw_units_per_j(); }); }},
+      {"moved-from config throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.config(); }); }},
+      {"moved-from universe_seed throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.universe_seed(); }); }},
+      {"moved-from format_version throws logic_error",
+       [] { moved_from_throws([](Map &map) { map.format_version(); }); }},
+      {"moves preserve state and restore normal use",
+       moves_preserve_and_restore_state},
       {"generation order, config and repeat invariance", generation_order},
       {"independent Maps at 1/2/8 threads", thread_counts},
       {"fog, boundary refresh, private caches and frozen J", fog_cache_and_j},

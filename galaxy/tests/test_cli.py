@@ -159,6 +159,14 @@ class GalaxyCliTests(unittest.TestCase):
         self.assertIsInstance(result["seed"], str)
         self.assertEqual(result["seed"], "18446744073709551615")
 
+    def test_canonical_decimal_seed_and_regions_are_accepted(self):
+        regions = ((-5, 10), (0, 0), (-(1 << 31), (1 << 31) - 1))
+        for seed in (0, (1 << 64) - 1):
+            with self.subTest(seed=seed):
+                actual = self.cli_snapshot(seed, regions)
+                self.assertEqual(actual, self.library_snapshot(seed, regions))
+                self.assertEqual(actual["seed"], str(seed))
+
     def test_unrevealed_and_empty_regions(self):
         initial = self.cli_snapshot(42, ())
         self.assertEqual(initial["systems"], [])
@@ -175,6 +183,14 @@ class GalaxyCliTests(unittest.TestCase):
             "seed_overflow": ["--seed", "18446744073709551616"],
             "negative_seed": ["--seed", "-1"],
             "seed_suffix": ["--seed", "42x"],
+            "seed_leading_zeros": ["--seed", "007"],
+            "seed_double_zero": ["--seed", "00"],
+            "seed_negative_zero": ["--seed", "-0"],
+            "seed_plus_sign": ["--seed", "+1"],
+            "seed_leading_space": ["--seed", " 1"],
+            "seed_trailing_space": ["--seed", "1 "],
+            "seed_leading_tab": ["--seed", "\t1"],
+            "seed_sign_only": ["--seed", "-"],
             "missing_seed": [],
             "duplicate_seed": ["--seed", "1", "--seed", "2"],
             "missing_seed_value": ["--seed"],
@@ -183,6 +199,14 @@ class GalaxyCliTests(unittest.TestCase):
             "coordinate_underflow": ["--seed", "1", "--region", "0,-2147483649"],
             "extra_coordinate": ["--seed", "1", "--region", "2,0,1"],
             "missing_coordinate": ["--seed", "1", "--region", "2,"],
+            "coordinate_negative_zero": ["--seed", "1", "--region", "-0,0"],
+            "coordinate_leading_zero": ["--seed", "1", "--region", "01,0"],
+            "coordinate_plus_sign": ["--seed", "1", "--region", "+1,0"],
+            "coordinate_second_leading_space": ["--seed", "1", "--region", "1, 2"],
+            "coordinate_first_leading_space": ["--seed", "1", "--region", " 1,2"],
+            "coordinate_negative_leading_zero": ["--seed", "1", "--region", "0,-01"],
+            "coordinate_first_sign_only": ["--seed", "1", "--region", "-,0"],
+            "coordinate_second_sign_only": ["--seed", "1", "--region", "0,-"],
             "unknown_option": ["--seed", "1", "--bogus"],
         }
         for name, arguments in cases.items():
