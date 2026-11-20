@@ -33,8 +33,8 @@ python3 tools/report_table.py comparison.json > comparison.md
 
 Omit the path or use `-` to read stdin. Markdown is written to stdout with a
 trailing newline. Invalid JSON, excessive JSON nesting, invalid table shape,
-non-string cells, encoding errors, input file errors, and closed output pipes
-produce a diagnostic on stderr and exit status 2.
+non-string cells, encoding errors, input file errors, and closed stdout or output
+pipes produce a diagnostic on stderr and exit status 2.
 
 The example emits:
 
@@ -44,11 +44,13 @@ The example emits:
 | Pass rate (95% CI) |  |  |
 
 In the Markdown source, cells escape `&`, `<`, `>`, backslashes, and pipes as
-HTML character references. NUL, TAB, and U+2028 are emitted as `&#0;`, `&#9;`, and
-`&#8232;`, respectively. CRLF, CR, and LF line breaks become `<br>` within the
-cell. Other inline Markdown is retained, so backtick code spans display these
-character references and `<br>` literally. Omit backticks around content that
-needs these escapes to render as characters or line breaks.
+HTML character references. NUL is emitted as `&#9216;` (U+2400 SYMBOL FOR NULL,
+␀) so it remains visible in Markdown viewers. TAB, NEL (U+0085), line separator
+(U+2028), and paragraph separator (U+2029) are emitted as `&#9;`, `&#133;`,
+`&#8232;`, and `&#8233;`, respectively. CRLF, CR, and LF line breaks become `<br>`
+within the cell. Other inline Markdown is retained, so backtick code spans
+display these character references and `<br>` literally. Omit backticks around
+content that needs these escapes to render as characters or line breaks.
 
 The helper emits `---` separators without explicit column alignment; alignment
 depends on the Markdown renderer. Provide signs, units, and explanatory row
@@ -59,7 +61,6 @@ exposes the same renderer as `render_table(columns, rows)`, returning Markdown
 without a trailing newline and raising `ValueError` for invalid table shape.
 
 Lint: `ruff check tools/report_table.py` and `ruff format --check tools/report_table.py`
-with Ruff 0.14.6. Existing renderer and CLI tests run with
-`python3 -m unittest discover -s tests -v`. Additional tests for SF1, SF2, and the
-nits tracked in [issue #5](https://github.com/gobha-me/apsis/issues/5) will come
-from a separate session whose commits use `Agent-Role: tests`.
+with Ruff 0.14.6. Renderer and CLI tests, including coverage for SF1, SF2, and the
+nits tracked in [issue #5](https://github.com/gobha-me/apsis/issues/5), are already
+on main and run with `python3 -m unittest discover -s tests -v`.

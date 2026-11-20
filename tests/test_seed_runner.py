@@ -1,5 +1,6 @@
 """Exercise the public seed-runner API without a simulation implementation."""
 
+from fractions import Fraction
 import json
 import math
 import unittest
@@ -280,6 +281,44 @@ class RunSeedsTests(unittest.TestCase):
         self.assertEqual(interval["confidence"], confidence)
         self.assertAlmostEqual(interval["lower"], 0.5 - math.sqrt(3) / 6, places=12)
         self.assertAlmostEqual(interval["upper"], 0.5 + math.sqrt(3) / 6, places=12)
+
+    def test_fraction_confidence_matches_float_report_and_serializes(self):
+        def adapter(seed):
+            return SeedOutcome("passed" if seed == 0 else "failed")
+
+        report = run_seeds([0, 1], adapter, confidence=Fraction(1, 2))
+        expected = run_seeds([0, 1], adapter, confidence=0.5)
+        self.assertEqual(report, expected)
+        self.assertEqual(report["summary"]["completed"], 2)
+        interval = report["summary"]["pass_rate_interval"]
+        self.assertIs(type(interval["confidence"]), float)
+        self.assertEqual(interval["confidence"], 0.5)
+        self.assertLess(interval["lower"], 0.5)
+        self.assertGreater(interval["upper"], 0.5)
+        self.assertEqual(json.loads(json.dumps(report, allow_nan=False)), report)
+
+    def test_fraction_confidence_is_serializable_without_observations(self):
+        report = run_seeds([], confidence=Fraction(1, 2))
+        interval = report["summary"]["pass_rate_interval"]
+        self.assertEqual(
+            interval,
+            {"method": "wilson", "confidence": 0.5, "lower": None, "upper": None},
+        )
+        self.assertIs(type(interval["confidence"]), float)
+        self.assertEqual(json.loads(json.dumps(report, allow_nan=False)), report)
+
+    def test_string_confidences_are_rejected_before_hook_execution(self):
+        calls = []
+
+        def adapter(seed):
+            calls.append(seed)
+            return SeedOutcome("passed")
+
+        for confidence in ("0.5", " 0.5 ", "1/2"):
+            with self.subTest(confidence=confidence):
+                with self.assertRaisesRegex(ValueError, "confidence must be"):
+                    run_seeds([0, 1], adapter, confidence=confidence)
+                self.assertEqual(calls, [])
 
     def test_invalid_seeds_are_rejected_before_any_hook_runs(self):
         class IntegerSubclass(int):
