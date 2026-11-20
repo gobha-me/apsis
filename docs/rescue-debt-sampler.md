@@ -48,7 +48,7 @@ flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
     --target-debts 100 --max-seeds 1 --years 1
 ```
 
-The tiny run normally reports `max_seeds` and exits 2 because it has not met
+The tiny run normally reports `max_seeds` and exits 3 because it has not met
 the 100-episode target. That outcome preserves a useful report; it is not a
 simulation failure. Use a new output directory for every invocation. The
 sampler refuses an existing directory and does not resume campaigns.
@@ -108,10 +108,20 @@ previously completed seeds in its count. This checkpoint supports inspection
 and choosing a later `--start-index`; it is not automatic resume or aggregation
 across separate invocations. Preserve output before session scratch is deleted.
 
-Exit codes are 0 for `target_reached`, 2 for `max_seeds`, 1 for a runtime error,
-and 130 for interruption. Invalid command-line arguments also exit 2 before a
-campaign starts. A maximum-seed outcome explicitly says the requested target
-was not reached; it never pretends the available sample is 100 episodes.
+Exit codes are:
+
+- 0 for `target_reached`.
+- 1 for a runtime error.
+- 2 for invalid command-line arguments or other usage errors before a campaign
+  starts.
+- 3 for `max_seeds`.
+- 130 for `interrupted` after SIGINT or SIGTERM.
+
+SIGINT and SIGTERM update the summary and report to `interrupted` before the
+sampler exits, preserving the completed-seed checkpoint instead of leaving its
+outcome as `running`. An incomplete seed is not counted. A maximum-seed outcome
+explicitly says the requested target was not reached; it never pretends the
+available sample is 100 episodes.
 
 Each report row gives the career, total-episode, completed-episode, and
 open-episode counts. Observed p50/p90 combine completed clearing durations with
@@ -144,10 +154,13 @@ review that adapter when replacing `sim/` with a later import. The missing
 public helper also requires suppressing the renamed main's return-type warning
 only while including that file.
 
-The seed-runner scaffolding from issue #1 / PR #3 is not part of this import
-base and is not integrated here. A later change can compose with its documented
-interface. CI wiring and tests belong to a separate `Agent-Role: tests` session;
-this implementation adds neither tests nor assertions.
+The seed-runner scaffolding from issue #1 / PR #3 is available in
+`tools/seed_runner.py`, with its interface documented in
+[seed-runner.md](seed-runner.md). This sampler uses its own controller; a later
+change can compose with the seed-runner interface. Existing sampler coverage
+is in `tests/test_rescue_debt_cli.py`, `tests/test_rescue_debt_reporting.py`, and
+`tests/test_rescue_debt_native.py`. Follow-up tests and the CI build step for
+`rescue_debt_seed` belong to a separate `Agent-Role: tests` session.
 
 Lint the authored Python with `ruff check tools/rescue_debt_sampler.py` and
 `ruff format --check tools/rescue_debt_sampler.py`. Format-check the adapter
