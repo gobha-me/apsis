@@ -16,7 +16,7 @@ def _cell(value: str) -> str:
         .replace("|", "&#124;")
         .replace("\x00", "&#9216;")
         .replace("\t", "&#9;")
-        .replace("\x85", "&#133;")
+        .replace("\x85", "&#9252;")
         .replace("\u2028", "&#8232;")
         .replace("\u2029", "&#8233;")
         .replace("\r\n", "\n")

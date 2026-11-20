@@ -54,20 +54,20 @@ directory for every plan or campaign. An existing output directory is rejected.
 Mass, space, and horizon inputs are bounded to positive signed 32-bit integers
 to avoid overflow in the native runner's integer parsing and arithmetic.
 
-Native builds and campaigns must use the host's approved heavy-work wrapper and
-locks. The underlying build commands are:
+Native builds and campaigns must use the host's existing exclusive heavy-work
+lock and wrapper. On a desktop, acquire the lock without waiting; skip the step
+and record the skip if it is busy. Keep one heavy job per desktop, and keep
+build and run artifacts in the session's owned `TMPDIR` within its documented
+storage budget. The underlying build commands are:
 
 ```sh
 cmake -S sim -B "$TMPDIR/apsis-native"
 cmake --build "$TMPDIR/apsis-native" --target pilot_exp --parallel 2
 ```
 
-On D1, acquire `/tmp/desktop-temp-heavy.lock` with nonblocking `flock`, and run
-the build through `heavy-run`; skip it if the lock is busy. Keep the build and
-run artifacts in the session's owned `TMPDIR` and respect its storage budget.
 The imported `pilot_exp` launches workers from `hardware_concurrency()` and has
 no worker-count option. A short horizon does not cap those workers or remove
-world generation. Do not launch a campaign on D1 unless the host's worker and
+world generation. Launch a desktop campaign only if the host's worker and
 resource policy permits this executable. Planning and report regeneration do
 not need a native build.
 
