@@ -62,7 +62,7 @@ const settle = async () => {
   await new Promise(setImmediate);
 };
 
-async function openViewer(text, { status = 200, fetchError = null } = {}) {
+async function openViewer(text, { status = 200, fetchError = null, contentLength = null } = {}) {
   const elements = new Map();
   const controls = [];
   for (const match of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
@@ -94,7 +94,11 @@ async function openViewer(text, { status = 200, fetchError = null } = {}) {
   globalThis.fetch = async (url, options) => {
     requests.push({ url, options });
     if (fetchError) throw fetchError;
-    return { ok: status >= 200 && status < 300, status, text: async () => text };
+    return {
+      ok: status >= 200 && status < 300, status,
+      headers: { get: (name) => name === 'content-length' ? contentLength : null },
+      text: async () => text,
+    };
   };
   globalThis.requestAnimationFrame = (callback) => {
     frameCallbacks.set(++nextFrame, callback);
@@ -140,7 +144,7 @@ function sampleRun() {
     tripDestination: -1, end: 0, endDay: -1, wallet: '0', fuel: '0',
     strandings: '0', debt: '0',
   };
-  return {
+  return withEvidence({
     schema: 'apsis-viewer-v1',
     metadata: { adapterRevision: 'test-fixture', historyGap: 'Daily observations only; no rescue trajectory.' },
     run: { seed: 42, majors: 3, startDay: 10, horizon: 3, station: 0, settings: {}, inputs: [] },
@@ -156,8 +160,44 @@ function sampleRun() {
       { day: 12, type: 'pilot-event', source: 'Pilot.ev', kind: 5, arg: '9007199254740995' },
       { day: 13, type: 'general-war', source: 'derived', active: false, hostilePairs: 1, pairs: 3 },
     ],
-    finalStateHash: '0123456789abcdef',
-  };
+  });
+}
+
+// Test-owned evidence for synthetic playback data; the real loader verifies it.
+// Field insertion order here is the exporter frame() order used by sampleRun().
+function hashBytes(bytes) {
+  let first = 0x811c9dc5;
+  let second = 0x1b873593;
+  for (const byte of bytes) {
+    first = Math.imul(first ^ byte, 0x01000193) >>> 0;
+    second = Math.imul(second ^ byte, 0x5bd1e995) >>> 0;
+  }
+  return [first, second].map((lane) => lane.toString(16).padStart(8, '0')).join('');
+}
+
+function withEvidence(run) {
+  const checkpoint = Buffer.from('apsis synthetic checkpoint fixture v1', 'utf8');
+  run.finalCheckpoint = checkpoint.toString('hex');
+  run.finalStateHash = hashBytes(checkpoint);
+  run.framesHash = hashBytes(Buffer.from(
+    `apsis-viewer-frames-v1\n${run.finalStateHash}\n${JSON.stringify(run.frames)}`, 'utf8',
+  ));
+  return run;
+}
+
+async function recordedRun() {
+  const source = await readFile(new URL('fixtures/viewer/recorded-run.json', import.meta.url), 'utf8');
+  const run = JSON.parse(source);
+  assert.equal(run.finalStateHash, '2e41d7a6ad443e92');
+  assert.match(run.finalCheckpoint, /^(?:[0-9a-f]{2})+$/);
+  assert.equal(run.framesHash, '1b7f7ef382e6bf47');
+  // A fixture/import/validation failure must fail before the tampering step.
+  const page = await openViewer(source);
+  assert.equal(page.get('run').hidden, false, page.get('status').textContent);
+  assert.equal(page.get('status').className, '', page.get('status').textContent);
+  assert.equal(page.get('hash').textContent, run.finalStateHash);
+  assert.equal(page.get('step').disabled, false);
+  return run;
 }
 
 function assertRejected(page, message) {
@@ -166,22 +206,25 @@ function assertRejected(page, message) {
   assert.match(page.get('status').textContent, message);
   assert.match(page.get('status').textContent, /Generate run.json/);
   assert.ok(page.controls.every((control) => control.disabled));
+  assert.equal(page.get('hash').textContent, '');
+  assert.deepEqual(page.state(), {});
+  assert.deepEqual(page.timeline(), []);
+  assert.equal(page.callbacks.size, 0);
 }
 
 if (process.argv.includes('--hash-mismatch')) {
   await test('reject a tampered final checkpoint hash', async () => {
-    const source = await readFile(new URL('fixtures/viewer/recorded-run.json', import.meta.url), 'utf8');
-    const run = JSON.parse(source);
-    assert.equal(run.finalStateHash, '2e41d7a6ad443e92');
+    const run = await recordedRun();
     run.finalStateHash = '0000000000000000';
     const page = await openViewer(JSON.stringify(run));
-    if (page.get('run').hidden === false && page.get('status').className === '' &&
-        page.get('hash').textContent === '0000000000000000') {
-      // Python verifies this marker outside expectedFailure, so fixture/import
-      // failures cannot be mistaken for the known integrity defect.
-      process.stdout.write('APSIS_HASH_INTEGRITY_DEFECT: tampered hash accepted\n');
-    }
     assertRejected(page, /hash|checkpoint/i);
+  });
+} else if (process.argv.includes('--frame-mismatch')) {
+  await test('reject an edited recorded wallet with unchanged checkpoint and hashes', async () => {
+    const run = await recordedRun();
+    run.frames[5].pilot.wallet = '999999999999';
+    const page = await openViewer(JSON.stringify(run));
+    assertRejected(page, /frames.*hash|framesHash/i);
   });
 } else {
   await test('reloading and reparsing a recorded export preserves full timeline and checkpoint hash', async () => {
@@ -230,11 +273,11 @@ if (process.argv.includes('--hash-mismatch')) {
     page.get('step').click();
     assert.equal(page.state().Wallet, '9007199254740993');
     assert.deepEqual(page.timeline(), [[
-      'Day 11', 'Derived observation', 'General-war predicate became active: 2 hostile / 3 pairs.',
+      'Day 11', 'Derived observation', 'War-gate statistic over threshold (derived, daily): 2 hostile / 3 pairs.',
     ]]);
     page.get('step').click();
     assert.deepEqual(page.timeline().slice(1), [
-      ['Day 12', 'Derived observation', 'Stranding counter changed by 2; cumulative total 2.'],
+      ['Day 12', 'Derived observation', 'Rescues and lost-in-space deaths counter changed by 2; cumulative total 2.'],
       ['Day 12', 'Actual Pilot.ev event', 'Rescued · actual rescue price 9007199254740995.'],
     ]);
     assert.equal(page.state().Location, 'station 2, system 3');
@@ -242,7 +285,7 @@ if (process.argv.includes('--hash-mismatch')) {
     assert.equal(page.state()['Busy until'], 'day 15');
     page.get('step').click();
     assert.deepEqual(page.timeline().at(-1), [
-      'Day 13', 'Derived observation', 'General-war predicate became inactive: 1 hostile / 3 pairs.',
+      'Day 13', 'Derived observation', 'War-gate statistic below threshold (derived, daily): 1 hostile / 3 pairs.',
     ]);
     assert.equal(page.get('empty-timeline').hidden, true);
     const observations = page.timeline();
@@ -269,6 +312,7 @@ if (process.argv.includes('--hash-mismatch')) {
       frame.pilot.at = 0;
       frame.pilot.system = 1;
     }
+    withEvidence(run);
     const page = await openViewer(JSON.stringify(run));
     for (let day = 0; day <= run.run.horizon; day++) {
       page.seek(day);
@@ -276,9 +320,9 @@ if (process.argv.includes('--hash-mismatch')) {
       assert.equal(page.get('timeline-count').textContent, '0 / 0 entries');
       assert.equal(page.get('empty-timeline').hidden, false);
       assert.equal(page.get('empty-timeline').textContent,
-        'No general-war transitions, stranding deltas, or pilot events were recorded in this run.');
-      assert.equal(page.state()['General war (derived)'], 'active (2 / 3 hostile pairs)');
-      assert.equal(page.state()['Start war baseline (derived)'], 'active (2 / 3 hostile pairs)');
+        'No daily war-gate threshold changes, rescues and lost-in-space deaths counter deltas, or pilot events were recorded in this run.');
+      assert.equal(page.state()['War-gate statistic over threshold (derived, daily)'], 'over threshold (2 / 3 hostile pairs)');
+      assert.equal(page.state()['Start war-gate statistic baseline (derived, daily)'], 'over threshold (2 / 3 hostile pairs)');
       assert.equal(page.state().Location, 'station 0, system 1');
       assert.equal(page.state().Trip, 'inactive');
     }
@@ -360,6 +404,47 @@ if (process.argv.includes('--hash-mismatch')) {
       mutate(run);
       assertRejected(await openViewer(JSON.stringify(run)), message);
     }
+  });
+
+  await test('malformed final hashes are rejected before any state or hash is rendered', async () => {
+    const original = await recordedRun();
+    const cases = [
+      ['number', 42], ['null', null], ['missing', undefined], ['empty', ''],
+      ['wrong length', '1234'], ['uppercase', original.finalStateHash.toUpperCase()],
+      ['non-hex', 'gggggggggggggggg'], ['well-formed wrong value', '0000000000000000'],
+    ];
+    for (const [name, value] of cases) {
+      const run = structuredClone(original);
+      if (value === undefined) delete run.finalStateHash;
+      else run.finalStateHash = value;
+      const page = await openViewer(JSON.stringify(run));
+      assertRejected(page, /hash|checkpoint|apsis-viewer-v1/i);
+      assert.equal(page.get('run').hidden, true, name);
+    }
+  });
+
+  await test('constructor is rejected as a pilot end state despite matching frame evidence', async () => {
+    const run = sampleRun();
+    run.frames[1].pilot.end = 'constructor';
+    withEvidence(run);
+    assertRejected(await openViewer(JSON.stringify(run)), /daily state frame/);
+  });
+
+  await test('fetched exports obey the chosen-file 32 MiB cap for headers and actual UTF-8 bytes', async () => {
+    const limit = 32 * 1024 * 1024;
+    const valid = JSON.stringify(sampleRun());
+    // A short valid body must still reject a declared oversized response.
+    assertRejected(await openViewer(valid, { contentLength: String(limit + 1) }), /smaller than 32 MiB/);
+    // Valid JSON padded with whitespace tests actual text length without a header.
+    assertRejected(await openViewer(valid + ' '.repeat(limit + 1 - valid.length)), /smaller than 32 MiB/);
+    // Characters fit under the cap, but actual UTF-8 bytes exceed it; a lying
+    // Content-Length must not bypass the independently checked response body.
+    const run = sampleRun();
+    run.metadata.historyGap = 'é'.repeat(Math.floor(limit / 2) + 1);
+    const multibyte = JSON.stringify(run);
+    assert.ok(multibyte.length < limit);
+    assert.ok(Buffer.byteLength(multibyte, 'utf8') > limit);
+    assertRejected(await openViewer(multibyte, { contentLength: '1' }), /smaller than 32 MiB/);
   });
 
   await test('file validation and recovery use the real file loader', async () => {

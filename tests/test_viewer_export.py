@@ -67,6 +67,8 @@ class RecordedViewerExportTests(unittest.TestCase):
         artifact = json.loads(RECORDED.read_text(encoding="utf-8"))
         self.assertEqual(artifact["schema"], "apsis-viewer-v1")
         self.assertEqual(artifact["finalStateHash"], "2e41d7a6ad443e92")
+        self.assertEqual(artifact["framesHash"], "1b7f7ef382e6bf47")
+        self.assertRegex(artifact["finalCheckpoint"], r"^(?:[0-9a-f]{2})+$")
         run = artifact["run"]
         self.assertEqual(
             [run[key] for key in ("seed", "majors", "startDay", "horizon", "station")],
@@ -252,6 +254,51 @@ class ViewerExportCliTests(unittest.TestCase):
             ],
         )
         self.assertEqual(artifact["finalStateHash"], actual["finalStateHash"])
+
+    @unittest.skipUnless(
+        OBSERVATIONS, "set APSIS_VIEWER_OBSERVATIONS for real sim oracle"
+    )
+    def test_real_main_loop_stranding_deltas_and_war_gate_transitions(self):
+        recipe = (
+            ROOT / "tests" / "fixtures" / "viewer" / "transitions-run.txt"
+        ).read_text(encoding="utf-8")
+        exported = self.run_export(recipe)
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        oracle = subprocess.run(
+            [OBSERVATIONS, "oracle"],
+            input=recipe,
+            text=True,
+            capture_output=True,
+            cwd=ROOT,
+            timeout=15,
+            check=False,
+        )
+        self.assertEqual(oracle.returncode, 0, oracle.stderr)
+        actual = json.loads(oracle.stdout)
+        artifact = json.loads(exported.stdout)
+        expected = observed_timeline(actual["frames"])
+        war = [entry for entry in expected if entry["type"] == "general-war"]
+        strandings = [entry for entry in expected if entry["type"] == "stranding"]
+        self.assertGreaterEqual(len(strandings), 2)
+        self.assertTrue(any(entry["delta"] != entry["total"] for entry in strandings))
+        self.assertTrue(
+            any(entry["day"] < actual["frames"][-1]["day"] for entry in war)
+        )
+        # A sustained departure from the baseline detects a missing previous-war
+        # update; the second rescue distinguishes an increment from its total.
+        self.assertEqual(
+            [(entry["day"], entry["active"]) for entry in war], [(23910, True)]
+        )
+        self.assertEqual(
+            [(entry["day"], entry["delta"], entry["total"]) for entry in strandings],
+            [(24654, "1", "1"), (25012, "1", "2")],
+        )
+        self.assertEqual(artifact["timeline"], expected)
+        self.assertEqual(artifact["finalStateHash"], actual["finalStateHash"])
+        for frame, raw in zip(artifact["frames"], actual["frames"], strict=True):
+            self.assertEqual(frame["pilot"]["strandings"], raw["strandings"])
+            self.assertEqual(frame["war"]["hostilePairs"], raw["hostilePairs"])
+            self.assertEqual(frame["war"]["pairs"], raw["pairs"])
 
 
 @unittest.skipUnless(

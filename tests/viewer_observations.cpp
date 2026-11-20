@@ -24,10 +24,11 @@ int oracle() {
   Run run{};
   if (!readRun(run))
     return 2;
-  // One fixed seed and bounded recipes, including its first real debt warning.
-  if (run.startDay != 0 || run.horizon > 3020)
-    return 2;
+  // Replay the same bounded recipe through the real sim; timeline expectations
+  // are calculated separately in Python from these raw daily snapshots.
   World world = create(run.seed, run.majors, apsis::Rules{});
+  while (world.day < run.startDay)
+    step(world);
   std::cout << "{\"frames\":[";
   rawFrame(world);
   size_t input = 0;
