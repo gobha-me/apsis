@@ -1,0 +1,2 @@
+sample 200 seeds, intents off: general war in 22 careers (11.0%), contests 1055, captures 496, junction-change months 673, months at general war 2813
+sample 200 seeds, intents on : general war in 18 careers (9.0%), contests 1048, captures 442, junction-change months 622, months at general war 2585

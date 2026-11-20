@@ -1,0 +1,5 @@
+{"mode":"v0.20 (Node)","years":2100,"s":12.979,"yearsPerS":162,"msPerYear":6.18}
+{"mode":"v2 intents off (= v0.20)","years":2100,"s":2.859,"yearsPerS":734,"msPerYear":1.361}
+{"mode":"v2 intents on","years":2100,"s":3.183,"yearsPerS":660,"msPerYear":1.516}
+{"mode":"WebAssembly, v2 intents off (= v0.20)","years":2100,"s":3.345,"yearsPerS":628,"msPerYear":1.593}
+{"mode":"WebAssembly, v2 intents on","years":2100,"s":3.677,"yearsPerS":571,"msPerYear":1.751}

@@ -1,0 +1,490 @@
+{
+ "hauler": {
+  "careers": 21,
+  "net": 1319,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.3,
+   2.0,
+   7.6
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 0,
+  "smugLogged": 0,
+  "loggedPct": null,
+  "logsLost": 770,
+  "odd": 0,
+  "oddCharges": 0,
+  "under": 0,
+  "underPay": 0,
+  "meets": 0,
+  "meetsMissed": 0,
+  "scans": 2535,
+  "warrants": 0,
+  "minor": 0,
+  "serious": 0,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 0,
+  "pirates": 139,
+  "resisted": 33,
+  "looted": 106,
+  "recoveryMedianDays": {
+   "1": null,
+   "2": null,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "crisis": {
+  "careers": 21,
+  "net": 1484,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.2,
+   1.7,
+   6.8
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 0,
+  "smugLogged": 0,
+  "loggedPct": null,
+  "logsLost": 867,
+  "odd": 20,
+  "oddCharges": 0,
+  "under": 0,
+  "underPay": 0,
+  "meets": 0,
+  "meetsMissed": 0,
+  "scans": 2531,
+  "warrants": 0,
+  "minor": 0,
+  "serious": 0,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 0,
+  "pirates": 135,
+  "resisted": 32,
+  "looted": 103,
+  "recoveryMedianDays": {
+   "1": null,
+   "2": null,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "pathfinder": {
+  "careers": 21,
+  "net": 332,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.2,
+   0.7,
+   4.7
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 0,
+  "smugLogged": 0,
+  "loggedPct": null,
+  "logsLost": 1434,
+  "odd": 0,
+  "oddCharges": 0,
+  "under": 0,
+  "underPay": 0,
+  "meets": 0,
+  "meetsMissed": 0,
+  "scans": 1394,
+  "warrants": 0,
+  "minor": 0,
+  "serious": 0,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 0,
+  "pirates": 79,
+  "resisted": 23,
+  "looted": 56,
+  "recoveryMedianDays": {
+   "1": null,
+   "2": null,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "careful": {
+  "careers": 21,
+  "net": 770,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.4,
+   0.5,
+   1.1
+  ],
+  "ends": {
+   "alive": 20,
+   "hazard": 1
+  },
+  "smugDeps": 715,
+  "smugLogged": 369,
+  "loggedPct": 51.6,
+  "logsLost": 813,
+  "odd": 26,
+  "oddCharges": 0,
+  "under": 704,
+  "underPay": 816015,
+  "meets": 146,
+  "meetsMissed": 0,
+  "scans": 2720,
+  "warrants": 45,
+  "minor": 3,
+  "serious": 2,
+  "grave": 6,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 12900,
+  "pirates": 92,
+  "resisted": 23,
+  "looted": 69,
+  "recoveryMedianDays": {
+   "1": 97,
+   "2": 193.5,
+   "3": 30.0
+  },
+  "recoveryN": {
+   "1": 3,
+   "2": 2,
+   "3": 6
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "bold": {
+  "careers": 21,
+  "net": 868,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.3,
+   0.5,
+   0.8
+  ],
+  "ends": {
+   "alive": 20,
+   "hazard": 1
+  },
+  "smugDeps": 674,
+  "smugLogged": 398,
+  "loggedPct": 59.1,
+  "logsLost": 472,
+  "odd": 7,
+  "oddCharges": 0,
+  "under": 659,
+  "underPay": 793881,
+  "meets": 77,
+  "meetsMissed": 0,
+  "scans": 3332,
+  "warrants": 34,
+  "minor": 2,
+  "serious": 6,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 13800,
+  "pirates": 97,
+  "resisted": 23,
+  "looted": 74,
+  "recoveryMedianDays": {
+   "1": 63.5,
+   "2": 202.5,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 2,
+   "2": 6,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "reckless": {
+  "careers": 21,
+  "net": 2016,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.3,
+   0.5,
+   0.8
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 2956,
+  "smugLogged": 1038,
+  "loggedPct": 35.1,
+  "logsLost": 1436,
+  "odd": 142,
+  "oddCharges": 0,
+  "under": 2766,
+  "underPay": 3340678,
+  "meets": 1115,
+  "meetsMissed": 0,
+  "scans": 1442,
+  "warrants": 487,
+  "minor": 101,
+  "serious": 11,
+  "grave": 148,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 24,
+  "escapes": 14,
+  "fines": 120000,
+  "pirates": 77,
+  "resisted": 10,
+  "looted": 67,
+  "recoveryMedianDays": {
+   "1": 20,
+   "2": 205,
+   "3": 30
+  },
+  "recoveryN": {
+   "1": 101,
+   "2": 11,
+   "3": 147
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 1
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "payer": {
+  "careers": 21,
+  "net": 858,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.3,
+   0.5,
+   1.0
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 734,
+  "smugLogged": 436,
+  "loggedPct": 59.4,
+  "logsLost": 596,
+  "odd": 16,
+  "oddCharges": 0,
+  "under": 716,
+  "underPay": 844536,
+  "meets": 69,
+  "meetsMissed": 0,
+  "scans": 3779,
+  "warrants": 31,
+  "minor": 0,
+  "serious": 6,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 12900,
+  "pirates": 99,
+  "resisted": 26,
+  "looted": 73,
+  "recoveryMedianDays": {
+   "1": null,
+   "2": 199.0,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 0,
+   "2": 6,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "forgetful": {
+  "careers": 21,
+  "net": 808,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.4,
+   0.5,
+   1.0
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 1118,
+  "smugLogged": 511,
+  "loggedPct": 45.7,
+  "logsLost": 800,
+  "odd": 32,
+  "oddCharges": 0,
+  "under": 1102,
+  "underPay": 1209108,
+  "meets": 205,
+  "meetsMissed": 0,
+  "scans": 3568,
+  "warrants": 56,
+  "minor": 48,
+  "serious": 3,
+  "grave": 8,
+  "breaches": 0,
+  "informs": 0,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 16200,
+  "pirates": 80,
+  "resisted": 12,
+  "looted": 68,
+  "recoveryMedianDays": {
+   "1": 33,
+   "2": 189,
+   "3": 30.0
+  },
+  "recoveryN": {
+   "1": 47,
+   "2": 3,
+   "3": 8
+  },
+  "recoveryOpen": {
+   "1": 1,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ },
+ "double agent": {
+  "careers": 21,
+  "net": 771,
+  "span": "PASS",
+  "reach3": 21,
+  "stepYears": [
+   0.5,
+   0.7,
+   4.1
+  ],
+  "ends": {
+   "alive": 21
+  },
+  "smugDeps": 86,
+  "smugLogged": 63,
+  "loggedPct": 73.3,
+  "logsLost": 378,
+  "odd": 0,
+  "oddCharges": 0,
+  "under": 78,
+  "underPay": 122844,
+  "meets": 12,
+  "meetsMissed": 0,
+  "scans": 3304,
+  "warrants": 23,
+  "minor": 0,
+  "serious": 5,
+  "grave": 0,
+  "breaches": 0,
+  "informs": 21,
+  "runs": 0,
+  "escapes": 0,
+  "fines": 3600,
+  "pirates": 125,
+  "resisted": 37,
+  "looted": 88,
+  "recoveryMedianDays": {
+   "1": null,
+   "2": 195,
+   "3": null
+  },
+  "recoveryN": {
+   "1": 0,
+   "2": 5,
+   "3": 0
+  },
+  "recoveryOpen": {
+   "1": 0,
+   "2": 0,
+   "3": 0
+  },
+  "softlock": 0,
+  "ledger": true
+ }
+}

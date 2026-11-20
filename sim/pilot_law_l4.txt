@@ -1,0 +1,10 @@
+way out 1: pay the fine clears the warrant                                             PASS
+way out 2: inform clears it, pays, and locks courier and spy work                      PASS
+way out 3: debt clears it; the fine is owed to the house, garnished                    PASS
+a contraband departure always stands (interest on)                                     PASS
+an empty departure on a rival's mission is odd: heat, but never evidence or a warrant (40 in a row) PASS
+  rule interest off: every departure stands                                            PASS
+docking where exiled is a breach: a serious charge and a term restart, never an ending PASS
+exile is docking only: 50 scanned arrivals in the exiled house's system, clean ship: no charge PASS
+the graveAt-th offence with one house is grave: exile and deportation, the pilot keeps flying PASS
+9 / 9

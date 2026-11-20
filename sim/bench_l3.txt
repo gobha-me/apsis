@@ -1,0 +1,8 @@
+{"version":"v2 native","style":"hauler","careers":21,"pilotYears":840,"msPerPilotYear":2.66}
+{"version":"v2 native","style":"crisis","careers":21,"pilotYears":840,"msPerPilotYear":2.60}
+{"version":"v2 native","style":"pathfinder","careers":21,"pilotYears":840,"msPerPilotYear":4.66}
+}
+
+Node.js v22.23.4
+{"version":"v0.20 (Node)","style":"hauler","careers":21,"pilotYears":840,"msPerPilotYear":13.35}
+{"version":"v0.20 (Node)","style":"crisis","careers":21,"pilotYears":840,"msPerPilotYear":14.41}
