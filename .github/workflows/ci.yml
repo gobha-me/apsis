@@ -40,6 +40,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends cmake make g++-13
+      - name: Build and test rescue-debt helper
+        env:
+          APSIS_RESCUE_DEBT_DRIVER: ${{ runner.temp }}/rescue-debt-build/rescue_debt_seed
+        run: |
+          cmake -S tools -B "$RUNNER_TEMP/rescue-debt-build" -DCMAKE_CXX_COMPILER=g++-13
+          cmake --build "$RUNNER_TEMP/rescue-debt-build" --target rescue_debt_seed --parallel 2
+          python -m unittest discover -s tests -p test_rescue_debt_native.py -v
       - name: Build native sim
         id: native_build
         run: |
