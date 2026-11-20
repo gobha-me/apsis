@@ -73,8 +73,8 @@ definitions and stock identifiers, never caller-selected server paths or URLs.
 | --- | --- | --- |
 | `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
 | `validate` | Blueprint or definition; check schema, hull, parts, required systems, crew routes, adjacent-deck ladders, station modules, carried craft, and approaches using active rules. | PASS/FAIL and structured issues; recomputed definition when normalization succeeds |
-| `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump; advisory issues |
-| `dock` | Host station, target deck index/module ID, and visiting ship. Select a visitor airlock when needed; report the selection and rule-defined alignment/clearance checks. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
+| `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump; issues with rule-defined severity (default `warn`) |
+| `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks using any compatible matching visitor airlock meeting F03; the tool does not pick an airlock. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
 | `render` | Valid design plus bounded render options (deck/stack, dimensions). | One PNG per deck, `stack.png`, a manifest, and a stack ZIP containing those artifacts |
 | `selftest` | Installed, versioned example suite; no arbitrary test code supplied by callers. | Per-case expected/actual results and aggregate PASS/FAIL |
 
@@ -93,10 +93,11 @@ An issue has a stable `code`, `severity`, readable `message`, and a JSON Pointer
 Sort issues by path, code, and severity. Clients branch on codes, not prose.
 If rules cannot load, identity fields are null and the operation fails clearly.
 
-Structural errors fail a build. Performance findings are warnings and never
-block an otherwise legal build, including low thrust, inadequate power, or absent
-jump fuel. Malformed input or invalid rules still fail `perf`; an unfavorable
-performance value does not. An undefined or invalid formula rejects the design
+Structural errors fail a build. The rules file sets validation severity; the
+default for performance checks is `warn`, including low thrust, inadequate
+power, or absent jump fuel. A performance finding fails a build when the active
+rules give it error severity; warnings remain non-blocking. Malformed input or
+invalid rules still fail `perf`. An undefined or invalid formula rejects the design
 with a clear structured error, including during performance evaluation (F10).
 Docking incompatibility fails `dock`. A self-test
 passes when actual behavior matches expectations, including expected rejection
@@ -121,12 +122,13 @@ SHA-verified rules/assets, available capacity, and a service that is not drainin
 Readiness does not run a costly self-test per request.
 
 Start with one request at a time and explicit configurable input/output byte,
-JSON nesting, render-pixel, and execution-time limits. Use the same input limits
+JSON nesting, render-pixel, and execution-time limits, with finite default
+request-size and execution-time limits. Use the same input limits
 in both adapters. Game limits and technical input sanity limits come from the
 rules file, with distinct labels; operational caps are separate service settings.
-The 100M cr input cap is technical, not a game budget limit or an affordability
-check (F09). Reject work exceeding a cap with a structured
-resource error. Defaults must be measured and documented with #52/#53 and reviewed
+Use the technical input caps as interpreted below from F09's owner picks;
+the shipyard does not enforce player affordability. Reject work exceeding a cap
+with a structured resource error. Defaults must be measured and documented with #52/#53 and reviewed
 by Talos for deployment, rather than invented as balance constraints here.
 
 ## v4 schemas and v3-to-v4 migration
@@ -149,37 +151,53 @@ the active rules. `buildType` distinguishes ships and stations without a separat
 station validator. JSON Schemas describe input shape; the core checks occupancy,
 connectivity, reachability, and rule-dependent relationships.
 
-The following owner decisions, recorded on 2026-11-20 via Luna, take effect in
+The following owner picks, recorded on 2026-11-20 via Luna, take effect in
 the v4 rules file and migration, and in the v4 validator. They do not change v3
 golden fixtures:
 
-1. Jump drive prices are 0.5 J = 1,500, 1.0 J = 2,500, 1.5 J = 3,750, 2.0 J = 5,000 and 3.0 J = 7,500 cr.
-2. Docking ports check only airlock alignment and approach clearance, with no size limit, so a 20x34 m ship fits a port. Only hangars limit size, by width, length and deck count.
-3. An airlock is aligned when it's on the same deck as the port, on the exterior hull, facing outward, and within 1 cell of offset from the port. Docking ports have no size limit; only hangars limit size.
-4. Rustbucket stays a deliberate failing example, a known-bad fixture the validator must reject. Keep it as a negative test.
-5. The rules file wins: names up to 80 characters, budgets up to 100M cr. The UI should read its limits from the rules.
-6. An undefined or invalid formula rejects the design with a clear error, never a silent zero.
+Owner pick, 2026-11-20 4:53 PM ET (Luna question card): "Jump drives: scale price with range, 1,500 / 2,500 / 7,500"
 
-F09 clarification (via Luna, 2026-11-20, 5:14 PM America/New_York):
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F01: 1.5 J = 3,750, 2.0 J = 5,000"
 
-- The 100M cr is only a technical sanity limit on input values, not a game rule. Label it that way in the rules and docs.
-- In the game, a build's budget is whatever the player can afford (money plus available credit). The sim enforces that, not the shipyard.
-- The 80-character name limit stands.
-
+**Interpretation (F01):** The 4:53 PM options were for 0.5 / 1.0 / 3.0 J.
+Together the picks set 0.5 J = 1,500, 1.0 J = 2,500, 1.5 J = 3,750,
+2.0 J = 5,000 and 3.0 J = 7,500 cr.
 The v3 0.5 J, 1.5 J, and 2.0 J prices are respectively 2,500, 5,000, and
 7,500 cr; v4 uses 1,500, 3,750, and 5,000 cr. The 1.0 J and 3.0 J prices
-already match. Use these five explicit prices without inferring interpolation
-(F01).
+already match. Use these five explicit prices without inferring interpolation.
+
+Owner pick, 2026-11-20 4:53 PM ET (Luna question card): "Docking: yes, ports check airlock and clearance, only hangars limit size"
+
+**Interpretation (F02):** The question was whether a 20×34 m ship should fit a
+docking port. It may pass if every F18 check passes; the size decision does not
+remove structural or crew-reachability checks.
 Remove per-port width, length, and deck caps from v4 rules and all port checks;
 do not merely raise the numbers. Hangars retain rule-defined width, length, and
 deck-count limits. Global definition limits still apply through the validator.
-The v4 model must expose the airlock's deck, exterior hull position, outward
-facing, and port-relative offset in cells for docking checks. The validator and
-`dock` require all four alignment conditions, including the inclusive 1-cell
-offset bound, plus approach clearance; interface-label equality alone is
-insufficient (F03). Hold-specific docking/airlock rules remain open in F17.
 
-In v4 rules, name the fields `technicalLimits.maxBlueprintNameCharacters`
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
+
+**Interpretation (F03):** The v4 model exposes the airlock's deck, exterior hull
+position, outward facing, and port-relative offset in cells for docking checks. The validator and
+`dock` require all four alignment conditions, including the inclusive 1-cell
+offset bound; interface-label equality alone is insufficient. These conditions
+are part of F18's complete port-dock pass rule below. Hold-specific
+docking/airlock rules remain open in F17.
+
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
+
+**Interpretation (F07):** Keep Rustbucket as a known-bad negative fixture the
+validator must reject; migration must not repair it to make it pass.
+
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F09: rules file wins, 80 chars / 100M"
+
+Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Budget limits I thought it would be up to whatever could be afforded?"
+
+Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Keep 100M as a technical sanity limit only; in game, budget is what the player can afford"
+
+**Interpretation (F09):** The 80-character name limit stands. The 100M cr value
+is a technical input sanity cap, not a game budget. In v4 rules, put these
+fields under technical limits: `technicalLimits.maxBlueprintNameCharacters`
 (80) and `technicalLimits.maxBudgetInputCr` (100000000). Label the latter as a
 technical sanity cap on budget input, never a game budget or affordability rule.
 The core, CLI/HTTP adapters, and future UI read these same fields; schemas must
@@ -189,6 +207,11 @@ rules' sanity limits with a clear field error. The shipyard reports costs and
 retains budget as planning input; it does not enforce player affordability.
 Money plus available credit and the decision whether a player can afford the
 build belong to the sim (F09).
+
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
+
+**Interpretation (F10):** An undefined or invalid formula rejects the design
+with a clear error, never a silent zero.
 
 Migration is an explicit, deterministic adapter, available to `build` and all
 operations accepting definitions. It reports source/target versions and changes:
@@ -212,22 +235,80 @@ Keep v3 files byte-identical under the fixture plan in #48, including the rules
 and original self-test report. Store approved v4 expectations separately with
 the rule/decision explaining each changed outcome. A v3-to-v4 price change
 changes reported costs, without adding game budget ceilings or player
-affordability checks. Rustbucket remains a known-bad negative fixture: the v4
-validator must reject its structural errors while leaving its performance
-findings as warnings (F07). Migration must not repair it to make it pass.
+affordability checks. **Interpretation (F07):** Rustbucket remains a known-bad
+negative fixture: the v4 validator must reject its structural errors. Its
+performance findings use rules-set severity, with `warn` as the default for
+performance checks. Migration must not repair it to make it pass.
 Older v1/v2 migration is outside this first adapter; return an actionable
 unsupported-version error until a separate approved compatibility change exists.
 
 Use stable JSON serialization (ordered object keys, preserved deck order and
 module IDs), locale-independent numbers, and the rules' precision/epsilon
 policy. Define the exact numeric comparison and canonicalization contract in
-#49 with independent tests. Reject malformed formulas, unknown variables or
+#49 with independent tests.
+
+**Interpretation (F10):** Reject malformed formulas, unknown variables or
 operators, and invalid arity when loading rules. If evaluation encounters a
 missing variable, division by zero, invalid logarithm input, nonfinite result,
 or another undefined outcome, reject the design with a clear error identifying
 the formula's rule/path. Never replace a formula failure with zero, NaN, or a
 successful unavailable value. Legitimate computed zero-thrust/no-drive cases
 remain distinct from formula errors (F10).
+
+## Port-dock checks and visitor airlock (F18)
+
+**Closed by owner picks, 2026-11-20, via Luna.** The quoted Luna questions and
+readback provide context for the owner's typed replies and shared approval.
+
+Luna's dock-check question:
+
+Owner pick, 2026-11-20 5:24 PM ET (Luna question card): "Keep the prototype's other dock checks (structural faults, crew can reach the port, matching airlock)?"
+
+Owner's typed reply:
+
+Owner pick, 2026-11-20 5:24 PM ET (Luna question card): "Test"
+
+Luna's readback:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "keep them and test each one"
+
+Luna's visitor-airlock question:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Which airlock does the visiting ship use?"
+
+Owner's typed reply:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Autodock? Docking could be hard and damage both ... Thoughts"
+
+**Interpretation of Luna's proposal:** The shipyard answers whether the ship
+can dock at all, using the checks and any compatible matching airlock, without
+picking an airlock in the tool. Autodock versus manual flight docking and
+possible damage to both ships belong to the game/sim outside the shipyard.
+
+Owner's shared approval of the dock-check readback and visitor-airlock proposal:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Yes and yes and yes"
+
+**Interpretation — settled port-dock rule:** For a valid station port target
+and visiting ship, `dock` passes only if all four conditions hold:
+
+- (a) No structural fault in either ship (station host or visitor).
+- (b) Station crew can reach the port.
+- (c) At least one compatible matching visitor airlock meets F03: same deck,
+  exterior, facing out, within 1 cell.
+- (d) Approach clearance.
+
+Each check needs its own independent test in #50. Any matching airlock works;
+the tool does not pick an airlock. Ports have no size envelope; hangars limit
+width, length and deck count (F02). Flight docking and damage are outside the
+shipyard, on the sim side. These ordinary port checks do not answer F17's
+hold-specific question, which remains open.
+
+Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
+errors; `:3800` requires a matching reachable exterior visitor airlock; `:3801`
+requires station crew reachability. F03 adds the settled geometric alignment
+conditions; F02 removes the prototype's port size envelope. Issue #50 already
+contains these acceptance items and remains open.
 
 ## Multi-deck cargo holds
 
@@ -314,14 +395,17 @@ Use one disk-backed `emptyDir` mounted at `/tmp`, with a `sizeLimit` of about
 `256Mi`, justified from measurements in #57. It must not be memory-backed.
 Clean request scratch on success, failure, and shutdown. Document per-request
 caps for maximum body size, deck count, PNG dimensions and total pixels, and ZIP
-bytes. Set the numeric caps from measurements in #57; no values are invented
-here. Keep these operational caps distinct from game limits in the rules.
+bytes. Require finite default request-size and execution-time limits; an
+unset override must still enforce those defaults. Set the numeric caps from
+measurements in #57; no values are invented here. Keep these operational caps
+distinct from game limits in the rules.
 
 ### Concurrency and resources
 
 Use one replica and a fixed worker/concurrency cap, initially one request at a
 time as in the HTTP contract. When full, return `503` with
-`Retry-After`; do not create an unbounded queue. Set a per-request timeout.
+`Retry-After`; do not create an unbounded queue. Enforce a finite default
+per-request timeout, including when no override is supplied.
 Measure requests and limits in #57: expect about `100m` CPU / `128Mi` memory
 requests and at most `500m` / `512Mi` limits. Rendering, including the worst
 allowed request, must stay within the limit.
@@ -339,7 +423,8 @@ then stop accepting requests, then drain work. State a maximum drain time in
 
 Use a `ClusterIP` Service only, with port named `http` on `8080`. Set the bind
 address by flag or environment: `0.0.0.0` in the container, loopback by default
-for local standalone use. No Ingress, TLS, or auth until the access policy is
+for local standalone use. The service has no built-in auth; access is controlled
+by the cluster NetworkPolicy. No Ingress or TLS until the access policy is
 approved. Deny egress entirely; the service needs no DNS. Allow ingress only
 from the namespaces of the calling bots named in #57; that issue must name them
 before deployment, without inventing namespace names here. No outbound fetching
@@ -389,19 +474,20 @@ independent verification before declaring that capability complete.
 | Historical goldens (#48) | SHA-256 manifest protects the seven v3 JSON files; compare import bytes to the reference; do not regenerate expected v3 results |
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
-| Owner decisions | All five drive prices; 20x34 m ship at a port and a valid visitor exceeding former port caps; same-deck/exterior/outward airlock checks and offsets at and beyond 1 cell; approach clearance; hangar width, length and deck boundaries; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly, legitimate zero remains valid |
-| Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; unfavorable figures remain advisory |
+| Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly, legitimate zero remains valid |
+| Docking (#50; F02/F03/F18/F19) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching airlock meeting same-deck/exterior/outward alignment and offsets at and beyond the inclusive 1-cell bound, (d) approach clearance; combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
+| Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warn`; verify warnings and rule-defined errors |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |
 | Generator (#54) | Same seed/version/rules repeats exactly, call-order/thread independence if relevant, varied seeds and boundaries; every result uses the ordinary validator |
-| Nits/container (#55/#57) | Blank ship default and explicit station, generated deck names match level; image starts as non-root, readiness and bounded rendering/shutdown work |
+| Nits/container (#55/#57) | Blank ship default and explicit station, generated deck names match level; image starts as non-root, readiness and bounded rendering/shutdown work; finite default request-size/time limits and NetworkPolicy access control for the service with no built-in auth |
 
 The prototype self-test is evidence, not a complete test oracle: it covers five
 embedded templates and omits Rustbucket. Preserve its report; define a separate
 v4 suite that includes Rustbucket as a known-bad negative case the validator must
-reject. Rustbucket's power warning must not be
-turned into an error, nor its missing-airlock error into a warning to make a
-nominally underpowered example pass.
+reject. Preserve the historical v3 power warning and missing-airlock error.
+For v4, the rules file sets severity and the default for perf checks is `warn`;
+do not override active rule severities to force a desired fixture result.
 
 Feature and test PRs may include `ci.yml` install, build, lint, and test-run setup
 steps that exist only to run tests; those changes count as tests and must obey

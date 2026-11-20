@@ -10,9 +10,13 @@ for that review and does not record an answer on the owner's behalf.
 
 ## F01 — Jump drive pricing
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 4:53 PM ET (Luna question card): "Jump drives: scale price with range, 1,500 / 2,500 / 7,500"
 
-Jump drive prices are 0.5 J = 1,500, 1.0 J = 2,500, 1.5 J = 3,750, 2.0 J = 5,000 and 3.0 J = 7,500 cr.
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F01: 1.5 J = 3,750, 2.0 J = 5,000"
+
+**Interpretation:** The 4:53 PM options were for 0.5 / 1.0 / 3.0 J.
+Together the picks set 0.5 J = 1,500, 1.0 J = 2,500, 1.5 J = 3,750,
+2.0 J = 5,000 and 3.0 J = 7,500 cr.
 
 `apsis-rules-v3.json` charges 2,500 cr for 0.5 J, 5,000 cr for 1.5 J, and
 7,500 cr for 2.0 J; the 1.0 J and 3.0 J prices already match. Apply the
@@ -21,9 +25,13 @@ Use all five specified prices without inventing an interpolation rule.
 
 ## F02 — Ports and hangars have different size rules
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 4:53 PM ET (Luna question card): "Docking: yes, ports check airlock and clearance, only hangars limit size"
 
-Docking ports check only airlock alignment and approach clearance, with no size limit, so a 20x34 m ship fits a port. Only hangars limit size, by width, length and deck count.
+**Interpretation:** The question was whether a 20×34 m ship should fit a
+docking port. Ports have no size envelope; hangars limit width, length and deck
+count. A 20×34 m visitor may pass a port if every F18 check passes. The quoted
+size decision does not remove the structural or crew-reachability checks
+confirmed in F18.
 
 `apsis-rules-v3.json`, part `dockingPort`, has 40 m width, 48 m length and five-deck
 caps. `index.html:checkDocking` applies the same dimensional tests to ports and
@@ -34,9 +42,12 @@ v3 fixtures unchanged and test beyond the former port caps as well.
 
 ## F03 — Airlock alignment needs a precise convention
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
 
-An airlock is aligned when it's on the same deck as the port, on the exterior hull, facing outward, and within 1 cell of offset from the port. Docking ports have no size limit; only hangars limit size.
+**Interpretation:** An airlock is aligned when it is on the same deck as the
+port, on the exterior hull, facing outward, and within 1 cell of offset from
+the port. F02 sets the port/hangar size distinction; F18 settles the complete
+port pass rule and use of any compatible matching visitor airlock.
 
 `index.html:checkDocking` collects interface labels from any
 reachable, clear visitor airlock and checks label equality. It does not compare
@@ -74,9 +85,10 @@ Do not add a tooltip or scan/log simulation to this headless implementation.
 
 ## F07 — Passing self-test report does not cover Rustbucket
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 
-Rustbucket stays a deliberate failing example, a known-bad fixture the validator must reject. Keep it as a negative test.
+**Interpretation:** Rustbucket stays a known-bad fixture the validator must
+reject. Keep it as a negative test.
 
 `apsis-example-self-test-v3.json` and `index.html:selfTestExamples` cover embedded
 keys `flat`, `kestrel`, `skiff`, `tender`, and `station`. The supplied canonical
@@ -104,15 +116,17 @@ set for the canonical definitions; compare only equivalent inputs.
 
 ## F09 — UI limits drift from the exported rules
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F09: rules file wins, 80 chars / 100M"
 
-The rules file wins: names up to 80 characters, budgets up to 100M cr. The UI should read its limits from the rules.
+Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Budget limits I thought it would be up to whatever could be afforded?"
 
-Clarification (via Luna, 2026-11-20, 5:14 PM America/New_York):
+Owner pick, 2026-11-20 5:14 PM ET (Luna question card): "Keep 100M as a technical sanity limit only; in game, budget is what the player can afford"
 
-- The 100M cr is only a technical sanity limit on input values, not a game rule. Label it that way in the rules and docs.
-- In the game, a build's budget is whatever the player can afford (money plus available credit). The sim enforces that, not the shipyard.
-- The 80-character name limit stands.
+**Interpretation:** The rules file supplies the 80-character name limit and
+100M cr technical input sanity cap. Label the cap under technical limits, not
+as a game budget. The UI reads these limits from the rules. The name limit
+stands. Player affordability (money plus available credit) belongs to the sim;
+the shipyard does not enforce it.
 
 `index.html`, ship-name change handler, truncates to 40 characters; the rules'
 `limits.maxBlueprintName` is 80. Its budget change handler caps at 10,000,000 cr;
@@ -124,9 +138,10 @@ does not enforce player affordability or treat 100M cr as a game budget ceiling.
 
 ## F10 — Formula fallback can conceal invalid rule data
 
-**Owner decision, 2026-11-20**
+Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
-An undefined or invalid formula rejects the design with a clear error, never a silent zero.
+**Interpretation:** An undefined or invalid formula rejects the design with a
+clear error, never a silent zero.
 
 `index.html:formula` substitutes zero for missing variables, zero denominators,
 invalid logarithm input, and nonfinite results. This can make a bad formula look
@@ -176,3 +191,67 @@ or labels from the prototype's single-deck cargo behavior.
 **Open for Luna, not guessed.** How do docking and airlocks interact with a
 multi-deck hold? Keep hold-specific placement, access, and alignment rules pending
 Luna rather than extending existing docking rules by assumption.
+
+## F18 — Port-dock checks and visitor airlock
+
+**Closed by owner picks, 2026-11-20, via Luna.** The quoted Luna questions and
+readback provide context for the owner's typed replies and shared approval.
+
+Luna's dock-check question:
+
+Owner pick, 2026-11-20 5:24 PM ET (Luna question card): "Keep the prototype's other dock checks (structural faults, crew can reach the port, matching airlock)?"
+
+Owner's typed reply:
+
+Owner pick, 2026-11-20 5:24 PM ET (Luna question card): "Test"
+
+Luna's readback:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "keep them and test each one"
+
+Luna's visitor-airlock question:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Which airlock does the visiting ship use?"
+
+Owner's typed reply:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Autodock? Docking could be hard and damage both ... Thoughts"
+
+**Interpretation of Luna's proposal:** The shipyard answers whether the ship
+can dock at all, using the checks and any compatible matching airlock, without
+picking an airlock in the tool. Autodock versus manual flight docking and
+possible damage to both ships belong to the game/sim outside the shipyard.
+
+Owner's shared approval of the dock-check readback and visitor-airlock proposal:
+
+Owner pick, 2026-11-20 5:25 PM ET (Luna question card): "Yes and yes and yes"
+
+**Interpretation — settled port-dock rule:** For a valid station port target
+and visiting ship, `dock` passes only if all four conditions hold:
+
+- (a) No structural fault in either ship (station host or visitor).
+- (b) Station crew can reach the port.
+- (c) At least one compatible matching visitor airlock meets F03: same deck,
+  exterior, facing out, within 1 cell.
+- (d) Approach clearance.
+
+Each check needs its own independent test in #50. Any matching airlock works;
+the tool does not pick an airlock. Ports have no size envelope; hangars limit
+width, length and deck count (F02). Flight docking and damage are outside the
+shipyard, on the sim side. These ordinary port checks do not answer F17's
+hold-specific question, which remains open.
+
+Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
+errors; `:3800` requires a matching reachable exterior visitor airlock; `:3801`
+requires station crew reachability. F03 adds the settled geometric alignment
+conditions; F02 removes the prototype's port size envelope. Issue #50 already
+contains these acceptance items and remains open.
+
+## F19 — Allowed docking rotations
+
+**Open for Luna, not guessed.** Which visitor rotations are allowed when
+checking hangar width/length fit? The original test-strategy phrase "allowed
+rotations after rule clarification" needs an owner rule before independent
+tests can assert permitted orientations. Do not infer quarter-turn permission
+or prohibition from the prototype; F02's port size decision does not settle
+hangar rotations.
