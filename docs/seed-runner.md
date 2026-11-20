@@ -44,8 +44,10 @@ also report only the exception type, without imported exception text.
 
 During CLI hook import and execution, both Python stdout and file descriptor 1
 are redirected to stderr. This includes adapter output from `os.write(1, ...)`
-and buffered writes through `sys.__stdout__`. The JSON report uses a saved copy
-of the original stdout, and file descriptor 1 is restored afterwards.
+and buffered writes through `sys.__stdout__` or libc `printf`. Python streams
+and C stdio buffers are flushed while file descriptor 1 still points to stderr;
+C stdio is drained with `fflush(NULL)` before restoring the descriptor. The JSON
+report uses a saved copy of the original stdout.
 
 ## JSON record format
 
@@ -64,11 +66,14 @@ The summary contains:
 The interval is a two-sided Wilson score interval for the pass probability.
 Confidence is a real number strictly between 0 and 1. The Python API accepts
 `numbers.Real` values, including `fractions.Fraction`, and reports confidence as
-a float. Booleans, strings, invalid types, and values outside this range
-raise `ValueError` with `confidence must be a finite number between 0 and 1`.
-CLI confidence tokens must have no surrounding whitespace. Skipped and errored
-seeds are excluded from its denominator; bounds are `null` when that denominator
-is zero.
+a float. The converted float must also remain strictly between 0 and 1;
+Fractions that round to either endpoint are rejected before interval calculation
+or hook execution. Booleans, strings, invalid types, and values outside either
+range raise `ValueError` with
+`confidence must be a finite number between 0 and 1`.
+CLI confidence tokens must contain no underscores or surrounding whitespace.
+Skipped and errored seeds are excluded from its denominator; bounds are `null`
+when that denominator is zero.
 This interval assumes independent binary observations from the intended seed
 distribution. A hand-picked seed set or systematic adapter failures cannot
 establish population confidence; the counts remain visible for interpretation.

@@ -224,7 +224,7 @@ class RenderTableTests(unittest.TestCase):
     def test_paragraph_separator_and_nel_are_escaped_in_headers_and_data(self):
         for character, reference in (
             ("\u2029", "&#8233;"),
-            ("\x85", "&#133;"),
+            ("\x85", "&#9252;"),
         ):
             with self.subTest(character=ascii(character)):
                 table = render_table(
@@ -242,6 +242,17 @@ class RenderTableTests(unittest.TestCase):
                     f"| r{reference}ate | 95{reference}% | 96{reference}% |",
                 )
                 self.assertNotIn(character, table)
+
+    def test_nel_stand_in_is_distinct_from_literal_entities_and_symbol(self):
+        self.assertEqual(
+            render_table(
+                ["\x85M\x85", "&#133;", "&#9252;"],
+                [["\x85\x85", "\u2424", "a\x85\r\nb\nc\rd|&<>\\"]],
+            ),
+            "| &#9252;M&#9252; | &amp;#133; | &amp;#9252; |\n"
+            "| --- | --- | --- |\n"
+            "| &#9252;&#9252; | \u2424 | a&#9252;<br>b<br>c<br>d&#124;&amp;&lt;&gt;&#92; |",
+        )
 
 
 if __name__ == "__main__":

@@ -45,12 +45,15 @@ The example emits:
 
 In the Markdown source, cells escape `&`, `<`, `>`, backslashes, and pipes as
 HTML character references. NUL is emitted as `&#9216;` (U+2400 SYMBOL FOR NULL,
-␀) so it remains visible in Markdown viewers. TAB, NEL (U+0085), line separator
-(U+2028), and paragraph separator (U+2029) are emitted as `&#9;`, `&#133;`,
-`&#8232;`, and `&#8233;`, respectively. CRLF, CR, and LF line breaks become `<br>`
-within the cell. Other inline Markdown is retained, so backtick code spans
-display these character references and `<br>` literally. Omit backticks around
-content that needs these escapes to render as characters or line breaks.
+␀) so it remains visible in Markdown viewers. NEL (U+0085) uses the visible
+stand-in `&#9252;` (␤, U+2424 SYMBOL FOR NEWLINE), avoiding the replacement
+character, raw control character, or ellipsis that `&#133;` can produce in
+Markdown and HTML viewers. TAB, line separator (U+2028), and paragraph separator
+(U+2029) are emitted as `&#9;`, `&#8232;`, and `&#8233;`, respectively. CRLF, CR,
+and LF line breaks become `<br>` within the cell. Other inline Markdown is
+retained, so backtick code spans display these character references and `<br>`
+literally. Omit backticks around content that needs these escapes to render as
+characters or line breaks.
 
 The helper emits `---` separators without explicit column alignment; alignment
 depends on the Markdown renderer. Provide signs, units, and explanatory row
