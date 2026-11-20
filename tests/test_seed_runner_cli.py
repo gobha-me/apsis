@@ -307,6 +307,56 @@ class SeedRunnerCliTests(unittest.TestCase):
             "invalid float value",
         )
 
+    def test_underscore_confidence_tokens_are_usage_errors(self):
+        for confidence in ("0_5e-1", "0.5_0", "5e-0_1"):
+            for option in (
+                ("--confidence", confidence),
+                (f"--confidence={confidence}",),
+            ):
+                with self.subTest(confidence=confidence, option=option):
+                    self.assert_usage_error(
+                        self.run_cli(
+                            "--seeds",
+                            "10",
+                            "--hook",
+                            "apsis_cli_adapter:outcome",
+                            *option,
+                        ),
+                        "invalid float value",
+                    )
+
+    def test_help_routes_to_usage_without_running_the_adapter_or_emitting_json(self):
+        adapter_arguments = (
+            "--seeds",
+            "10",
+            "--hook",
+            "apsis_cli_noisy_adapter:outcome",
+        )
+        for arguments in (
+            ("--help",),
+            ("-h",),
+            ("--help", *adapter_arguments),
+            (*adapter_arguments, "--help"),
+            (*adapter_arguments, "-h"),
+        ):
+            with self.subTest(arguments=arguments):
+                process = self.run_cli(*arguments)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                self.assertEqual(process.stderr, "")
+                self.assertTrue(process.stdout.startswith("usage:"), process.stdout)
+                for text in (
+                    "--seeds",
+                    "--confidence",
+                    "--hook",
+                    "show this help message and exit",
+                ):
+                    self.assertIn(text, process.stdout)
+                self.assertNotIn('"schema_version"', process.stdout)
+                self.assertNotIn("adapter-import-progress", process.stdout)
+                self.assertNotIn("adapter-hook-progress", process.stdout)
+                with self.assertRaises(json.JSONDecodeError):
+                    json.loads(process.stdout)
+
     def test_malformed_hook_specs_produce_usage_error_without_json(self):
         for hook in (
             "",
@@ -365,6 +415,21 @@ class SeedRunnerCliTests(unittest.TestCase):
                 self.assert_usage_error(
                     self.run_cli("--seeds", "1", "--hook", hook), message
                 )
+
+    def test_import_error_diagnostics_omit_exception_messages(self):
+        cases = (
+            ("apsis_cli_syntax_adapter:outcome", "SyntaxError", "invalid syntax"),
+            (
+                "apsis_cli_runtime_adapter:outcome",
+                "RuntimeError",
+                "broken adapter import",
+            ),
+        )
+        for hook, exception_type, private_message in cases:
+            with self.subTest(hook=hook):
+                process = self.run_cli("--seeds", "1", "--hook", hook)
+                self.assert_usage_error(process, f"hook raised {exception_type}.")
+                self.assertNotIn(private_message, process.stderr)
 
     def test_import_and_hook_stdout_preserve_the_json_document(self):
         process = self.run_cli(
