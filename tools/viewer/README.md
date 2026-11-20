@@ -76,9 +76,10 @@ Pre-start warmup observations are outside the exported history window.
 
 The JSON records resolved rules and every core/world setting, start, horizon,
 canonical timed inputs including START, initial/daily frames, the tooling timeline,
-and the final `apsis::hashBytes(checkpoint(world))`. This hashes the full world and
-pilot, matching pilot replay; `hashState` alone omits the pilot. Int64 settings,
-input fields, counters, and money are decimal strings to preserve browser precision.
+and the final `apsis::hashBytes(checkpoint(world))`. The required `finalCheckpoint`
+field encodes those exact checkpoint bytes as nonempty lowercase hex. This hashes
+the full world and pilot, matching pilot replay; `hashState` alone omits the pilot.
+Int64 settings, input fields, counters, and money are decimal strings to preserve browser precision.
 Days and bounded identifiers use JSON numbers. Re-exporting the same recipe with
 the same source/settings reproduces its timeline and final checkpoint hash.
 
@@ -101,7 +102,12 @@ No event kinds or logging are added under `sim/src/`. Rescue handling immediatel
 relocates the pilot and sets `busy`; no rescue trajectory exists to animate.
 The page shows location, trip status, busy interval, state, and observations only.
 The displayed final hash belongs to the completed export, not the selected frame;
-the browser displays that recorded value rather than recomputing simulation state.
+the browser recomputes `apsis::hashBytes` from `finalCheckpoint` before displaying
+the recorded hash or enabling playback. Missing or malformed checkpoint/hash
+fields and non-matching hashes leave the run hidden with an error and disabled
+playback. Older exports without checkpoint bytes must be regenerated. The browser
+does not rerun the simulation. This is a consistency check on the supplied full
+checkpoint, not a cryptographic signature or verification of the daily observations.
 
-No tests or assertions are added here. Test coverage belongs to a separate
-`Agent-Role: tests` session.
+Existing viewer coverage lives under `tests/`; test and fixture updates belong to
+a separate `Agent-Role: tests` session.

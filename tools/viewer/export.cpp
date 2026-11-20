@@ -247,8 +247,13 @@ int main() {
     out << ',';
     frame(out, world, war);
   }
-  out << "],\"timeline\":[" << timeline.str() << "],\"finalStateHash\":\""
-      << apsis::hashBytes(checkpoint(world)) << "\"}\n";
+  const auto finalCheckpoint = checkpoint(world);
+  out << "],\"timeline\":[" << timeline.str() << "],\"finalCheckpoint\":\"";
+  static constexpr char hex[] = "0123456789abcdef";
+  for (uint8_t byte : finalCheckpoint)
+    out << hex[byte >> 4] << hex[byte & 15];
+  out << "\",\"finalStateHash\":\"" << apsis::hashBytes(finalCheckpoint)
+      << "\"}\n";
   std::cout << out.str();
   return std::cout ? 0 : 1;
 }

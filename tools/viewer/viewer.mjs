@@ -28,6 +28,27 @@ function pause() {
   byId('play').textContent = 'Play';
 }
 
+function verifyFinalCheckpoint(value) {
+  const checkpoint = value.finalCheckpoint;
+  if (!/^[0-9a-f]{16}$/.test(value.finalStateHash) ||
+      typeof checkpoint !== 'string' || checkpoint.length === 0 ||
+      checkpoint.length % 2 !== 0 || /[^0-9a-f]/.test(checkpoint)) {
+    throw new Error('The export requires a valid final checkpoint and 16-digit lowercase hex hash.');
+  }
+  // Match apsis::hashBytes over the full checkpoint, including the pilot.
+  let firstLane = 0x811c9dc5;
+  let secondLane = 0x1b873593;
+  for (let offset = 0; offset < checkpoint.length; offset += 2) {
+    const byte = Number.parseInt(checkpoint.slice(offset, offset + 2), 16);
+    firstLane = Math.imul(firstLane ^ byte, 0x01000193) >>> 0;
+    secondLane = Math.imul(secondLane ^ byte, 0x5bd1e995) >>> 0;
+  }
+  const hash = [firstLane, secondLane].map((lane) => lane.toString(16).padStart(8, '0')).join('');
+  if (hash !== value.finalStateHash) {
+    throw new Error('The final checkpoint hash does not match finalStateHash.');
+  }
+}
+
 function validate(value) {
   if (value?.schema !== 'apsis-viewer-v1' || !value.run || !value.metadata ||
       !Array.isArray(value.frames) || value.frames.length === 0 ||
@@ -56,6 +77,7 @@ function validate(value) {
     }
     priorDay = entry.day;
   }
+  verifyFinalCheckpoint(value);
   return value;
 }
 
