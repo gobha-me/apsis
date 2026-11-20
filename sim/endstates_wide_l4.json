@@ -1,0 +1,67 @@
+{
+ "hauler": {
+  "careers": 300,
+  "alive": 293,
+  "hazard": 7,
+  "softlock": 0,
+  "ledger": true
+ },
+ "crisis": {
+  "careers": 300,
+  "alive": 293,
+  "hazard": 7,
+  "softlock": 0,
+  "ledger": true
+ },
+ "pathfinder": {
+  "careers": 300,
+  "alive": 295,
+  "hazard": 4,
+  "bankrupt": 1,
+  "softlock": 0,
+  "ledger": true
+ },
+ "careful": {
+  "careers": 300,
+  "alive": 298,
+  "hazard": 2,
+  "softlock": 0,
+  "ledger": true
+ },
+ "bold": {
+  "careers": 300,
+  "alive": 299,
+  "hazard": 1,
+  "softlock": 0,
+  "ledger": true
+ },
+ "reckless": {
+  "careers": 300,
+  "alive": 293,
+  "hazard": 3,
+  "bankrupt": 4,
+  "softlock": 0,
+  "ledger": true
+ },
+ "payer": {
+  "careers": 300,
+  "alive": 296,
+  "hazard": 4,
+  "softlock": 0,
+  "ledger": true
+ },
+ "forgetful": {
+  "careers": 300,
+  "alive": 295,
+  "hazard": 5,
+  "softlock": 0,
+  "ledger": true
+ },
+ "double agent": {
+  "careers": 300,
+  "alive": 297,
+  "hazard": 3,
+  "softlock": 0,
+  "ledger": true
+ }
+}

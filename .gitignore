@@ -1,0 +1,13 @@
+# Native and WebAssembly build outputs for the swappable sim tree.
+/sim/build/
+/sim/build-*/
+/sim/CMakeFiles/
+/sim/CMakeCache.txt
+/sim/cmake_install.cmake
+/sim/Makefile
+/sim/**/*.o
+/sim/**/*.obj
+/sim/**/*.a
+/sim/**/*.so
+/sim/**/*.wasm
+/sim/**/*.wasm.map
