@@ -144,20 +144,28 @@ does not enforce player affordability or treat 100M cr as a game budget ceiling.
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
 **Interpretation:** An undefined or invalid formula rejects the design with a
-clear error, never a silent zero. This F10 rejection excludes division by zero
-for engine-less designs (stations) until Luna answers F20; no replacement rule
-is guessed.
+clear error, never a silent zero. Until Luna answers F20, F10 rejection excludes
+these evaluations: in zero-mass blank ships and blank stations, `acceleration`
+and `range` division by `mass`, `deltaV` division by `endMass` and ln(0), and
+`fuelToDryMassRatio` division by `dryMass`; in engine-less designs, including
+stations, full/current `burnSeconds` and `exhaustVelocity` division by zero
+`burnRate`. Open for Luna, not guessed. Do not assign a result or handling rule
+here.
 
 `index.html:formula` substitutes zero for missing variables, zero denominators,
 invalid logarithm input, and nonfinite results. This can make a bad formula look
 like a computed value. The v4 loader must reject malformed formulas, unknown
 variables/operators, and invalid arity (#49). At evaluation, missing variables,
-division by zero (excluding the engine-less station case pending F20), invalid
-logarithm input, and nonfinite or otherwise undefined results reject the design
-with a clear formula error identifying its rule/path (#49/#51). Legitimate
-zero-thrust/no-drive values remain distinct from formula failures; neither zero
-nor an unavailable value may hide a failed calculation outside the unresolved
-F20 case.
+division by zero, invalid logarithm input, and nonfinite or otherwise undefined
+results reject the design with a clear formula error identifying its rule/path
+(#49/#51), except exactly the F20 evaluations listed above and below: zero-mass
+blank ships/stations' `acceleration` and `range` on `mass`, `deltaV` on `endMass`
+and ln(0), `fuelToDryMassRatio` on `dryMass`; and engine-less designs' full/current
+`burnSeconds` and `exhaustVelocity` on zero `burnRate`, including stations.
+Open for Luna, not guessed. Do not assign a result or handling rule here.
+Legitimate zero-thrust/no-drive values remain distinct from formula failures;
+neither zero nor an unavailable value may hide a failed calculation outside
+these unresolved F20 cases.
 
 ## F11 — Access inside a multi-deck cargo hold
 
@@ -249,7 +257,8 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (c) At least one compatible matching visitor airlock is crew-reachable and
   clear, and meets F03: same deck, exterior, facing out, within 1 cell (F21
   remains open for the deck mapping and distance convention). A visitor
-  reachability or clearance failure ties to check (a) at `error` severity.
+  reachability or clearance failure ties to check (a) at the rules' `error`
+  severity (v3).
 - (d) Approach clearance.
 
 Each (a)–(d) check needs its own independent test in #50, failing when its own
@@ -264,10 +273,10 @@ Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock crew reachability and clearance,
 and `:3793` filters matches to reachable, clear airlocks; `:3800` requires a
 matching reachable exterior visitor airlock; `:3801` requires station crew
-reachability. Visitor reachability and clearance also feed check (a) at `error`
-severity. F03 adds geometric alignment requirements, with its deck mapping and
-distance convention still pending F21; F02 removes the prototype's port size
-envelope. Issue #50 already contains these acceptance items and remains open.
+reachability. Visitor reachability and clearance also feed check (a) at the rules'
+`error` severity (v3). F03 adds geometric alignment requirements, with its deck
+mapping and distance convention still pending F21; F02 removes the prototype's
+port size envelope. Issue #50 already contains these acceptance items and remains open.
 
 ## F19 — Allowed docking rotations
 
@@ -278,17 +287,31 @@ tests can assert permitted orientations. Do not infer quarter-turn permission
 or prohibition from the prototype; F02's port size decision does not settle
 hangar rotations.
 
-## F20 — Division by zero for engine-less stations
+## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
-**Open for Luna, not guessed.** Should division by zero for engine-less designs
-(stations) be 'not applicable' or skipped, rather than an error?
+**Open for Luna, not guessed.** How should v4 handle these evaluations?
 
-Wayfarer Anchorage is a canonical ready station with no engines, so `burnRate`
-is zero. The prototype evaluates `fuel/burnRate` twice (full and current burn
-seconds) and `thrust/burnRate` once (exhaust velocity). Applying F10 rejection
-to those three calculations would reject this ready example. F10 rejection
-excludes this engine-less case until Luna answers; do not choose a replacement
-value or skip rule by assumption.
+- In zero-mass blank ships and blank stations: `acceleration` and `range`
+  division by `mass` = 0; `deltaV` division by `endMass` = 0 and ln(0);
+  `fuelToDryMassRatio` division by `dryMass` = 0.
+- In engine-less designs, including stations: full/current `burnSeconds`
+  (`fuel/burnRate`, twice) and `exhaustVelocity` (`thrust/burnRate`, once)
+  division by `burnRate` = 0.
+
+Argus's instrumented prototype compilation of `createDesign('blank', 'ship')`
+and `createDesign('blank', 'station')` found, in each, four `acceleration` and
+four `range` zero-mass divisions, two `burnSeconds` and one `exhaustVelocity`
+zero-`burnRate` divisions, one `deltaV` zero-`endMass` division and one ln(0),
+and one `fuelToDryMassRatio` zero-`dryMass` division. Among the five canonical
+definitions, only Wayfarer Anchorage encounters these failures: the three
+`burnRate` evaluations. It is a ready station with no engines.
+
+F10 rejection excludes exactly the evaluations listed above until Luna answers;
+these pending-F20 formula cases must not reject a blank `build` or reject
+Wayfarer Anchorage. #51 must hold on F20 by returning a structured `pending F20`
+issue rather than outputting excluded values until Luna answers. Do not invent
+numeric stand-ins. Open for Luna, not guessed. Do not assign a result or handling
+rule here.
 
 ## F21 — Same-deck mapping and 1-cell measurement
 

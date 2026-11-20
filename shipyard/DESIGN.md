@@ -70,9 +70,9 @@ definitions and stock identifiers, never caller-selected server paths or URLs.
 
 | Operation | Input and behavior | Result data |
 | --- | --- | --- |
-| `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
+| `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Pending-F20 formula cases must not reject a blank build; return the definition and structural validation report without assigning those formula results. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
 | `validate` | Blueprint or definition; check schema, hull, parts, required systems, crew routes, adjacent-deck ladders, station modules, carried craft, and approaches using active rules. | PASS/FAIL and structured issues; recomputed definition when normalization succeeds |
-| `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump; issues with rule-defined severity (default `warning`) |
+| `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump, subject to the F20 gate below; issues with rule-defined severity (default `warning`) |
 | `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks using any compatible matching visitor airlock meeting F03; the tool does not pick an airlock. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
 | `render` | Valid design plus bounded render options (deck/stack, dimensions). | One PNG per deck, `stack.png`, a manifest, and a stack ZIP containing those artifacts |
 | `selftest` | Installed, versioned example suite; no arbitrary test code supplied by callers. | Per-case expected/actual results and aggregate PASS/FAIL |
@@ -98,8 +98,12 @@ power, or absent jump fuel. A performance finding fails a build when the active
 rules give it error severity; warnings remain non-blocking. Malformed input or
 invalid rules still fail `perf`. An undefined or invalid formula rejects the design
 with a clear structured error, including during performance evaluation (F10).
-This rejection excludes division by zero for engine-less designs such as stations
-until Luna answers F20 (Open for Luna, not guessed); its handling is unresolved.
+Until Luna answers F20, this rejection excludes these evaluations: in zero-mass
+blank ships and blank stations, `acceleration` and `range` division by `mass`,
+`deltaV` division by `endMass` and ln(0), and `fuelToDryMassRatio` division by
+`dryMass`; in engine-less designs, including stations, full/current `burnSeconds`
+and `exhaustVelocity` division by zero `burnRate`. Open for Luna, not guessed.
+Do not assign a result or handling rule here.
 Docking incompatibility fails `dock`. A self-test
 passes when actual behavior matches expectations, including expected rejection
 of a negative fixture. `ready`, `jumpReady`, and theoretical range are distinct:
@@ -214,9 +218,12 @@ The decision whether a player can afford the build belongs to the sim (F09).
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
 **Interpretation (F10):** An undefined or invalid formula rejects the design
-with a clear error, never a silent zero. This rejection excludes division by
-zero for engine-less designs such as stations pending Luna's answer to F20;
-whether that case is not applicable or skipped remains open, not guessed.
+with a clear error, never a silent zero. Pending Luna's answer, F20 excludes the
+zero-mass blank-ship/station evaluations (`acceleration` and `range` on `mass`,
+`deltaV` on `endMass` and ln(0), `fuelToDryMassRatio` on `dryMass`) and the
+engine-less evaluations (full/current `burnSeconds` and `exhaustVelocity` on
+zero `burnRate`, including stations). Open for Luna, not guessed. Do not assign
+a result or handling rule here.
 
 Migration is an explicit, deterministic adapter, available to `build` and all
 operations accepting definitions. It reports source/target versions and changes:
@@ -256,12 +263,21 @@ policy. Define the exact numeric comparison and canonicalization contract in
 operators, and invalid arity when loading rules. If evaluation encounters a
 missing variable, division by zero, invalid logarithm input, nonfinite result,
 or another undefined outcome, reject the design with a clear error identifying
-the formula's rule/path, except for division by zero for engine-less designs
-pending Luna's answer to F20. Wayfarer Anchorage has no engines, so `burnRate`
-is zero: the two `fuel/burnRate` evaluations and one `thrust/burnRate`
-evaluation divide by zero. F10 rejection excludes this case until Luna answers
-whether it should be not applicable or skipped rather than an error (F20,
-Open for Luna, not guessed). Do not assign a result or handling rule here.
+the formula's rule/path. Until Luna answers F20, F10 rejection excludes exactly:
+
+- In zero-mass blank ships and blank stations: `acceleration` and `range`
+  division by `mass` = 0; `deltaV` division by `endMass` = 0 and ln(0);
+  `fuelToDryMassRatio` division by `dryMass` = 0.
+- In engine-less designs, including stations: full/current `burnSeconds`
+  (`fuel/burnRate`, twice) and `exhaustVelocity` (`thrust/burnRate`, once)
+  division by `burnRate` = 0.
+
+Wayfarer Anchorage encounters the three `burnRate` evaluations; each blank ship
+and blank station also encounters the zero-mass and undefined-log cases. These
+pending-F20 formula cases must not reject a blank `build`. Open for Luna, not
+guessed. Do not assign a result or handling rule here. Until Luna answers, #51
+must hold on F20 by returning a structured `pending F20` issue rather than
+outputting excluded values; do not invent numeric stand-ins.
 For other formula failures, never substitute zero, NaN, or a successful
 unavailable value. Legitimate computed zero-thrust/no-drive cases remain
 distinct from formula errors (F10).
@@ -314,8 +330,9 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (b) Station crew can reach the port.
 - (c) At least one compatible matching visitor airlock meets F03: same deck,
   exterior, facing out, within 1 cell. That airlock must also be crew-reachable
-  and clear, as v3 requires; violations are errors tied to check (a). F21 leaves
-  the visitor-deck mapping, distance measure, and reference point open for Luna.
+  and clear, as v3 requires; violations tie to check (a) at the rules' `error`
+  severity (v3). F21 leaves the visitor-deck mapping, distance measure, and
+  reference point open for Luna.
 - (d) Approach clearance.
 
 Each check needs its own independent test in #50. Any matching airlock works;
@@ -495,9 +512,9 @@ independent verification before declaring that capability complete.
 | Historical goldens (#48) | SHA-256 manifest protects the seven v3 JSON files; compare import bytes to the reference; do not regenerate expected v3 results |
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
-| Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except engine-less division by zero pending F20 (Open for Luna, not guessed), legitimate zero remains valid |
-| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at error severity) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
-| Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors |
+| Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
+| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
+| Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |
 | Generator (#54) | Same seed/version/rules repeats exactly, call-order/thread independence if relevant, varied seeds and boundaries; every result uses the ordinary validator |
