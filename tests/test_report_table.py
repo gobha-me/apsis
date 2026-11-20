@@ -196,7 +196,7 @@ class RenderTableTests(unittest.TestCase):
 
     def test_nul_tab_and_unicode_line_separator_are_escaped_in_every_column(self):
         for character, reference in (
-            ("\x00", "&#0;"),
+            ("\x00", "&#9216;"),
             ("\t", "&#9;"),
             ("\u2028", "&#8232;"),
         ):
@@ -220,6 +220,28 @@ class RenderTableTests(unittest.TestCase):
                         + " |",
                     )
                     self.assertNotIn(character, table)
+
+    def test_paragraph_separator_and_nel_are_escaped_in_headers_and_data(self):
+        for character, reference in (
+            ("\u2029", "&#8233;"),
+            ("\x85", "&#133;"),
+        ):
+            with self.subTest(character=ascii(character)):
+                table = render_table(
+                    [
+                        f"M{character}etric",
+                        f"Base{character}line",
+                        f"Candi{character}date",
+                    ],
+                    [[f"r{character}ate", f"95{character}%", f"96{character}%"]],
+                )
+                self.assertEqual(
+                    table,
+                    f"| M{reference}etric | Base{reference}line | Candi{reference}date |\n"
+                    "| --- | --- | --- |\n"
+                    f"| r{reference}ate | 95{reference}% | 96{reference}% |",
+                )
+                self.assertNotIn(character, table)
 
 
 if __name__ == "__main__":
