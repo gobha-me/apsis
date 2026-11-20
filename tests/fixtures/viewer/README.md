@@ -1,7 +1,8 @@
 # Viewer test recording
 
-`recorded-run.json` is an unmodified native export regenerated at adapter revision
-`d5289f70de584f72aa9b6dcc6d4d4b57d666c993`. The reproducible recipe is
+`recorded-run.json` is a native export regenerated at adapter revision
+`d5289f70de584f72aa9b6dcc6d4d4b57d666c993`, with `timelineHash` subsequently
+computed from the unchanged recorded payload. The reproducible recipe is
 `tools/viewer/run.txt`: seed 333860, four majors, start day 9000, horizon 720,
 station 0, with these absolute pre-tick inputs (A_START is injected by the adapter):
 
@@ -33,7 +34,10 @@ Build outputs belong in local scratch storage. The export retains all timed
 inputs and resolved settings. Its 721 frames end at day 9720; the final full
 checkpoint hash remains `2e41d7a6ad443e92`, and `framesHash` is `1b7f7ef382e6bf47`. `finalCheckpoint`
 contains the 12596 checkpoint bytes as lowercase hex. Its observation timeline
-is empty. Tests must preserve that absence and both hash pins.
+is empty. Its `timelineHash` is `fb93e5f4223ddcee`, computed with the documented
+`apsis-viewer-timeline-v1` encoding over the final checkpoint hash, canonical
+complete run record, and empty timeline. Tests must preserve that absence and
+all three hash pins.
 
 The file supports deterministic page reload and integrity tests without rerunning
 the 9000-day warmup. Page tests also construct explicitly synthetic daily frames
