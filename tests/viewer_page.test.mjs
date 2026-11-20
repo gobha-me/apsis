@@ -147,7 +147,7 @@ function sampleRun() {
   return withEvidence({
     schema: 'apsis-viewer-v1',
     metadata: { adapterRevision: 'test-fixture', historyGap: 'Daily observations only; no rescue trajectory.' },
-    run: { seed: 42, majors: 3, startDay: 10, horizon: 3, station: 0, settings: {}, inputs: [] },
+    run: { seed: 42, majors: 3, startDay: 10, horizon: 3, station: 0, settings: { rules: {}, core: {}, world: {} }, inputs: [] },
     frames: [
       { day: 10, war: { active: false, hostilePairs: 0, pairs: 3 }, pilot: { ...pilot } },
       { day: 11, war: { active: true, hostilePairs: 2, pairs: 3 }, pilot: { ...pilot, alive: true, at: 0, system: 1, wallet: '9007199254740993' } },
@@ -182,7 +182,26 @@ function withEvidence(run) {
   run.framesHash = hashBytes(Buffer.from(
     `apsis-viewer-frames-v1\n${run.finalStateHash}\n${JSON.stringify(run.frames)}`, 'utf8',
   ));
+  run.timelineHash = timelineHash(run);
   return run;
+}
+
+function timelineHash(artifact) {
+  const { seed, majors, startDay, horizon, station, settings, inputs } = artifact.run;
+  const sorted = (fields) => Object.fromEntries(Object.keys(fields).sort().map((key) => [key, fields[key]]));
+  const run = {
+    seed, majors, startDay, horizon, station,
+    settings: { rules: sorted(settings.rules), core: sorted(settings.core), world: sorted(settings.world) },
+    inputs: inputs.map(({ day, kind, fields }) => ({ day, kind, fields })),
+  };
+  const timeline = artifact.timeline.map(({ day, type, source, active, hostilePairs, pairs, delta, total, kind, arg }) => {
+    if (type === 'general-war') return { day, type, source, active, hostilePairs, pairs };
+    if (type === 'stranding') return { day, type, source, delta, total };
+    return { day, type, source, kind, arg };
+  });
+  return hashBytes(Buffer.from(
+    `apsis-viewer-timeline-v1\n${artifact.finalStateHash}\n${JSON.stringify(run)}\n${JSON.stringify(timeline)}`, 'utf8',
+  ));
 }
 
 async function recordedRun() {
@@ -191,6 +210,7 @@ async function recordedRun() {
   assert.equal(run.finalStateHash, '2e41d7a6ad443e92');
   assert.match(run.finalCheckpoint, /^(?:[0-9a-f]{2})+$/);
   assert.equal(run.framesHash, '1b7f7ef382e6bf47');
+  assert.equal(run.timelineHash, 'fb93e5f4223ddcee');
   // A fixture/import/validation failure must fail before the tampering step.
   const page = await openViewer(source);
   assert.equal(page.get('run').hidden, false, page.get('status').textContent);
@@ -212,7 +232,98 @@ function assertRejected(page, message) {
   assert.equal(page.callbacks.size, 0);
 }
 
-if (process.argv.includes('--hash-mismatch')) {
+if (process.argv.includes('--export-stdin')) {
+  await test('real exporter stdout is accepted by the real viewer loader', async () => {
+    let source = '';
+    process.stdin.setEncoding('utf8');
+    for await (const chunk of process.stdin) source += chunk;
+    const run = JSON.parse(source);
+    const page = await openViewer(source);
+    assert.equal(page.get('run').hidden, false, page.get('status').textContent);
+    assert.equal(page.get('status').className, '', page.get('status').textContent);
+    assert.equal(page.get('hash').textContent, run.finalStateHash);
+    assert.equal(page.get('step').disabled, false);
+    assert.match(run.finalCheckpoint, /^(?:[0-9a-f]{2})+$/);
+    assert.equal(hashBytes(Buffer.from(run.finalCheckpoint, 'hex')), run.finalStateHash);
+    assert.equal(hashBytes(Buffer.from(
+      `apsis-viewer-frames-v1\n${run.finalStateHash}\n${JSON.stringify(run.frames)}`, 'utf8',
+    )), run.framesHash);
+    assert.equal(timelineHash(run), run.timelineHash);
+    page.seek(run.run.horizon);
+    assert.equal(page.get('day').textContent, `Day ${run.run.startDay + run.run.horizon} · ${run.run.horizon}/${run.run.horizon}`);
+    assert.equal(page.get('timeline-count').textContent, `${run.timeline.length} / ${run.timeline.length} entries`);
+  });
+} else if (process.argv.includes('--checkpoint-byte-flip')) {
+  await test('reject one flipped checkpoint byte while all three original hashes remain unchanged', async () => {
+    const run = await recordedRun();
+    const original = structuredClone(run);
+    const bytes = Buffer.from(run.finalCheckpoint, 'hex');
+    bytes[0] ^= 1;
+    run.finalCheckpoint = bytes.toString('hex');
+    assert.equal(run.finalCheckpoint.length, original.finalCheckpoint.length);
+    assert.equal(run.finalStateHash, original.finalStateHash);
+    assert.equal(run.framesHash, original.framesHash);
+    assert.equal(run.timelineHash, original.timelineHash);
+    assert.equal(timelineHash(run), run.timelineHash);
+    assertRejected(await openViewer(JSON.stringify(run)), /final checkpoint hash does not match finalStateHash/);
+  });
+} else if (process.argv.includes('--timeline-integrity')) {
+  await test('reject missing and tampered timeline hashes through the real loader', async () => {
+    const original = await recordedRun();
+    for (const value of [undefined, '0000000000000000']) {
+      const run = structuredClone(original);
+      if (value === undefined) delete run.timelineHash;
+      else run.timelineHash = value;
+      assertRejected(await openViewer(JSON.stringify(run)), /timelineHash/);
+    }
+  });
+  await test('bind edited observations and complete run records to the original timeline hash', async () => {
+    const mutations = [
+      (run) => { run.timeline[1].delta = '3'; },
+      (run) => { run.run.seed++; },
+      (run) => { run.run.settings.rules.rescues = false; },
+      (run) => { run.run.inputs.push({ day: 10, kind: 6, fields: ['1', '-1', '0', '1', '0', '0'] }); },
+    ];
+    for (const mutate of mutations) {
+      const run = sampleRun();
+      mutate(run);
+      assertRejected(await openViewer(JSON.stringify(run)), /timelineHash/);
+    }
+  });
+  await test('canonical timeline evidence sorts setting names and preserves nested arrays and inputs', async () => {
+    const run = sampleRun();
+    run.run.settings = {
+      world: { zeta: ['2', ['-3', '4']], alpha: '9223372036854775807' },
+      rules: { zeta: false, alpha: true },
+      core: { zeta: '-9223372036854775808', alpha: '0' },
+    };
+    run.run.inputs = [{ fields: ['1', '-1', '0', '1', '0', '0'], kind: 6, day: 10 }];
+    withEvidence(run);
+    const page = await openViewer(JSON.stringify(run));
+    assert.equal(page.get('run').hidden, false, page.get('status').textContent);
+    assert.equal(page.get('status').className, '', page.get('status').textContent);
+    run.run.settings.world.zeta.reverse();
+    assertRejected(await openViewer(JSON.stringify(run)), /timelineHash/);
+  });
+} else if (process.argv.includes('--timeline-types')) {
+  await test('reject ill-typed observations even with a matching timeline hash', async () => {
+    const mutations = [
+      (run) => { run.timeline[1].delta = { amount: '2' }; },
+      (run) => { run.timeline[1].total = 2; },
+      (run) => { run.timeline[0].active = 'true'; },
+      (run) => { run.timeline[0].hostilePairs = 1.5; },
+      (run) => { run.timeline[2].arg = 5; },
+      (run) => { run.timeline[2].kind = 5.5; },
+      (run) => { run.timeline[1].unexpected = 'hidden'; },
+    ];
+    for (const mutate of mutations) {
+      const run = sampleRun();
+      mutate(run);
+      run.timelineHash = timelineHash(run);
+      assertRejected(await openViewer(JSON.stringify(run)), /invalid observation timeline/);
+    }
+  });
+} else if (process.argv.includes('--hash-mismatch')) {
   await test('reject a tampered final checkpoint hash', async () => {
     const run = await recordedRun();
     run.finalStateHash = '0000000000000000';
@@ -321,7 +432,7 @@ if (process.argv.includes('--hash-mismatch')) {
       assert.equal(page.get('empty-timeline').hidden, false);
       assert.equal(page.get('empty-timeline').textContent,
         'No daily war-gate threshold changes, rescues and lost-in-space deaths counter deltas, or pilot events were recorded in this run.');
-      assert.equal(page.state()['War-gate statistic over threshold (derived, daily)'], 'over threshold (2 / 3 hostile pairs)');
+      assert.equal(page.state()['War-gate statistic (derived, daily)'], 'over threshold (2 / 3 hostile pairs)');
       assert.equal(page.state()['Start war-gate statistic baseline (derived, daily)'], 'over threshold (2 / 3 hostile pairs)');
       assert.equal(page.state().Location, 'station 0, system 1');
       assert.equal(page.state().Trip, 'inactive');
