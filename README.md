@@ -10,5 +10,8 @@ execution hook, per-seed JSON records, and pass-rate summaries.
 The [comparison report table format](docs/report-table.md) and its small Python
 helper are available for future balance-lever sweeps and other comparisons.
 
+The [rescue-debt sampler](docs/rescue-debt-sampler.md) runs a bounded sample to
+an episode target and reports debt-duration p50/p90 by style and tank.
+
 The imported simulation also has a [fresh paired world-wide gate adapter](docs/world-wide-gate.md)
 for 1,000-seed war confidence intervals and descriptive recovery/depth reports.
