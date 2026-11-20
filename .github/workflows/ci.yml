@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build placeholder
+        run: |
+          mkdir -p build
+          printf '%s\n' 'Apsis bootstrap build' > build/placeholder.txt
+      - name: Placeholder checks
+        run: |
+          test -s README.md
+          test -s LICENSE
+          test -s build/placeholder.txt
