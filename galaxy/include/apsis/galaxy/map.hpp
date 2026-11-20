@@ -31,6 +31,9 @@ struct Point {
 };
 
 struct Orbit {
+  // Radius rounded to nearest raw tick, ties upward; it can equal
+  // Config::outer_radius_raw even though positions satisfy the exact squared
+  // radius clip Rin^2 <= r^2 < Rout^2.
   std::int64_t radius_raw{};
   Point epoch_vector;
 };

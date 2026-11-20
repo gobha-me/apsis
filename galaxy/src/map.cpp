@@ -153,11 +153,10 @@ public:
       if (radius_squared < rin * rin || radius_squared >= rout * rout) {
         continue;
       }
-      result.push_back({{region, slot},
-                        point,
-                        {static_cast<std::int64_t>(
-                             std::min(nearest_sqrt(radius_squared), rout - 1)),
-                         point}});
+      result.push_back(
+          {{region, slot},
+           point,
+           {static_cast<std::int64_t>(nearest_sqrt(radius_squared)), point}});
     }
     return result;
   }
