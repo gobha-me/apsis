@@ -76,3 +76,19 @@ jobs:
             --layer1-status "${{ steps.native_layer1.outcome }}" \
             --standing-status "${{ steps.native_standing.outcome }}" \
             --world-status "${{ steps.world_threads.outcome }}"
+      - name: Build and test native viewer adapter
+        env:
+          APSIS_VIEWER_EXPORT: ${{ runner.temp }}/apsis-viewer-export
+          APSIS_VIEWER_OBSERVATIONS: ${{ runner.temp }}/apsis-viewer-observations
+        run: |
+          g++-13 -std=c++23 -O2 -fno-exceptions -Isim/src \
+            tools/viewer/export.cpp \
+            "$RUNNER_TEMP/apsis-sim-build/libapsis_pilot.a" \
+            "$RUNNER_TEMP/apsis-sim-build/libapsis_world.a" \
+            -o "$APSIS_VIEWER_EXPORT"
+          g++-13 -std=c++23 -O2 -fno-exceptions -Isim/src \
+            tests/viewer_observations.cpp \
+            "$RUNNER_TEMP/apsis-sim-build/libapsis_pilot.a" \
+            "$RUNNER_TEMP/apsis-sim-build/libapsis_world.a" \
+            -o "$APSIS_VIEWER_OBSERVATIONS"
+          python -m unittest discover -s tests -p test_viewer_export.py -v
