@@ -22,6 +22,11 @@ jobs:
           python -m pip install ruff==0.14.6
           python -m ruff check tools
           python -m ruff format --check tools
+      - name: Lint and run tests
+        run: |
+          python -m ruff check tests
+          python -m ruff format --check tests
+          python -m unittest discover -s tests -v
       - name: Build placeholder
         run: |
           mkdir -p build
