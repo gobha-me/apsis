@@ -91,8 +91,8 @@ outcome history exists. The adapter therefore owns this bounded observation list
 
 - **Derived daily war-gate statistic threshold changes:** sample `generalWarPairs`
   after each tick using exactly `hostilePairs * 2 >= pairs && pairs >= 2`. The UI
-  labels this "War-gate statistic over threshold (derived, daily)". The starting
-  statistic is a baseline; neither it nor a threshold change is a war state or
+  labels this "War-gate statistic (derived, daily)". The starting statistic is a
+  baseline; neither it nor a threshold change is a war state or
   declaration.
 - **Derived rescues and lost-in-space deaths counter deltas:** compare
   `Pilot.n.strand` between frames. This counter increments on both rescue and
@@ -106,9 +106,10 @@ No event kinds or logging are added under `sim/src/`. Rescue handling immediatel
 relocates the pilot and sets `busy`; no rescue trajectory exists to animate.
 The page shows location, trip status, busy interval, state, and observations only.
 The displayed final hash belongs to the completed export, not the selected frame.
-Before showing the run or enabling playback, the browser validates frame field
-types and recomputes `apsis::hashBytes` from `finalCheckpoint`, requiring
-`finalStateHash` to be exactly 16 lowercase hexadecimal digits.
+Before showing the run or enabling playback, the browser validates run-record,
+frame, and timeline field types and recomputes `apsis::hashBytes` from
+`finalCheckpoint`, requiring `finalStateHash` to be exactly 16 lowercase
+hexadecimal digits.
 
 The exporter also writes `framesHash`, using the same two-lane `hashBytes` algorithm
 over the UTF-8 bytes of `apsis-viewer-frames-v1\n`, followed by `finalStateHash`, a
@@ -121,16 +122,38 @@ order. Each frame uses the exporter's `frame()` field order: `day`, `war` (`acti
 the original evidence therefore fails, even if the checkpoint and its hash remain
 untouched. JSON whitespace and object-property order do not affect this check.
 
-Missing or malformed checkpoint/hash fields, malformed frame fields, and digest
-mismatches leave the run hidden with an error and disabled playback. Older exports
-without `finalCheckpoint` or `framesHash` must be regenerated. Chosen files and
-fetched `run.json` are both limited to 32 MiB.
+The required `timelineHash` binds the complete displayed run record and observation
+timeline to `finalStateHash`, independently of the unchanged `framesHash`. Its
+UTF-8 evidence is `apsis-viewer-timeline-v1\n`, `finalStateHash`, a newline, compact
+canonical run JSON, a newline, and compact canonical timeline JSON. Run fields
+are ordered `seed`, `majors`, `startDay`, `horizon`, `station`, `settings`, `inputs`.
+Settings groups are `rules`, `core`, `world`, with setting names sorted within each
+group and array order preserved. Inputs retain their recorded order and use fields
+`day`, `kind`, `fields`. Timeline entries retain their recorded order and start
+with `day`, `type`, `source`, followed by `active`, `hostilePairs`, `pairs` for
+`general-war`; `delta`, `total` for `stranding`; or `kind`, `arg` for `pilot-event`.
+The browser reconstructs this encoding, so whitespace and object-property order
+do not affect the digest.
 
-These are consistency checks on supplied checkpoint and frame evidence, not
-cryptographic signatures, authentication, or independent verification that the
-frames resulted from the simulation. Anyone editing the export can also forge
-the evidence. The browser does not rerun the simulation. Metadata, run settings,
-timed inputs, and the observation timeline are not covered by these digests.
+Run scalar fields and input days/kinds must be bounded integers. Rule settings
+must be booleans; core settings and all input fields must be int64 decimal strings;
+world settings may also contain nested arrays of those strings. Timeline entries
+must have exactly their type's fields: war observations require a boolean and
+nonnegative integer pair counts, stranding deltas/totals require int64 decimal
+strings, and pilot events require an integer kind and int64-string argument.
+Null entries, unexpected fields, and object-valued payloads are rejected before
+rendering.
+
+Missing or malformed checkpoint/hash fields, malformed run/frame/timeline fields,
+and digest mismatches leave the run hidden with an error and disabled playback.
+Older exports without `finalCheckpoint`, `framesHash`, or `timelineHash` must be
+regenerated. Chosen files and fetched `run.json` are both limited to 32 MiB.
+
+These are consistency checks on supplied checkpoint, frame, run-record, and
+timeline evidence, not cryptographic signatures, authentication, or independent
+verification that the frames or observations resulted from the simulation.
+Anyone editing the export can also forge the evidence. The browser does not rerun
+the simulation. Metadata is not covered by these digests.
 
 Existing viewer coverage lives under `tests/`; test and fixture updates belong to
 a separate `Agent-Role: tests` session.
