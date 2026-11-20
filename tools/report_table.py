@@ -3,6 +3,7 @@
 import argparse
 import html
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -13,6 +14,9 @@ def _cell(value: str) -> str:
         html.escape(value, quote=False)
         .replace("\\", "&#92;")
         .replace("|", "&#124;")
+        .replace("\x00", "&#0;")
+        .replace("\t", "&#9;")
+        .replace("\u2028", "&#8232;")
         .replace("\r\n", "\n")
         .replace("\r", "\n")
         .replace("\n", "<br>")
@@ -63,9 +67,16 @@ def main() -> None:
         if not isinstance(report, dict):
             raise ValueError("input must be an object with columns and rows")
         table = render_table(report.get("columns"), report.get("rows"))
-    except (OSError, UnicodeError, ValueError) as error:
+        # Reject lone surrogates even if stdout permits surrogate escapes.
+        table.encode("utf-8")
+        print(table, flush=True)
+    except BrokenPipeError as error:
+        # Prevent interpreter shutdown from retrying the failed stdout flush.
+        with open(os.devnull, "w") as sink:
+            os.dup2(sink.fileno(), sys.stdout.fileno())
         parser.error(str(error))
-    print(table)
+    except (OSError, RecursionError, UnicodeError, ValueError) as error:
+        parser.error(str(error))
 
 
 if __name__ == "__main__":
