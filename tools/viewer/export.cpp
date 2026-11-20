@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -89,41 +90,48 @@ bool readRun(Run &run) {
   return header && !std::cin.bad();
 }
 
-void settings(std::ostream &out, const World &world) {
-  out << "{\"rules\":{";
+template <class T> std::string settingValue(const T &field) {
+  std::ostringstream out;
+  value(out, field);
+  return out.str();
+}
+void settingFields(std::ostream &out,
+                   const std::map<std::string, std::string> &fields) {
+  out << '{';
   bool comma = false;
-#define RULE(n, d, l, m)                                                       \
-  if (comma)                                                                   \
-    out << ',';                                                                \
-  comma = true;                                                                \
-  out << "\"" #n "\":" << (world.rules.n ? "true" : "false");
+  for (const auto &[name, field] : fields) {
+    if (comma)
+      out << ',';
+    comma = true;
+    out << '"' << name << "\":" << field;
+  }
+  out << '}';
+}
+void settings(std::ostream &out, const World &world) {
+  // Sort setting names so the browser can reconstruct the run-record encoding.
+  std::map<std::string, std::string> fields;
+#define RULE(n, d, l, m) fields.emplace(#n, world.rules.n ? "true" : "false");
 #define PARAM(n, d, u, m, f)
 #include "core/params.def"
 #undef RULE
 #undef PARAM
-  out << "},\"core\":{";
-  comma = false;
+  out << "{\"rules\":";
+  settingFields(out, fields);
+  fields.clear();
 #define RULE(n, d, l, m)
-#define PARAM(n, d, u, m, f)                                                   \
-  if (comma)                                                                   \
-    out << ',';                                                                \
-  comma = true;                                                                \
-  out << "\"" #n "\":";                                                        \
-  value(out, world.CP.n);
+#define PARAM(n, d, u, m, f) fields.emplace(#n, settingValue(world.CP.n));
 #include "core/params.def"
 #undef RULE
 #undef PARAM
-  out << "},\"world\":{";
-  comma = false;
-#define WP(T, n, d, m)                                                         \
-  if (comma)                                                                   \
-    out << ',';                                                                \
-  comma = true;                                                                \
-  out << "\"" #n "\":";                                                        \
-  value(out, world.P.n);
+  out << ",\"core\":";
+  settingFields(out, fields);
+  fields.clear();
+#define WP(T, n, d, m) fields.emplace(#n, settingValue(world.P.n));
 #include "world/wparams.def"
 #undef WP
-  out << "}}";
+  out << ",\"world\":";
+  settingFields(out, fields);
+  out << '}';
 }
 
 struct War {
@@ -184,28 +192,31 @@ int main() {
          "\"" APSIS_VIEWER_REVISION
          "\",\"historyGap\":\"Daily tooling observations only. No war "
          "declarations, stranding event kinds, or rescue trajectory exist. "
-         "World.log is inputs only.\"},\"run\":{\"seed\":"
-      << run.seed << ",\"majors\":" << run.majors
-      << ",\"startDay\":" << run.startDay << ",\"horizon\":" << run.horizon
-      << ",\"station\":" << run.station << ",\"settings\":";
-  settings(out, world);
-  out << ",\"inputs\":[";
+         "World.log is inputs only.\"},\"run\":";
+  std::ostringstream record;
+  record << "{\"seed\":" << run.seed << ",\"majors\":" << run.majors
+         << ",\"startDay\":" << run.startDay << ",\"horizon\":" << run.horizon
+         << ",\"station\":" << run.station << ",\"settings\":";
+  settings(record, world);
+  record << ",\"inputs\":[";
   for (size_t i = 0; i < run.inputs.size(); ++i) {
     const auto &entry = run.inputs[i];
     if (i)
-      out << ',';
-    out << "{\"day\":" << entry.day << ",\"kind\":" << entry.a.kind
-        << ",\"fields\":";
-    value(out, entry.a.f);
-    out << '}';
+      record << ',';
+    record << "{\"day\":" << entry.day << ",\"kind\":" << entry.a.kind
+           << ",\"fields\":";
+    value(record, entry.a.f);
+    record << '}';
   }
-  out << "]}";
+  record << "]}";
+  out << record.str();
   std::ostringstream frames;
   frames << '[';
   War previous = warOf(world);
   frame(frames, world,
         previous); // baseline before START, not a declaration/transition
   std::ostringstream timeline;
+  timeline << '[';
   bool comma = false;
   auto nextObservation = [&]() {
     if (comma)
@@ -250,6 +261,7 @@ int main() {
     frame(frames, world, war);
   }
   frames << ']';
+  timeline << ']';
   const auto finalCheckpoint = checkpoint(world);
   const auto finalStateHash = apsis::hashBytes(finalCheckpoint);
   // Bind every rendered frame field to the completed checkpoint hash. This is
@@ -258,13 +270,18 @@ int main() {
       "apsis-viewer-frames-v1\n" + finalStateHash + "\n" + frames.str();
   const auto framesHash = apsis::hashBytes(
       std::vector<uint8_t>(frameEvidence.begin(), frameEvidence.end()));
-  out << ",\"frames\":" << frames.str() << ",\"timeline\":[" << timeline.str()
-      << "],\"finalCheckpoint\":\"";
+  const std::string timelineEvidence = "apsis-viewer-timeline-v1\n" +
+                                       finalStateHash + "\n" + record.str() +
+                                       "\n" + timeline.str();
+  const auto timelineHash = apsis::hashBytes(
+      std::vector<uint8_t>(timelineEvidence.begin(), timelineEvidence.end()));
+  out << ",\"frames\":" << frames.str() << ",\"timeline\":" << timeline.str()
+      << ",\"finalCheckpoint\":\"";
   static constexpr char hex[] = "0123456789abcdef";
   for (uint8_t byte : finalCheckpoint)
     out << hex[byte >> 4] << hex[byte & 15];
   out << "\",\"finalStateHash\":\"" << finalStateHash << "\",\"framesHash\":\""
-      << framesHash << "\"}\n";
+      << framesHash << "\",\"timelineHash\":\"" << timelineHash << "\"}\n";
   std::cout << out.str();
   return std::cout ? 0 : 1;
 }

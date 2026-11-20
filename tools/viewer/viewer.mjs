@@ -64,6 +64,56 @@ function isInt64String(value) {
     BigInt(value) >= -9223372036854775808n && BigInt(value) <= 9223372036854775807n;
 }
 
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const hasFields = (value, fields) => isRecord(value) &&
+  Object.keys(value).length === fields.length && fields.every((field) => Object.hasOwn(value, field));
+const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
+const isSetting = (value) => isInt64String(value) || (Array.isArray(value) && value.every(isSetting));
+
+function validateRun(run) {
+  if (!hasFields(run, ['seed', 'majors', 'startDay', 'horizon', 'station', 'settings', 'inputs']) ||
+      !isCount(run.seed) || run.seed > 0xffffffff ||
+      !Number.isInteger(run.majors) || run.majors < 3 || run.majors > 5 ||
+      !isCount(run.startDay) || run.startDay > 36000 ||
+      !Number.isInteger(run.horizon) || run.horizon < 1 || run.horizon > 3600 ||
+      !isCount(run.station) ||
+      !hasFields(run.settings, ['rules', 'core', 'world']) ||
+      !isRecord(run.settings.rules) || !isRecord(run.settings.core) || !isRecord(run.settings.world) ||
+      !Object.values(run.settings.rules).every((field) => typeof field === 'boolean') ||
+      !Object.values(run.settings.core).every(isInt64String) ||
+      !Object.values(run.settings.world).every(isSetting) ||
+      !Array.isArray(run.inputs) || run.inputs.length > 4096 ||
+      !run.inputs.every((entry) => hasFields(entry, ['day', 'kind', 'fields']) &&
+        Number.isSafeInteger(entry.day) && entry.day >= run.startDay &&
+        entry.day < run.startDay + run.horizon &&
+        Number.isInteger(entry.kind) && entry.kind >= 0 && entry.kind <= 10 &&
+        Array.isArray(entry.fields) && entry.fields.length === 6 && entry.fields.every(isInt64String))) {
+    throw new Error('The export has an invalid run record.');
+  }
+}
+
+function verifyTimeline(value) {
+  // Rebuild the exporter's run/observation field order; setting names are sorted.
+  const { seed, majors, startDay, horizon, station, settings, inputs } = value.run;
+  const sortedFields = (fields) => Object.fromEntries(Object.keys(fields).sort().map((key) => [key, fields[key]]));
+  const run = {
+    seed, majors, startDay, horizon, station,
+    settings: {
+      rules: sortedFields(settings.rules), core: sortedFields(settings.core), world: sortedFields(settings.world),
+    },
+    inputs: inputs.map(({ day, kind, fields }) => ({ day, kind, fields })),
+  };
+  const timeline = value.timeline.map(({ day, type, source, active, hostilePairs, pairs, delta, total, kind, arg }) => {
+    if (type === 'general-war') return { day, type, source, active, hostilePairs, pairs };
+    if (type === 'stranding') return { day, type, source, delta, total };
+    return { day, type, source, kind, arg };
+  });
+  const evidence = `apsis-viewer-timeline-v1\n${value.finalStateHash}\n${JSON.stringify(run)}\n${JSON.stringify(timeline)}`;
+  if (!isHash(value.timelineHash) || hashBytes(new TextEncoder().encode(evidence)) !== value.timelineHash) {
+    throw new Error('The run record and observation timeline hash does not match timelineHash and the final checkpoint hash.');
+  }
+}
+
 function verifyFrames(value) {
   // Rebuild the exporter's frame() JSON order; input whitespace/key order do not matter.
   // Include every frame field rendered by the page, with its validated JSON type.
@@ -95,6 +145,7 @@ function validate(value) {
       value.frames.length !== value.run.horizon + 1) {
     throw new Error('The export must contain a baseline frame and one frame per bounded run day.');
   }
+  validateRun(value.run);
   for (const [index, frame] of value.frames.entries()) {
     const pilot = frame?.pilot;
     const war = frame?.war;
@@ -111,16 +162,26 @@ function validate(value) {
   }
   let priorDay = value.run.startDay;
   for (const entry of value.timeline) {
-    if (!Number.isSafeInteger(entry.day) || entry.day < priorDay ||
+    if (!isRecord(entry) || !Number.isSafeInteger(entry.day) || entry.day < priorDay ||
         entry.day > value.frames.at(-1).day ||
         !['general-war', 'stranding', 'pilot-event'].includes(entry.type) ||
-        entry.source !== (entry.type === 'pilot-event' ? 'Pilot.ev' : 'derived')) {
+        entry.source !== (entry.type === 'pilot-event' ? 'Pilot.ev' : 'derived') ||
+        (entry.type === 'general-war' &&
+          (!hasFields(entry, ['day', 'type', 'source', 'active', 'hostilePairs', 'pairs']) ||
+            typeof entry.active !== 'boolean' || ![entry.hostilePairs, entry.pairs].every(isCount))) ||
+        (entry.type === 'stranding' &&
+          (!hasFields(entry, ['day', 'type', 'source', 'delta', 'total']) ||
+            ![entry.delta, entry.total].every(isInt64String))) ||
+        (entry.type === 'pilot-event' &&
+          (!hasFields(entry, ['day', 'type', 'source', 'kind', 'arg']) ||
+            !Number.isSafeInteger(entry.kind) || !isInt64String(entry.arg)))) {
       throw new Error('The export has an invalid observation timeline.');
     }
     priorDay = entry.day;
   }
   verifyFinalCheckpoint(value);
   verifyFrames(value);
+  verifyTimeline(value);
   return value;
 }
 
@@ -191,7 +252,7 @@ function render() {
     ['Fuel', pilot.fuel],
     ['Debt', pilot.debt],
     ['Rescues and lost-in-space deaths (derived counter)', pilot.strandings],
-    ['War-gate statistic over threshold (derived, daily)', warLabel(frame.war)],
+    ['War-gate statistic (derived, daily)', warLabel(frame.war)],
     ['Start war-gate statistic baseline (derived, daily)', warLabel(baseline)],
   ]);
   renderTimeline(frame.day);

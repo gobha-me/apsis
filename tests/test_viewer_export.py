@@ -8,6 +8,7 @@ No test compiles or starts a simulation campaign during unittest discovery.
 import itertools
 import json
 import os
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -68,6 +69,7 @@ class RecordedViewerExportTests(unittest.TestCase):
         self.assertEqual(artifact["schema"], "apsis-viewer-v1")
         self.assertEqual(artifact["finalStateHash"], "2e41d7a6ad443e92")
         self.assertEqual(artifact["framesHash"], "1b7f7ef382e6bf47")
+        self.assertEqual(artifact["timelineHash"], "fb93e5f4223ddcee")
         self.assertRegex(artifact["finalCheckpoint"], r"^(?:[0-9a-f]{2})+$")
         run = artifact["run"]
         self.assertEqual(
@@ -123,6 +125,27 @@ class ViewerExportCliTests(unittest.TestCase):
             cwd=ROOT,
             timeout=15,
             check=False,
+        )
+
+    def test_real_export_is_accepted_by_real_viewer_loader(self):
+        # CI's later native-adapter step already sets APSIS_VIEWER_EXPORT and
+        # runs this file. Missing Node must fail here rather than skip SF2.
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "Node is required to test the real viewer loader")
+        exported = self.run_export(RECIPE)
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        viewer = subprocess.run(
+            [node, str(ROOT / "tests" / "viewer_page.test.mjs"), "--export-stdin"],
+            input=exported.stdout,
+            text=True,
+            capture_output=True,
+            cwd=ROOT,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(viewer.returncode, 0, viewer.stdout + viewer.stderr)
+        self.assertIn(
+            "real exporter stdout is accepted by the real viewer loader", viewer.stdout
         )
 
     def test_missing_malformed_and_out_of_bounds_input_fails_without_partial_json(self):
