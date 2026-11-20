@@ -1,0 +1,21 @@
+careers 4500 pilot-years 180000
+style       tank  rescues   debts    med    p90    max  open*  stuck  flag
+(* debts still open at the end of the 40 years; they are in the distribution with their age so far, a lower bound)
+hauler      3         545      30   1.78   4.85   10.0      3      0  FLAG
+hauler      4         148       5   1.75   8.37   8.37      0      0  FLAG
+hauler      6          15       1   0.85   0.85   0.85      0      0      
+hauler      all       708      36   1.75   5.89   10.0      3      0  FLAG
+crisis      3         487      23   1.72   5.89   10.0      3      0  FLAG
+crisis      4         157       8   1.67    9.8    9.8      0      0  FLAG
+crisis      6          17       1   0.85   0.85   0.85      0      0      
+crisis      all       661      32   1.67   5.89   10.0      3      0  FLAG
+pathfinder  3         237      36   0.88   3.94   8.11      3      0  FLAG
+pathfinder  4          66      12   2.79   8.04   8.06      1      0  FLAG
+pathfinder  6          28      10   3.16   9.35   10.0      2      0  FLAG
+pathfinder  all       331      58   1.84   5.44   10.0      6      0  FLAG
+careful     6         186       0   None   None   None      0      0      
+bold        6          22       0   None   None   None      0      0      
+reckless    6        1546       1   0.19   0.19   0.19      0      0      
+payer       6          21       0   None   None   None      0      0      
+forgetful   6         192       0   None   None   None      0      0      
+double agent 6          17       2   0.79   1.27   1.27      0      0      

@@ -1,0 +1,512 @@
+{
+ "hauler/3": {
+  "n": 21,
+  "net": 1201,
+  "netMin": 522,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    2.0
+   ],
+   [
+    21,
+    10.3
+   ]
+  ],
+  "span": true,
+  "strandings": 32,
+  "legs": 52257,
+  "mis": 914,
+  "push": 4,
+  "blind": 6611,
+  "rescueMed": 500.0,
+  "rescueMax": 3500,
+  "debtN": 3,
+  "debtMedY": 1.82,
+  "debtP90Y": 3.53,
+  "debtMaxY": 3.53,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 19,
+  "firstDarkMed": 22.0,
+  "y1Jobs": [
+   313,
+   367,
+   109
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 3,
+  "fuelDebt": 0,
+  "lost": 15718,
+  "ends": [
+   "ship hull 2 drive 2 tank 3 hold 140",
+   "ship hull 2 drive 2 tank 3 hold 170"
+  ]
+ },
+ "hauler/4": {
+  "n": 21,
+  "net": 1261,
+  "netMin": 584,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    2.0
+   ],
+   [
+    21,
+    7.5
+   ]
+  ],
+  "span": true,
+  "strandings": 13,
+  "legs": 52559,
+  "mis": 910,
+  "push": 6,
+  "blind": 7031,
+  "rescueMed": 500,
+  "rescueMax": 3500,
+  "debtN": 1,
+  "debtMedY": 0.86,
+  "debtP90Y": 0.86,
+  "debtMaxY": 0.86,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   296,
+   347,
+   127
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 1,
+  "fuelDebt": 0,
+  "lost": 14451,
+  "ends": [
+   "ship hull 2 drive 2 tank 4 hold 150",
+   "ship hull 2 drive 2 tank 4 hold 160"
+  ]
+ },
+ "hauler/6": {
+  "n": 21,
+  "net": 1319,
+  "netMin": 571,
+  "steps": [
+   [
+    21,
+    0.3
+   ],
+   [
+    21,
+    2.0
+   ],
+   [
+    21,
+    7.6
+   ]
+  ],
+  "span": true,
+  "strandings": 1,
+  "legs": 50763,
+  "mis": 967,
+  "push": 1,
+  "blind": 9109,
+  "rescueMed": 500,
+  "rescueMax": 500,
+  "debtN": 0,
+  "debtMedY": null,
+  "debtP90Y": null,
+  "debtMaxY": null,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 18,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   281,
+   355,
+   122
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 0,
+  "fuelDebt": 0,
+  "lost": 14574,
+  "ends": [
+   "ship hull 2 drive 2 tank 6 hold 140",
+   "ship hull 2 drive 2 tank 6 hold 160"
+  ]
+ },
+ "crisis/3": {
+  "n": 21,
+  "net": 1324,
+  "netMin": 714,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    1.7
+   ],
+   [
+    21,
+    7.2
+   ]
+  ],
+  "span": true,
+  "strandings": 24,
+  "legs": 51110,
+  "mis": 867,
+  "push": 4,
+  "blind": 6673,
+  "rescueMed": 500.0,
+  "rescueMax": 3500,
+  "debtN": 2,
+  "debtMedY": 0.83,
+  "debtP90Y": 1.35,
+  "debtMaxY": 1.35,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 20,
+  "firstDarkMed": 22.0,
+  "y1Jobs": [
+   309,
+   355,
+   120
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 2,
+  "fuelDebt": 0,
+  "lost": 14286,
+  "ends": [
+   "ship hull 2 drive 2 tank 3 hold 170"
+  ]
+ },
+ "crisis/4": {
+  "n": 21,
+  "net": 1219,
+  "netMin": 330,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    1.6
+   ],
+   [
+    21,
+    6.6
+   ]
+  ],
+  "span": true,
+  "strandings": 12,
+  "legs": 53310,
+  "mis": 912,
+  "push": 4,
+  "blind": 6209,
+  "rescueMed": 500.0,
+  "rescueMax": 3500,
+  "debtN": 1,
+  "debtMedY": 0.86,
+  "debtP90Y": 0.86,
+  "debtMaxY": 0.86,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   289,
+   362,
+   122
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 1,
+  "fuelDebt": 1,
+  "lost": 10698,
+  "ends": [
+   "ship hull 2 drive 2 tank 4 hold 110",
+   "ship hull 2 drive 2 tank 4 hold 160"
+  ]
+ },
+ "crisis/6": {
+  "n": 21,
+  "net": 1484,
+  "netMin": 673,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    1.7
+   ],
+   [
+    21,
+    6.8
+   ]
+  ],
+  "span": true,
+  "strandings": 2,
+  "legs": 50182,
+  "mis": 957,
+  "push": 4,
+  "blind": 9030,
+  "rescueMed": 500.0,
+  "rescueMax": 500,
+  "debtN": 0,
+  "debtMedY": null,
+  "debtP90Y": null,
+  "debtMaxY": null,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   274,
+   363,
+   126
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 0,
+  "fuelDebt": 0,
+  "lost": 14278,
+  "ends": [
+   "ship hull 2 drive 2 tank 6 hold 150",
+   "ship hull 2 drive 2 tank 6 hold 160"
+  ]
+ },
+ "pathfinder/3": {
+  "n": 21,
+  "net": 393,
+  "netMin": 374,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    0.6
+   ],
+   [
+    21,
+    6.6
+   ]
+  ],
+  "span": true,
+  "strandings": 16,
+  "legs": 41223,
+  "mis": 881,
+  "push": 258,
+  "blind": 6228,
+  "rescueMed": 500.0,
+  "rescueMax": 500,
+  "debtN": 5,
+  "debtMedY": 1.93,
+  "debtP90Y": 2.55,
+  "debtMaxY": 2.55,
+  "debtOpen": 1,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 20,
+  "y1Jobs": [
+   226,
+   184,
+   109
+  ],
+  "y1Strand": 1,
+  "y1Rescue": 500,
+  "idleY1": 0.0,
+  "advances": 3,
+  "fuelDebt": 20,
+  "lost": 3630,
+  "ends": [
+   "ship hull 0 drive 2 tank 3 hold 30"
+  ]
+ },
+ "pathfinder/4": {
+  "n": 21,
+  "net": 328,
+  "netMin": 299,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    0.7
+   ],
+   [
+    21,
+    4.5
+   ]
+  ],
+  "span": true,
+  "strandings": 1,
+  "legs": 41025,
+  "mis": 862,
+  "push": 240,
+  "blind": 6067,
+  "rescueMed": 500,
+  "rescueMax": 500,
+  "debtN": 0,
+  "debtMedY": null,
+  "debtP90Y": null,
+  "debtMaxY": null,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   219,
+   192,
+   110
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 1,
+  "fuelDebt": 11,
+  "lost": 2790,
+  "ends": [
+   "ship hull 0 drive 2 tank 4 hold 30"
+  ]
+ },
+ "pathfinder/6": {
+  "n": 21,
+  "net": 332,
+  "netMin": 276,
+  "steps": [
+   [
+    21,
+    0.2
+   ],
+   [
+    21,
+    0.7
+   ],
+   [
+    21,
+    4.7
+   ]
+  ],
+  "span": true,
+  "strandings": 2,
+  "legs": 41769,
+  "mis": 923,
+  "push": 313,
+  "blind": 6856,
+  "rescueMed": 500.0,
+  "rescueMax": 500,
+  "debtN": 1,
+  "debtMedY": 5.03,
+  "debtP90Y": 5.03,
+  "debtMaxY": 5.03,
+  "debtOpen": 0,
+  "stuck": 0,
+  "ledger": true,
+  "maxIdle": 20,
+  "firstSurveyMed": 1,
+  "surveyed": 21,
+  "darkY1": 21,
+  "firstDarkMed": 22,
+  "y1Jobs": [
+   222,
+   191,
+   102
+  ],
+  "y1Strand": 0,
+  "y1Rescue": 0,
+  "idleY1": 0.0,
+  "advances": 0,
+  "fuelDebt": 27,
+  "lost": 1600,
+  "ends": [
+   "ship hull 0 drive 2 tank 6 hold 20"
+  ]
+ },
+ "range/3": {
+  "homes": 87,
+  "eff": 49,
+  "push": 67,
+  "roundTrip": 73,
+  "noDark": 0
+ },
+ "range/4": {
+  "homes": 87,
+  "eff": 49,
+  "push": 67,
+  "roundTrip": 80,
+  "noDark": 0
+ },
+ "range/6": {
+  "homes": 87,
+  "eff": 48,
+  "push": 67,
+  "roundTrip": 83,
+  "noDark": 0
+ },
+ "contested": {
+  "careers": 63,
+  "pilotYears": 2520,
+  "contested": 0,
+  "bids": 0,
+  "ties": 0
+ }
+}
