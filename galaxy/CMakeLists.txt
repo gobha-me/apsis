@@ -15,6 +15,7 @@ add_executable(galaxy-cli src/cli.cpp)
 target_link_libraries(galaxy-cli PRIVATE apsis::galaxy)
 target_compile_options(galaxy-cli PRIVATE -Wall -Wextra -Wpedantic)
 
+option(BUILD_TESTING "Build galaxy tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
   find_package(Threads REQUIRED)

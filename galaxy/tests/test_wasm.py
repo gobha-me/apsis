@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -19,6 +20,7 @@ NODE = None
 def build_wasm(sdk, build_dir):
     build_dir.mkdir(parents=True, exist_ok=True)
     compiler = sdk / "bin" / "clang++"
+    build_lock = os.environ.get("GALAXY_BUILD_LOCK")
     flags = [
         "--target=wasm32-wasip1",
         "-std=c++23",
@@ -38,28 +40,23 @@ def build_wasm(sdk, build_dir):
     ]
 
     def compile_or_link(arguments):
+        command = [str(compiler), *flags, *arguments]
+        if build_lock:
+            command = ["flock", build_lock, *command]
         subprocess.run(
-            [
-                "flock",
-                "/tmp/desktop-temp-heavy.lock",
-                str(compiler),
-                *flags,
-                *arguments,
-            ],
+            command,
             check=True,
             timeout=300,
         )
 
-    print("Building optional WASI map object under the desktop build lock", flush=True)
+    print("Building optional WASI map object", flush=True)
     map_object = build_dir / "map.o"
     compile_or_link(["-c", str(GALAXY / "src" / "map.cpp"), "-o", str(map_object)])
     for source, output in (
         (GALAXY / "tests" / "map_probe.cpp", "probe.wasm"),
         (GALAXY / "src" / "cli.cpp", "cli.wasm"),
     ):
-        print(
-            f"Building optional WASI {output} under the desktop build lock", flush=True
-        )
+        print(f"Building optional WASI {output}", flush=True)
         compile_or_link(
             [str(source), str(map_object), "-lunwind", "-o", str(build_dir / output)]
         )

@@ -10,7 +10,7 @@ cmake --build build/galaxy
 build/galaxy/galaxy-cli --seed 42 --region 2,0 --region 3,0
 ```
 
-The library target is `apsis::galaxy`; include `<apsis/galaxy/map.hpp>`. Both targets compile with `-Wall -Wextra -Wpedantic`. No third-party libraries are required.
+The library target is `apsis::galaxy`; include `<apsis/galaxy/map.hpp>`. Both targets compile with `-Wall -Wextra -Wpedantic`. No third-party libraries are required. Tests default to off, so this plain build does not require Python or native thread support.
 
 ## Facade and visibility
 
@@ -73,8 +73,8 @@ Run the public-API invariance tests and real CLI/library JSON comparison with a
 C++23 compiler, CMake, Python 3.10+ and native threads:
 
 ```sh
-flock /tmp/desktop-temp-heavy.lock cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
-flock /tmp/desktop-temp-heavy.lock cmake --build build/galaxy --parallel 2
+cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+cmake --build build/galaxy --parallel 2
 ctest --test-dir build/galaxy --output-on-failure
 python3 -m unittest discover -s tests -v
 ```
@@ -82,11 +82,14 @@ python3 -m unittest discover -s tests -v
 The tests check reversed/shuffled/repeated reveals across seeds and configurations,
 independent maps on 1/2/8 workers, complete boundary-lane visibility, private halo
 and calibration caches, frozen J, empty/extreme cells, invalid configurations and
-versions, calibration failure, and CLI argument errors. Snapshots include every
-public system/orbit/lane field and chord distances; they use no fixed map fixture.
+versions, calibration failure, and CLI argument errors. An independent test-side
+implementation of the documented format-1 pseudocode checks exact positions,
+known calibration scales, and every viewed cell's in-annulus candidates. Constructed
+cases exercise an inclusive inner-radius boundary and an exact milliJ tie.
+Snapshots include every public system/orbit/lane field and chord distances.
 The existing `ci` job runs the native tests and Python lint/tests. Test targets
-compile with `-Wall -Wextra -Wpedantic`; `-DBUILD_TESTING=OFF` builds only the core
-and CLI.
+compile with `-Wall -Wextra -Wpedantic`; omit `-DBUILD_TESTING=ON` (or pass
+`-DBUILD_TESTING=OFF`) to build only the core and CLI.
 
 For the optional native/WASM comparison, obtain WASI SDK separately and use Node
 22+ with WASI preview1 support (validated with WASI SDK 34.0 and Node 22.23.4):
@@ -96,7 +99,17 @@ python3 galaxy/tests/test_wasm.py --sdk /path/to/wasi-sdk --native-build build/g
 ```
 
 This compiles the unchanged core, CLI and public-API probe for WASM, then compares
-native/WASM records and JSON across seeds and reveal orders. Its compiler/linker
-calls use the same desktop build lock. It downloads nothing and is separate from
+native/WASM records and JSON across seeds and reveal orders. By default its
+compiler/linker calls run directly, without requiring `flock` or creating a shared
+lock file. To serialize them on a shared machine, set `GALAXY_BUILD_LOCK` to a lock
+file path whose parent directory exists; this opt-in mode requires `flock`:
+
+```sh
+export GALAXY_BUILD_LOCK="$PWD/build/galaxy-heavy.lock"
+python3 galaxy/tests/test_wasm.py --sdk /path/to/wasi-sdk --native-build build/galaxy --build-dir build/galaxy-wasm
+```
+
+Use the same path with `flock "$GALAXY_BUILD_LOCK" cmake ...` for native builds that
+must share the lock. The WASM comparison downloads nothing and is separate from
 the native CI run; no viewer is included. A small WASM galaxy-map viewer remains a
 later follow-up, distinct from issue #13's replay viewer.

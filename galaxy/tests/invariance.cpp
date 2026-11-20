@@ -1,4 +1,5 @@
 #include "test_support.hpp"
+#include "v1_oracle.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +22,7 @@ namespace {
 using namespace apsis::galaxy;
 using galaxy_test::require;
 using galaxy_test::snapshot;
+using galaxy_test::v1::rounded_root;
 using LaneId = std::pair<SystemId, SystemId>;
 
 constexpr auto min_cell = std::numeric_limits<std::int32_t>::min();
@@ -33,7 +35,8 @@ constexpr std::array<std::uint64_t, 6> seeds{
     0x123456789abcdef0ULL,
     std::numeric_limits<std::uint64_t>::max()};
 
-const std::vector<RegionId> regions{{4, 0},
+const std::vector<RegionId> regions{{7, 0},
+                                    {4, 0},
                                     {5, 0},
                                     {4, 1},
                                     {5, 1},
@@ -62,24 +65,20 @@ std::uint64_t squared(Point a, Point b) {
   return dx * dx + dy * dy;
 }
 
-// Independent binary-search oracle, rather than the production restoring root.
-std::int64_t rounded_root(std::uint64_t value) {
-  std::uint64_t lo = 0;
-  std::uint64_t hi = std::uint64_t{1} << 32;
-  while (lo + 1 < hi) {
-    const auto mid = lo + (hi - lo) / 2;
-    if (mid * mid <= value) {
-      lo = mid;
-    } else {
-      hi = mid;
-    }
-  }
-  return static_cast<std::int64_t>(lo + (value > lo * lo + lo ? 1 : 0));
-}
-
 void geometry(const Map &map, const std::set<RegionId> &viewed) {
   const auto &config = map.config();
   const auto systems = map.revealed_systems();
+  galaxy_test::v1::Positions expected_systems;
+  for (const auto cell : viewed) {
+    expected_systems.merge(
+        galaxy_test::v1::positions(map.universe_seed(), config, cell));
+  }
+  galaxy_test::v1::Positions actual_systems;
+  for (const auto &system : systems) {
+    actual_systems.emplace(system.id, system.position);
+  }
+  require(actual_systems == expected_systems,
+          "viewed cells differ from exact format-v1 in-annulus candidates");
   std::map<LaneId, std::int64_t> expected;
   for (std::size_t i = 0; i < systems.size(); ++i) {
     const auto &a = systems[i];
@@ -101,7 +100,8 @@ void geometry(const Map &map, const std::set<RegionId> &viewed) {
     require(radius2 >= inner * inner && radius2 < outer * outer,
             "system outside annulus");
     require(a.orbit.epoch_vector == a.position &&
-                a.orbit.radius_raw == rounded_root(radius2),
+                a.orbit.radius_raw == std::min(rounded_root(radius2),
+                                               config.outer_radius_raw - 1),
             "incorrect orbit geometry");
     require(map.distance_milli_j(a.id, a.id) == 0, "self distance is not zero");
     require(!map.distance_milli_j(a.id, {a.id.region, 4}),
@@ -169,6 +169,77 @@ std::string reveal(std::uint64_t seed, Config config,
   }
   geometry(map, viewed);
   return snapshot(map);
+}
+
+void format_v1_known_answers() {
+  struct Fixture {
+    std::uint64_t seed;
+    Config config;
+    std::int64_t raw_j;
+  };
+  // Computed from the README pseudocode with an independent Python integer
+  // translation, before cross-checking against Map. The high-word seed has an
+  // even lane sample whose two central lengths differ (46644, 46645); seed 0
+  // changes J if counter 63 is omitted (47124 instead of 47079).
+  const std::array<Fixture, 3> fixtures{{
+      {0, {}, 47079},
+      {0x100000000ULL, {}, 46645},
+      {42, {128, 256, 4096}, 93},
+  }};
+  for (const auto &fixture : fixtures) {
+    const auto expected_j =
+        galaxy_test::v1::calibration(fixture.seed, fixture.config);
+    require(expected_j == fixture.raw_j,
+            "test oracle differs from independently derived v1 J answer");
+    Map map(fixture.seed, fixture.config, 1);
+    std::set<RegionId> viewed;
+    for (const auto cell :
+         std::array<RegionId, 4>{RegionId{4, 0}, {-5, -1}, {7, 0}, {31, 1}}) {
+      require(map.view_region(cell) == Status::ok, "v1 fixture view failed");
+      viewed.insert(cell);
+      geometry(map, viewed); // Exact IDs and x/y positions, including clipping.
+      require(map.raw_units_per_j() == expected_j,
+              "raw_units_per_j differs from independent format-v1 oracle");
+    }
+  }
+}
+
+void boundary_and_ties() {
+  // With S=10 and seed 1, slot 0 is exactly (4,3): r² == Rin² == 25.
+  const Config annulus{10, 5, 40};
+  const SystemId on_inner{{0, 0}, 0};
+  const auto annulus_positions = galaxy_test::v1::positions(1, annulus, {0, 0});
+  require(annulus_positions.at(on_inner) == Point{4, 3} &&
+              squared(annulus_positions.at(on_inner), {}) == 25,
+          "inner-boundary fixture no longer lies exactly on Rin");
+  Map boundary(1, annulus);
+  require(boundary.view_region({0, 0}) == Status::ok,
+          "inner-boundary view failed");
+  geometry(boundary, {{0, 0}});
+  require(boundary.distance_milli_j(on_inner, on_inner) == 0,
+          "inclusive inner-boundary system was omitted");
+
+  // These two same-cell positions differ by 15 ticks. Calibration gives J=16,
+  // so 1000*15/16 = 937.5 exactly; the required ties-up answer is 938.
+  const Config tie_config{22, 0, 88};
+  const SystemId a{{-2, -2}, 0};
+  const SystemId b{{-2, -2}, 1};
+  const auto tie_positions =
+      galaxy_test::v1::positions(0, tie_config, {-2, -2});
+  require(tie_positions.at(a) == Point{-43, -37} &&
+              tie_positions.at(b) == Point{-28, -37} &&
+              galaxy_test::v1::calibration(0, tie_config) == 16,
+          "milliJ fixture is not an exact half tie");
+  const auto raw =
+      rounded_root(squared(tie_positions.at(a), tie_positions.at(b)));
+  require(raw == 15 && 2 * ((1000 * raw) % 16) == 16,
+          "milliJ fixture does not exercise tie rounding");
+  Map tie(0, tie_config);
+  require(tie.view_region({-2, -2}) == Status::ok, "tie fixture view failed");
+  require(tie.raw_units_per_j() == 16 && tie.distance_milli_j(a, b) == 938 &&
+              tie.distance_milli_j(b, a) == 938,
+          "exact milliJ tie did not round upward");
+  geometry(tie, {{-2, -2}});
 }
 
 void generation_order() {
@@ -245,7 +316,6 @@ void fog_cache_and_j() {
     Map map(seed);
     require(map.view_region({4, 0}) == Status::ok, "first cell failed");
     geometry(map, {{4, 0}});
-    require(map.revealed_systems().size() == 4, "whole cell not revealed");
     const auto frozen = map.raw_units_per_j();
     const auto first = snapshot(map);
     const SystemId hidden{{5, 0}, 0};
@@ -356,7 +426,10 @@ void failures_are_atomic() {
 } // namespace
 
 int main() {
-  const std::array<std::pair<const char *, void (*)()>, 4> tests{{
+  const std::array<std::pair<const char *, void (*)()>, 6> tests{{
+      {"independent format-v1 positions and calibration",
+       format_v1_known_answers},
+      {"inclusive inner boundary and exact milliJ ties", boundary_and_ties},
       {"generation order, config and repeat invariance", generation_order},
       {"independent Maps at 1/2/8 threads", thread_counts},
       {"fog, boundary refresh, private caches and frozen J", fog_cache_and_j},
