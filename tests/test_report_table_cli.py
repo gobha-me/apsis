@@ -260,6 +260,47 @@ class ReportTableCliTests(unittest.TestCase):
                 self.assertNotIn("Exception ignored", result.stderr)
                 self.assertNotIn("ResourceWarning", result.stderr)
 
+    def test_closed_stdout_exits_with_diagnostic_without_traceback(self):
+        with tempfile.TemporaryDirectory(prefix="report-table-tests-") as directory:
+            path = Path(directory) / "comparison.json"
+            path.write_text(json.dumps(REPORT), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-c",
+                    'exec "$@" >&-',
+                    "report-table",
+                    sys.executable,
+                    str(REPO_ROOT / "tools" / "report_table.py"),
+                    str(path),
+                ],
+                capture_output=True,
+                encoding="utf-8",
+                cwd=REPO_ROOT,
+                timeout=10,
+                check=False,
+            )
+        self.assert_input_error(result, "standard output is closed")
+        self.assertNotIn("Exception ignored", result.stderr)
+
+    def test_paragraph_separator_and_nel_are_escaped_after_json_decoding(self):
+        for character, escaped in (("\u2029", "&#8233;"), ("\x85", "&#133;")):
+            with self.subTest(character=ascii(character)):
+                report = {
+                    "columns": [f"M{character}", f"B{character}", f"C{character}"],
+                    "rows": [[f"m{character}", f"b{character}", f"c{character}"]],
+                }
+                result = self.run_cli(source=json.dumps(report))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    result.stdout,
+                    f"| M{escaped} | B{escaped} | C{escaped} |\n"
+                    "| --- | --- | --- |\n"
+                    f"| m{escaped} | b{escaped} | c{escaped} |\n",
+                )
+                self.assertEqual(result.stderr, "")
+                self.assertNotIn(character, result.stdout)
+
     def test_code_spans_and_control_characters_are_escaped_after_json_decoding(self):
         report = {
             "columns": ["`N\x00UL`", "`T\tAB`", "`L\u2028S`"],
@@ -269,7 +310,7 @@ class ReportTableCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout,
-            "| `N&#0;UL` | `T&#9;AB` | `L&#8232;S` |\n"
+            "| `N&#9216;UL` | `T&#9;AB` | `L&#8232;S` |\n"
             "| --- | --- | --- |\n"
             "| `a&#124;b` | ``a`b&#92;&lt;&amp;&gt;`` | `x<br>y&amp;#124;` |\n",
         )
