@@ -75,6 +75,11 @@ class WilsonIntervalTests(unittest.TestCase):
                     else:
                         self.assertGreaterEqual(upper, passed / 10)
 
+    def test_zero_passes_clamps_negative_roundoff_to_zero(self):
+        # This sample leaves a negative lower bound without the clamp.
+        interval = wilson_interval(0, 33, 0.5)
+        self.assertEqual(interval["lower"], 0.0)
+
     def test_complementary_counts_have_reflected_bounds(self):
         for passed in range(8):
             with self.subTest(passed=passed):
@@ -304,6 +309,10 @@ class RunSeedsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "confidence must be"):
                     run_seeds([1], adapter, confidence)
                 self.assertEqual(calls, [])
+
+    def test_string_confidence_raises_value_error(self):
+        with self.assertRaisesRegex(ValueError, "confidence must be"):
+            run_seeds([1], confidence="0.5")
 
     def test_invalid_outcomes_become_explicit_errors_and_execution_continues(self):
         cases = (

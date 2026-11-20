@@ -12,6 +12,8 @@ import unittest
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 ADAPTER_SOURCE = """\
+import sys
+
 from tools.seed_runner import SeedOutcome
 
 not_callable = 42
@@ -29,6 +31,18 @@ def invalid_metric(seed):
     if seed == 1:
         return SeedOutcome("passed", {"invalid": float("nan")})
     return outcome(seed)
+
+def exit_zero(seed):
+    sys.exit(0)
+
+def noisy_outcome(seed):
+    print("adapter-hook-progress", seed)
+    return outcome(seed)
+
+def huge_int_metric(seed):
+    # Exercise serialization failure even if the environment disables the limit.
+    sys.set_int_max_str_digits(4300)
+    return SeedOutcome("passed", {"huge": 10**5000})
 """
 
 
@@ -39,6 +53,19 @@ class SeedRunnerCliTests(unittest.TestCase):
         cls.addClassCleanup(cls.adapter_directory.cleanup)
         adapter_path = Path(cls.adapter_directory.name) / "apsis_cli_adapter.py"
         adapter_path.write_text(textwrap.dedent(ADAPTER_SOURCE), encoding="utf-8")
+        extra_adapters = {
+            "apsis_cli_syntax_adapter": "def outcome(:\n    pass\n",
+            "apsis_cli_runtime_adapter": (
+                'raise RuntimeError("broken adapter import")\n'
+            ),
+            "apsis_cli_noisy_adapter": (
+                'print("adapter-import-progress")\n'
+                "from apsis_cli_adapter import noisy_outcome as outcome\n"
+            ),
+        }
+        for module, source in extra_adapters.items():
+            path = Path(cls.adapter_directory.name) / f"{module}.py"
+            path.write_text(source, encoding="utf-8")
         cls.environment = os.environ.copy()
         python_paths = [cls.adapter_directory.name, str(REPOSITORY)]
         if cls.environment.get("PYTHONPATH"):
@@ -304,6 +331,68 @@ class SeedRunnerCliTests(unittest.TestCase):
             with self.subTest(hook=hook):
                 self.assert_usage_error(
                     self.run_cli("--seeds", "1", "--hook", hook), message
+                )
+
+    def test_hook_exit_zero_is_not_a_successful_cli_run(self):
+        process = self.run_cli("--seeds", "1", "--hook", "apsis_cli_adapter:exit_zero")
+        self.assertEqual(process.returncode, 2, process.stderr)
+        self.assertEqual(process.stdout, "")
+        self.assertIn("SystemExit", process.stderr)
+        self.assertNotIn("Traceback", process.stderr)
+
+    def test_import_syntax_and_runtime_errors_are_usage_errors_without_json(self):
+        cases = (
+            ("apsis_cli_syntax_adapter:outcome", "invalid syntax"),
+            ("apsis_cli_runtime_adapter:outcome", "broken adapter import"),
+        )
+        for hook, message in cases:
+            with self.subTest(hook=hook):
+                self.assert_usage_error(
+                    self.run_cli("--seeds", "1", "--hook", hook), message
+                )
+
+    def test_import_and_hook_stdout_preserve_the_json_document(self):
+        process = self.run_cli(
+            "--seeds", "1", "2", "--hook", "apsis_cli_noisy_adapter:outcome"
+        )
+        self.assertEqual(process.returncode, 0, process.stderr)
+        report = json.loads(process.stdout)
+        self.assertEqual(report["summary"]["status"], "passed")
+        self.assertEqual([record["seed"] for record in report["results"]], [1, 2])
+        self.assertEqual(
+            [record["status"] for record in report["results"]], ["passed", "passed"]
+        )
+        for marker in ("adapter-import-progress", "adapter-hook-progress"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, process.stdout)
+
+    def test_json_object_keys_are_sorted_at_every_level(self):
+        process = self.run_cli("--seeds", "10", "--hook", "apsis_cli_adapter:outcome")
+        report = self.parse_report(process, 0)
+
+        def assert_sorted_keys(pairs):
+            keys = [key for key, value in pairs]
+            self.assertEqual(keys, sorted(keys))
+            return dict(pairs)
+
+        self.assertEqual(
+            json.loads(process.stdout, object_pairs_hook=assert_sorted_keys), report
+        )
+
+    def test_huge_integer_metric_reports_serialization_error_without_traceback(self):
+        process = self.run_cli(
+            "--seeds", "1", "--hook", "apsis_cli_adapter:huge_int_metric"
+        )
+        self.assertEqual(process.returncode, 2, process.stderr)
+        self.assertEqual(process.stdout, "")
+        self.assertIn("cannot serialize report", process.stderr)
+        self.assertNotIn("Traceback", process.stderr)
+
+    def test_whitespace_and_underscores_in_seed_tokens_are_usage_errors(self):
+        for seed in (" 7 ", "1_000"):
+            with self.subTest(seed=seed):
+                self.assert_usage_error(
+                    self.run_cli("--seeds", seed), "invalid int value"
                 )
 
 
