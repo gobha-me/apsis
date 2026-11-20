@@ -5,6 +5,7 @@ import json
 import math
 import os
 from pathlib import Path
+import signal
 import statistics
 import subprocess
 import sys
@@ -216,8 +217,16 @@ def main() -> int:
         "nextSeedIndex": args.start_index,
         "manifest": [],
     }
-    checkpoint(output, summary, careers)
+
+    def handle_sigterm(_signum, _frame):
+        # Let cleanup finish even if another termination request arrives.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        raise KeyboardInterrupt("SIGTERM")
+
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
     try:
+        signal.signal(signal.SIGTERM, handle_sigterm)
+        checkpoint(output, summary, careers)
         for index in range(args.start_index, args.start_index + args.max_seeds):
             result = subprocess.run(
                 [str(driver), str(args.years), str(index)],
@@ -257,6 +266,8 @@ def main() -> int:
         subprocess.SubprocessError,
         KeyboardInterrupt,
     ) as error:
+        # Preserve a terminal checkpoint even if SIGTERM arrives during cleanup.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         summary["outcome"] = (
             "interrupted" if isinstance(error, KeyboardInterrupt) else "error"
         )
@@ -266,8 +277,10 @@ def main() -> int:
         checkpoint(output, summary, careers)
         print(summary["error"], file=sys.stderr)
         return 130 if summary["outcome"] == "interrupted" else 1
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
     print(render_report(summary), end="")
-    return 0 if summary["outcome"] == "target_reached" else 2
+    return 0 if summary["outcome"] == "target_reached" else 3
 
 
 if __name__ == "__main__":

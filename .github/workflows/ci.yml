@@ -40,6 +40,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends cmake make g++-13
+      - name: Build and test rescue-debt helper
+        env:
+          APSIS_RESCUE_DEBT_DRIVER: ${{ runner.temp }}/rescue-debt-build/rescue_debt_seed
+        run: |
+          cmake -S tools -B "$RUNNER_TEMP/rescue-debt-build" -DCMAKE_CXX_COMPILER=g++-13
+          cmake --build "$RUNNER_TEMP/rescue-debt-build" --target rescue_debt_seed --parallel 2
+          python -m unittest discover -s tests -p test_rescue_debt_native.py -v
       - name: Build native sim
         id: native_build
         run: |
@@ -92,3 +99,12 @@ jobs:
             "$RUNNER_TEMP/apsis-sim-build/libapsis_world.a" \
             -o "$APSIS_VIEWER_OBSERVATIONS"
           python -m unittest discover -s tests -p test_viewer_export.py -v
+      - name: Lint galaxy test scripts
+        run: |
+          python -m ruff check galaxy/tests
+          python -m ruff format --check galaxy/tests
+      - name: Build and test galaxy
+        run: |
+          cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake --build build/galaxy --parallel 2
+          ctest --test-dir build/galaxy --output-on-failure

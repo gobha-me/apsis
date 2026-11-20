@@ -90,7 +90,7 @@ class RescueDebtNativeTests(unittest.TestCase):
 
     def test_one_seed_one_year_retains_empty_groups_and_exits_max_seeds(self):
         result = self.run_sampler(years=1, target=100)
-        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
         summary, seed, report = self.read_sample()
         self.assertEqual(summary["outcome"], "max_seeds")
         self.assertEqual(summary["horizonYears"], 1)
@@ -141,6 +141,21 @@ class RescueDebtNativeTests(unittest.TestCase):
             pathfinder["observedDurationsAndLowerBounds"],
             {"count": 1, "p50Years": duration, "p90Years": duration},
         )
+
+    def test_completed_debt_durations_do_not_exceed_sampling_horizon(self):
+        years = 40
+        result = self.run_sampler(years=years, target=1)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        _, seed, _ = self.read_sample()
+        completed = [
+            (career["style"], career["tank"], days)
+            for career in seed["careers"]
+            for days in career["debtClear"]
+        ]
+        self.assertTrue(completed, "the bound must cover a completed debt episode")
+        for style, tank, days in completed:
+            with self.subTest(style=style, tank=tank, days=days):
+                self.assertLessEqual(days, years * 360)
 
     def test_native_cli_rejects_invalid_arguments_without_partial_json(self):
         for arguments in (
