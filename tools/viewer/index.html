@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Apsis · bounded run viewer</title>
+    <link rel="stylesheet" href="viewer.css">
+    <script type="module" src="viewer.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Apsis / simulation tooling</p>
+        <h1>One run, day by day.</h1>
+        <p class="intro">Play a bounded WASI/native export. Each frame is recorded state;
+          playback does not run new simulation decisions.</p>
+      </header>
+
+      <section class="loader" aria-label="Load a run">
+        <label class="file-label">Open exported JSON
+          <input id="run-file" type="file" accept=".json,application/json">
+        </label>
+        <button id="reload" type="button">Reload run</button>
+        <button id="download" type="button" data-run-control disabled>Download export</button>
+        <p id="status" role="status" aria-live="polite">Loading run.json…</p>
+      </section>
+
+      <section id="run" hidden>
+        <div class="run-heading">
+          <h2 id="run-title">Run</h2>
+          <p id="run-description"></p>
+        </div>
+
+        <section class="transport" aria-label="Playback controls">
+          <div class="buttons">
+            <button id="play" type="button" data-run-control disabled>Play</button>
+            <button id="step" type="button" data-run-control disabled>Step one day</button>
+            <label>Speed
+              <select id="speed" data-run-control disabled>
+                <option value="2">2 days / second</option>
+                <option value="10" selected>10 days / second</option>
+                <option value="30">30 days / second</option>
+                <option value="120">120 days / second</option>
+              </select>
+            </label>
+            <output id="day" aria-live="off"></output>
+          </div>
+          <label class="scrubber">Recorded day
+            <input id="position" type="range" min="0" max="0" value="0" step="1" data-run-control disabled>
+          </label>
+          <div class="range-labels"><span id="first-day"></span><span id="last-day"></span></div>
+        </section>
+
+        <div class="columns">
+          <section class="panel" aria-labelledby="current-heading">
+            <h2 id="current-heading">Current recorded state</h2>
+            <dl id="state"></dl>
+            <p class="note">Locations are sampled after each tick. The simulator supplies
+              no rescue trajectory; this viewer draws no motion between locations.</p>
+          </section>
+
+          <section class="panel" aria-labelledby="timeline-heading">
+            <div class="timeline-heading">
+              <h2 id="timeline-heading">Observation timeline</h2>
+              <span id="timeline-count"></span>
+            </div>
+            <p class="note">General-war transitions and stranding-counter deltas are
+              <strong>derived observations</strong>. Rescue events and prices come from
+              <code>Pilot.ev</code>. Entries appear as playback reaches their day.</p>
+            <p class="note">The existing general-war predicate requires at least two
+              great-house pairs in total, with hostile pairs × 2 ≥ all great-house pairs.</p>
+            <p id="empty-timeline"></p>
+            <ol id="timeline"></ol>
+          </section>
+        </div>
+
+        <section class="panel provenance" aria-labelledby="provenance-heading">
+          <h2 id="provenance-heading">Run record</h2>
+          <p><strong>Final run checkpoint hash</strong> <code id="hash"></code></p>
+          <p class="note">This hash belongs to the completed export, not the current playback
+            frame. Reloading the export returns to the same recorded timeline and final hash.</p>
+          <p id="history-gap"></p>
+          <p class="note"><code>World.log</code> is an input journal, not an outcome history.
+            No war declarations or stranding event kinds exist in the imported simulator.</p>
+          <p id="adapter"></p>
+          <details>
+            <summary>Recorded settings and timed pilot inputs</summary>
+            <pre id="record"></pre>
+          </details>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
