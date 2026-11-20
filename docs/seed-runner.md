@@ -36,10 +36,16 @@ Hook exceptions or invalid returns produce an `error` record and execution
 continues with the next seed. Error notes contain the exception type, without
 exception text.
 
-The Python API propagates `SystemExit` and `KeyboardInterrupt`. The CLI catches
-these interruptions, writes a diagnostic to stderr, and exits without a report.
-Hook stdout is redirected to stderr during CLI execution so progress messages
-do not corrupt the JSON document.
+The Python API propagates process-control exceptions, including `SystemExit`,
+`KeyboardInterrupt`, `GeneratorExit`, and direct `BaseException` instances. The
+CLI catches these interruptions, writes only their type in a diagnostic to
+stderr, and exits with code 2 without a report or traceback. Hook import errors
+also report only the exception type, without imported exception text.
+
+During CLI hook import and execution, both Python stdout and file descriptor 1
+are redirected to stderr. This includes adapter output from `os.write(1, ...)`
+and buffered writes through `sys.__stdout__`. The JSON report uses a saved copy
+of the original stdout, and file descriptor 1 is restored afterwards.
 
 ## JSON record format
 
@@ -56,8 +62,13 @@ The summary contains:
 | `pass_rate_interval` | Object with `method: "wilson"`, `confidence`, `lower`, and `upper` |
 
 The interval is a two-sided Wilson score interval for the pass probability.
-Confidence is a fraction strictly between 0 and 1. Skipped and errored seeds are
-excluded from its denominator; bounds are `null` when that denominator is zero.
+Confidence is a real number strictly between 0 and 1. The Python API accepts
+`numbers.Real` values, including `fractions.Fraction`, and reports confidence as
+a float. Booleans, strings, invalid types, and values outside this range
+raise `ValueError` with `confidence must be a finite number between 0 and 1`.
+CLI confidence tokens must have no surrounding whitespace. Skipped and errored
+seeds are excluded from its denominator; bounds are `null` when that denominator
+is zero.
 This interval assumes independent binary observations from the intended seed
 distribution. A hand-picked seed set or systematic adapter failures cannot
 establish population confidence; the counts remain visible for interpretation.
@@ -71,6 +82,12 @@ or a report that cannot be serialized exits with code 2, a stderr diagnostic,
 and no result document. Callers distinguish these errors from `no_data` or
 `incomplete` by the absence of a JSON report on stdout. No simulation-specific
 threshold or balance decision is made.
+
+Reports are serialized completely before output. Report and diagnostic writes
+are unbuffered; a broken or closed output pipe exits with code 2 without a
+traceback or a buffered-output retry at interpreter shutdown. As with any pipe,
+a reader that closes after consuming a prefix of a large report cannot have
+those bytes retracted; callers should check the exit code before using output.
 
 ## Validation ownership
 

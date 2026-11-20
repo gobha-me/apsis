@@ -14,9 +14,11 @@ def _cell(value: str) -> str:
         html.escape(value, quote=False)
         .replace("\\", "&#92;")
         .replace("|", "&#124;")
-        .replace("\x00", "&#0;")
+        .replace("\x00", "&#9216;")
         .replace("\t", "&#9;")
+        .replace("\x85", "&#133;")
         .replace("\u2028", "&#8232;")
+        .replace("\u2029", "&#8233;")
         .replace("\r\n", "\n")
         .replace("\r", "\n")
         .replace("\n", "<br>")
@@ -58,6 +60,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
+        # Python sets stdout to None if its descriptor is closed at startup.
+        if sys.stdout is None:
+            raise OSError("standard output is closed")
         source = (
             sys.stdin.read()
             if args.input == "-"
