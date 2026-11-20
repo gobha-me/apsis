@@ -9,43 +9,42 @@ the target. Debt duration is a report, not a gameplay gate.
 ## Build and run
 
 The tools require Python 3.12 or later, CMake 3.25 or later, and a C++23 compiler
-with `std::format` support. Build outside the replaceable `sim/` tree. From the
-repository root, with `TMPDIR` already set to the session's scratch directory:
+with `std::format` support. Build outside the replaceable `sim/` tree. Run from
+the repository root with `TMPDIR` set to the session's scratch directory.
+
+On a desktop, run expensive builds and sampling through the host's existing
+heavy-work wrapper while holding its exclusive lock in nonblocking mode.
+Keep one heavy job per desktop, at most two build workers, and scratch below
+1.5 GiB in the owned session directory. If the lock is busy, skip the local
+heavy step and record the skip. Do not work around a lock. The underlying
+build commands are:
 
 ```sh
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run sh -c '
-  cmake -S tools -B "$TMPDIR/rescue-debt-build" &&
-  cmake --build "$TMPDIR/rescue-debt-build" --target rescue_debt_seed --parallel 2
-'
+cmake -S tools -B "$TMPDIR/rescue-debt-build"
+cmake --build "$TMPDIR/rescue-debt-build" --target rescue_debt_seed --parallel 2
 ```
 
 The target builds the serial sampling helper and its simulation libraries; it
-does not build the imported experiment or gate executables. Expensive builds
-and sampling runs on a desktop must use `heavy-run` and the existing desktop
-lock. Keep one heavy job per desktop, at most two build workers, and scratch
-below 1.5 GiB in the owned session directory. If the non-blocking lock is busy,
-skip the local heavy step and record the skip. Do not work around a lock.
+does not build the imported experiment or gate executables.
 
-For a normal campaign, provision enough campaign time before running:
+For a normal campaign, provision enough campaign time and submit this command
+through the host's heavy-work controls:
 
 ```sh
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
-  python3 tools/rescue_debt_sampler.py \
-    --seed-driver "$TMPDIR/rescue-debt-build/rescue_debt_seed" \
-    --output "$TMPDIR/rescue-debt-sample" \
-    --target-debts 100 --max-seeds 300 --years 40
+python3 tools/rescue_debt_sampler.py \
+  --seed-driver "$TMPDIR/rescue-debt-build/rescue_debt_seed" \
+  --output "$TMPDIR/rescue-debt-sample" \
+  --target-debts 100 --max-seeds 300 --years 40
 ```
 
-This is a bounded campaign invocation, not a request to run a long campaign on
-D1 during an implementation session. A tiny local run uses one seed and a
-one-year career horizon:
+A desktop implementation session should use a tiny local run with one seed
+and a one-year career horizon, through the same heavy-work controls:
 
 ```sh
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
-  python3 tools/rescue_debt_sampler.py \
-    --seed-driver "$TMPDIR/rescue-debt-build/rescue_debt_seed" \
-    --output "$TMPDIR/rescue-debt-tiny" \
-    --target-debts 100 --max-seeds 1 --years 1
+python3 tools/rescue_debt_sampler.py \
+  --seed-driver "$TMPDIR/rescue-debt-build/rescue_debt_seed" \
+  --output "$TMPDIR/rescue-debt-tiny" \
+  --target-debts 100 --max-seeds 1 --years 1
 ```
 
 The tiny run normally reports `max_seeds` and exits 2 because it has not met

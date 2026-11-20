@@ -32,21 +32,21 @@ does not claim a gate PASS. For an actual tiny smoke run, omit `--dry-run` and
 keep `--seeds 2`. Non-1,000 samples are explicitly labeled `smoke_or_custom` in
 the result and do not stand in for the requested 1,000-seed campaign.
 
-On D1, all native builds and executions must use the existing heavy-work
-wrapper and nonblocking desktop lock. For example, with an unused build path:
+On a desktop, run native builds and executions through the host's existing
+heavy-work wrapper while holding its exclusive lock in nonblocking mode. Skip
+the step and record the skip if the lock is busy. Keep one heavy job per
+desktop, and keep scratch in the session's owned `TMPDIR` within its documented
+storage budget. The underlying commands, with an unused build path, are:
 
 ```sh
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
-  cmake -S sim -B "$TMPDIR/world-wide-build" -DCMAKE_CXX_COMPILER=g++-13
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
-  cmake --build "$TMPDIR/world-wide-build" --target world_wide --parallel 2
-flock -n /tmp/desktop-temp-heavy.lock env HEAVY_WAIT=1 heavy-run \
-  python3 tools/world_wide_gate.py \
+cmake -S sim -B "$TMPDIR/world-wide-build" -DCMAKE_CXX_COMPILER=g++-13
+cmake --build "$TMPDIR/world-wide-build" --target world_wide --parallel 2
+python3 tools/world_wide_gate.py \
   --world-wide "$TMPDIR/world-wide-build/world_wide" \
   --output-dir "$TMPDIR/world-wide-smoke" --seeds 2 --timeout-seconds 120
 ```
 
-Stop if a lock is busy. The imported binary uses `hardware_concurrency()` and
+The imported binary uses `hardware_concurrency()` and
 has **no worker-limit flag**. Two seeds bound the number of active simulation
 workers to two for a local smoke run. A full campaign needs an environment
 whose worker policy permits the binary's hardware-derived concurrency, or a
