@@ -13,27 +13,25 @@ station 0, with these absolute pre-tick inputs (A_START is injected by the adapt
 9540 6 0 -1 0 1 0 0
 ```
 
-To reproduce from the repository root, using an owned scratch directory in
-`LANE_TMP` and the desktop's existing heavy-work locks:
+To reproduce from the repository root, set `SCRATCH_DIR` to an owned local scratch
+directory. Wrap compilation and replay commands in the host's existing exclusive
+heavy-work lock and wrapper. A busy lock means skip the local build; do not bypass
+it. The commands below show the underlying invocations:
 
 ```sh
-cmake -S sim -B "$LANE_TMP/sim-build" -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release
-HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh heavy-run \
-  cmake --build "$LANE_TMP/sim-build" --target apsis_pilot --parallel 2
-HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh heavy-run \
-  g++ -std=c++23 -O2 -fno-exceptions \
+cmake -S sim -B "$SCRATCH_DIR/sim-build" -DCMAKE_CXX_COMPILER=g++ -DCMAKE_BUILD_TYPE=Release
+cmake --build "$SCRATCH_DIR/sim-build" --target apsis_pilot --parallel 2
+g++ -std=c++23 -O2 -fno-exceptions \
   -DAPSIS_VIEWER_REVISION=\"d5289f70de584f72aa9b6dcc6d4d4b57d666c993\" \
   -Isim/src tools/viewer/export.cpp \
-  "$LANE_TMP/sim-build/libapsis_pilot.a" "$LANE_TMP/sim-build/libapsis_world.a" \
-  -o "$LANE_TMP/viewer-export"
-HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh heavy-run \
-  "$LANE_TMP/viewer-export" < tools/viewer/run.txt > tests/fixtures/viewer/recorded-run.json
+  "$SCRATCH_DIR/sim-build/libapsis_pilot.a" "$SCRATCH_DIR/sim-build/libapsis_world.a" \
+  -o "$SCRATCH_DIR/viewer-export"
+"$SCRATCH_DIR/viewer-export" < tools/viewer/run.txt > tests/fixtures/viewer/recorded-run.json
 ```
 
-On other hosts, use the local equivalent of the build wrapper. Build outputs
-belong in scratch storage. The export retains all timed inputs and resolved
-settings. Its 721 frames end at day 9720; the final full checkpoint hash remains
-`2e41d7a6ad443e92`, and `framesHash` is `1b7f7ef382e6bf47`. `finalCheckpoint`
+Build outputs belong in local scratch storage. The export retains all timed
+inputs and resolved settings. Its 721 frames end at day 9720; the final full
+checkpoint hash remains `2e41d7a6ad443e92`, and `framesHash` is `1b7f7ef382e6bf47`. `finalCheckpoint`
 contains the 12596 checkpoint bytes as lowercase hex. Its observation timeline
 is empty. Tests must preserve that absence and both hash pins.
 
@@ -57,11 +55,10 @@ war window was selected from the existing `sim/world_l2.json` recording. A bound
 single-seed probe recorded flights along reachable routes with high risk and
 ordinary repairs when life-support health fell below 500; the retained action
 rows replay without that policy or any overrides to sim state or settings.
-Reproduce it with the same exporter:
+Reproduce it with the same exporter through the same exclusive lock and wrapper:
 
 ```sh
-HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh heavy-run \
-  "$LANE_TMP/viewer-export" < tests/fixtures/viewer/transitions-run.txt > "$LANE_TMP/transitions-run.json"
+"$SCRATCH_DIR/viewer-export" < tests/fixtures/viewer/transitions-run.txt > "$SCRATCH_DIR/transitions-run.json"
 ```
 
 Its main loop observes the war-gate statistic cross the threshold on day 23910,

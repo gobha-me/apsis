@@ -20,10 +20,10 @@ Reload returns to the baseline and reloads the same artifact. Open exported JSON
 also accepts a saved artifact. Generated binaries and `run.json` are ignored by git.
 The page needs no package install, network service, or browser WASI shim.
 
-On a shared build desktop, wrap compilation and replay commands in the existing
-heavy-work locks, for example `HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh
-heavy-run sh tools/viewer/build.sh native`. A busy lock means skip the local build;
-do not bypass it. The portable build script itself does not manage desktop locks.
+Wrap compilation and replay commands in the host's existing exclusive heavy-work
+lock and wrapper. A busy lock means skip the local build; do not bypass it. Build
+outputs belong in an owned local scratch directory. The portable build script
+itself does not manage the host's lock.
 
 If Zig is unavailable, the identical adapter can export natively with a C++23
 compiler (GCC 14 was used for local verification):
