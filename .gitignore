@@ -11,3 +11,6 @@
 /sim/**/*.so
 /sim/**/*.wasm
 /sim/**/*.wasm.map
+# Generated viewer binaries and replay artifacts stay outside the swappable sim.
+/tools/viewer/build/
+/tools/viewer/run.json
