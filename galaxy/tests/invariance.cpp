@@ -1,0 +1,374 @@
+#include "test_support.hpp"
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <barrier>
+#include <cstdint>
+#include <exception>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <numeric>
+#include <random>
+#include <set>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+namespace {
+using namespace apsis::galaxy;
+using galaxy_test::require;
+using galaxy_test::snapshot;
+using LaneId = std::pair<SystemId, SystemId>;
+
+constexpr auto min_cell = std::numeric_limits<std::int32_t>::min();
+constexpr auto max_cell = std::numeric_limits<std::int32_t>::max();
+constexpr std::array<std::uint64_t, 6> seeds{
+    0,
+    1,
+    42,
+    0x100000000ULL,
+    0x123456789abcdef0ULL,
+    std::numeric_limits<std::uint64_t>::max()};
+
+const std::vector<RegionId> regions{{4, 0},
+                                    {5, 0},
+                                    {4, 1},
+                                    {5, 1},
+                                    {-5, -1},
+                                    {-4, -1},
+                                    {-5, 0},
+                                    {-4, 0},
+                                    {1, 0},
+                                    {2, 0},
+                                    {31, 0},
+                                    {31, 1},
+                                    {0, 31},
+                                    {0, -32},
+                                    {-32, 0},
+                                    {-23, 22},
+                                    {0, 0},
+                                    {50, 50},
+                                    {min_cell, min_cell},
+                                    {max_cell, max_cell}};
+
+std::uint64_t squared(Point a, Point b) {
+  const auto dx =
+      static_cast<std::uint64_t>(a.x >= b.x ? a.x - b.x : b.x - a.x);
+  const auto dy =
+      static_cast<std::uint64_t>(a.y >= b.y ? a.y - b.y : b.y - a.y);
+  return dx * dx + dy * dy;
+}
+
+// Independent binary-search oracle, rather than the production restoring root.
+std::int64_t rounded_root(std::uint64_t value) {
+  std::uint64_t lo = 0;
+  std::uint64_t hi = std::uint64_t{1} << 32;
+  while (lo + 1 < hi) {
+    const auto mid = lo + (hi - lo) / 2;
+    if (mid * mid <= value) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return static_cast<std::int64_t>(lo + (value > lo * lo + lo ? 1 : 0));
+}
+
+void geometry(const Map &map, const std::set<RegionId> &viewed) {
+  const auto &config = map.config();
+  const auto systems = map.revealed_systems();
+  std::map<LaneId, std::int64_t> expected;
+  for (std::size_t i = 0; i < systems.size(); ++i) {
+    const auto &a = systems[i];
+    require(viewed.contains(a.id.region), "private cell leaked into systems");
+    require(a.id.slot < 4, "invalid slot");
+    require(i == 0 || systems[i - 1].id < a.id,
+            "systems not sorted and unique");
+    const auto base_x = std::int64_t{a.id.region.cx} * config.cell_side_raw;
+    const auto base_y = std::int64_t{a.id.region.cy} * config.cell_side_raw;
+    const auto half = config.cell_side_raw / 2;
+    const auto quadrant_x = base_x + (a.id.slot % 2) * half;
+    const auto quadrant_y = base_y + (a.id.slot / 2) * half;
+    require(a.position.x > quadrant_x && a.position.x < quadrant_x + half &&
+                a.position.y > quadrant_y && a.position.y < quadrant_y + half,
+            "position outside its fixed slot quadrant");
+    const auto radius2 = squared(a.position, {});
+    const auto inner = static_cast<std::uint64_t>(config.inner_radius_raw);
+    const auto outer = static_cast<std::uint64_t>(config.outer_radius_raw);
+    require(radius2 >= inner * inner && radius2 < outer * outer,
+            "system outside annulus");
+    require(a.orbit.epoch_vector == a.position &&
+                a.orbit.radius_raw == rounded_root(radius2),
+            "incorrect orbit geometry");
+    require(map.distance_milli_j(a.id, a.id) == 0, "self distance is not zero");
+    require(!map.distance_milli_j(a.id, {a.id.region, 4}),
+            "nonexistent system has distance");
+    for (std::size_t j = i + 1; j < systems.size(); ++j) {
+      const auto &b = systems[j];
+      const auto distance2 = squared(a.position, b.position);
+      const auto raw = rounded_root(distance2);
+      require(map.raw_units_per_j().has_value(), "visible map has no J");
+      const auto scale = *map.raw_units_per_j();
+      require(scale > 0, "nonpositive J");
+      const auto numerator = raw * 1000;
+      const auto milli =
+          numerator / scale + (2 * (numerator % scale) >= scale ? 1 : 0);
+      require(map.distance_milli_j(a.id, b.id) == milli &&
+                  map.distance_milli_j(b.id, a.id) == milli,
+              "incorrect or asymmetric chord distance");
+      const auto side = static_cast<std::uint64_t>(config.cell_side_raw);
+      if (distance2 <= side * side) {
+        expected.emplace(LaneId{a.id, b.id}, raw);
+      }
+    }
+  }
+  std::map<LaneId, std::int64_t> actual;
+  std::optional<LaneId> previous;
+  for (const auto &lane : map.revealed_lanes()) {
+    const LaneId id{lane.a, lane.b};
+    require(lane.a < lane.b && (!previous || *previous < id),
+            "lanes not canonical, sorted and unique");
+    require(viewed.contains(lane.a.region) && viewed.contains(lane.b.region),
+            "private endpoint leaked into lanes");
+    require(map.distance_milli_j(lane.a, lane.b).has_value(),
+            "lane endpoint is hidden");
+    actual.emplace(id, lane.raw_length);
+    previous = id;
+  }
+  require(actual == expected, "visible lanes differ from all eligible pairs");
+}
+
+std::string reveal(std::uint64_t seed, Config config,
+                   const std::vector<RegionId> &order,
+                   bool check_each = false) {
+  Map map(seed, config);
+  require(map.revealed_systems().empty() && map.revealed_lanes().empty() &&
+              !map.raw_units_per_j(),
+          "construction revealed or calibrated the map");
+  require(!map.distance_milli_j({{4, 0}, 0}, {{4, 0}, 1}),
+          "construction exposes distances");
+  std::optional<std::int64_t> frozen;
+  std::set<RegionId> viewed;
+  for (const auto cell : order) {
+    require(map.view_region(cell) == Status::ok, "valid view failed");
+    if (!frozen) {
+      frozen = map.raw_units_per_j();
+      require(frozen && *frozen > 0, "first successful view did not freeze J");
+    }
+    require(map.raw_units_per_j() == frozen, "J changed after a view");
+    viewed.insert(cell);
+    if (check_each) {
+      geometry(map, viewed);
+      const auto before = snapshot(map);
+      require(map.view_region(cell) == Status::ok, "repeat view failed");
+      require(snapshot(map) == before, "repeat view changed map bytes");
+    }
+  }
+  geometry(map, viewed);
+  return snapshot(map);
+}
+
+void generation_order() {
+  const std::array<Config, 3> configs{Config{}, Config{128, 256, 4096},
+                                      Config{2147483646, 0, 2147483647}};
+  for (const auto config : configs) {
+    for (const auto seed : seeds) {
+      const auto reference = reveal(seed, config, regions, true);
+      auto order = regions;
+      std::reverse(order.begin(), order.end());
+      require(reveal(seed, config, order, true) == reference,
+              "reversed generation differs for seed " + std::to_string(seed));
+      std::mt19937 random(static_cast<std::uint32_t>(seed));
+      std::shuffle(order.begin(), order.end(), random);
+      // Repeated requests interleaved with fresh cells exercise cache hits.
+      order.insert(order.end(), regions.begin(), regions.end());
+      require(reveal(seed, config, order, true) == reference,
+              "shuffled generation differs for seed " + std::to_string(seed));
+    }
+  }
+  const auto low_seed = reveal(0, {}, regions);
+  const auto high_seed = reveal(0x100000000ULL, {}, regions);
+  require(low_seed.substr(low_seed.find('\n')) !=
+              high_seed.substr(high_seed.find('\n')),
+          "seed high word does not affect public output");
+}
+
+void thread_counts() {
+  // Every job has its own Map and views the complete set. No shared Map is
+  // mutated concurrently, and no boundary lanes are lost to per-cell merging.
+  constexpr std::size_t jobs = 24;
+  std::vector<std::string> serial(jobs);
+  for (std::size_t i = 0; i < jobs; ++i) {
+    serial[i] = reveal(seeds[i % seeds.size()], {}, regions);
+  }
+  for (const auto workers : {1, 2, 8}) {
+    std::vector<std::string> results(jobs);
+    std::vector<std::exception_ptr> failures(jobs);
+    std::atomic<std::size_t> next{0};
+    std::barrier start(workers);
+    std::vector<std::jthread> threads;
+    for (int worker = 0; worker < workers; ++worker) {
+      threads.emplace_back([&] {
+        start.arrive_and_wait();
+        for (;;) {
+          const auto index = next.fetch_add(1);
+          if (index >= jobs) {
+            return;
+          }
+          try {
+            auto order = regions;
+            std::mt19937 random(static_cast<std::uint32_t>(index + 100));
+            std::shuffle(order.begin(), order.end(), random);
+            results[index] = reveal(seeds[index % seeds.size()], {}, order);
+          } catch (...) {
+            failures[index] = std::current_exception();
+          }
+        }
+      });
+    }
+    threads.clear(); // Join before inspecting per-job results.
+    for (const auto &failure : failures) {
+      if (failure) {
+        std::rethrow_exception(failure);
+      }
+    }
+    require(results == serial, "thread-count invariance failed at " +
+                                   std::to_string(workers) + " workers");
+  }
+}
+
+void fog_cache_and_j() {
+  for (const auto seed : seeds) {
+    Map map(seed);
+    require(map.view_region({4, 0}) == Status::ok, "first cell failed");
+    geometry(map, {{4, 0}});
+    require(map.revealed_systems().size() == 4, "whole cell not revealed");
+    const auto frozen = map.raw_units_per_j();
+    const auto first = snapshot(map);
+    const SystemId hidden{{5, 0}, 0};
+    const auto visible = map.revealed_systems().front().id;
+    require(!map.distance_milli_j(visible, hidden) &&
+                !map.distance_milli_j(hidden, visible),
+            "halo system distance leaked");
+    require(map.view_region({4, 0}) == Status::ok && snapshot(map) == first,
+            "immediate repeat changed map");
+    require(map.view_region({5, 0}) == Status::ok, "halo cell view failed");
+    geometry(map, {{4, 0}, {5, 0}});
+    const auto lanes = map.revealed_lanes();
+    require(std::any_of(lanes.begin(), lanes.end(),
+                        [](const Lane &lane) {
+                          return lane.a.region != lane.b.region;
+                        }),
+            "test did not exercise visible boundary lanes");
+    require(snapshot(map) == reveal(seed, {}, {{5, 0}, {4, 0}}),
+            "privately generated halo differs when explicitly viewed");
+    const auto before_empty = snapshot(map);
+    for (const auto empty : std::array<RegionId, 7>{RegionId{0, 0},
+                                                    {-1, 0},
+                                                    {50, -50},
+                                                    {min_cell, min_cell},
+                                                    {min_cell, max_cell},
+                                                    {max_cell, min_cell},
+                                                    {max_cell, max_cell}}) {
+      require(map.view_region(empty) == Status::ok,
+              "empty/extreme view failed");
+      require(snapshot(map) == before_empty && map.raw_units_per_j() == frozen,
+              "empty/extreme view changed revelations or frozen J");
+    }
+
+    // S=4 has only the offsets 1 and 3. In the radius-4 disc all four
+    // bounding cells contain three systems; any calibration cell's halo
+    // generates all four privately. Start by explicitly viewing nothing there.
+    const Config small{4, 0, 4};
+    Map calibrated(seed, small);
+    require(calibrated.view_region({max_cell, min_cell}) == Status::ok,
+            "empty first view did not calibrate");
+    require(calibrated.revealed_systems().empty() &&
+                calibrated.revealed_lanes().empty() &&
+                calibrated.raw_units_per_j().has_value(),
+            "calibration leaked systems/lanes or did not freeze J");
+    const auto small_j = calibrated.raw_units_per_j();
+    std::vector<RegionId> disc{{-1, -1}, {-1, 0}, {0, -1}, {0, 0}};
+    const auto fresh = reveal(seed, small, disc, true);
+    std::reverse(disc.begin(), disc.end());
+    std::set<RegionId> viewed;
+    for (const auto cell : disc) {
+      require(calibrated.view_region(cell) == Status::ok,
+              "calibration-cached cell failed");
+      viewed.insert(cell);
+      geometry(calibrated, viewed);
+      require(calibrated.raw_units_per_j() == small_j,
+              "viewing calibration cells changed J");
+      const auto before = snapshot(calibrated);
+      require(calibrated.view_region(cell) == Status::ok &&
+                  snapshot(calibrated) == before,
+              "calibration-cached repeat changed map");
+    }
+    require(calibrated.revealed_systems().size() == 12 &&
+                snapshot(calibrated) == fresh,
+            "private calibration cache changed public map bytes");
+  }
+}
+
+void failures_are_atomic() {
+  constexpr auto huge = std::numeric_limits<std::int64_t>::max();
+  const std::array<Config, 12> invalid{Config{0, 0, 8},
+                                       {3, 0, 8},
+                                       {5, 0, 8},
+                                       {huge, 0, 8},
+                                       {2147483648LL, 0, 8},
+                                       {4, -1, 8},
+                                       {4, 8, 8},
+                                       {4, 9, 8},
+                                       {4, 0, 0},
+                                       {4, 0, -1},
+                                       {4, 0, 2147483648LL},
+                                       {4, 0, huge}};
+  auto check = [](Map &map, Status expected) {
+    const auto before = snapshot(map);
+    for (const auto cell : std::array<RegionId, 3>{
+             RegionId{4, 0}, {0, 0}, {min_cell, max_cell}}) {
+      for (int attempt = 0; attempt < 2; ++attempt) {
+        require(map.view_region(cell) == expected, "wrong failure status");
+        require(snapshot(map) == before && !map.raw_units_per_j() &&
+                    map.revealed_systems().empty() &&
+                    map.revealed_lanes().empty(),
+                "failed view changed map state");
+      }
+    }
+  };
+  for (const auto config : invalid) {
+    Map map(42, config);
+    check(map, Status::invalid_config);
+  }
+  for (const auto version : {0U, current_format_version + 1,
+                             std::numeric_limits<std::uint32_t>::max()}) {
+    Map map(42, {}, version);
+    check(map, Status::unsupported_format_version);
+  }
+  // Valid bounds, but no integer candidate fits inside radius 1.
+  Map no_calibration(42, Config{4, 0, 1});
+  check(no_calibration, Status::calibration_failed);
+}
+} // namespace
+
+int main() {
+  const std::array<std::pair<const char *, void (*)()>, 4> tests{{
+      {"generation order, config and repeat invariance", generation_order},
+      {"independent Maps at 1/2/8 threads", thread_counts},
+      {"fog, boundary refresh, private caches and frozen J", fog_cache_and_j},
+      {"invalid config/version and calibration failure", failures_are_atomic},
+  }};
+  for (const auto &[name, test] : tests) {
+    try {
+      test();
+      std::cout << "PASS " << name << '\n';
+    } catch (const std::exception &error) {
+      std::cerr << "FAIL " << name << ": " << error.what() << '\n';
+      return 1;
+    }
+  }
+}

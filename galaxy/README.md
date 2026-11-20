@@ -65,4 +65,36 @@ Output records `format_version`, the seed as a decimal **string** (preserving al
 
 This is geometry tooling. A future adapter to `Pt`, `NetSt`, `Lane` and `Net.J` depends on the simulation import and must respect its exact whole-map median contract rather than substitute this sampled estimate. Geometry does not supply simulation owners, tiers, homes/hubs, routes, hazards or eager all-pairs state. No such adapter or gameplay defaults are included here.
 
-Determinism, invariance and native/WASM tests belong to a separate `Agent-Role: tests` session and stacked tests PR. A small WASM galaxy-map viewer is a later follow-up, distinct from issue #13's replay viewer.
+## Tests
+
+Run the public-API invariance tests and real CLI/library JSON comparison with a
+C++23 compiler, CMake, Python 3.10+ and native threads:
+
+```sh
+flock /tmp/desktop-temp-heavy.lock cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+flock /tmp/desktop-temp-heavy.lock cmake --build build/galaxy --parallel 2
+ctest --test-dir build/galaxy --output-on-failure
+python3 -m unittest discover -s tests -v
+```
+
+The tests check reversed/shuffled/repeated reveals across seeds and configurations,
+independent maps on 1/2/8 workers, complete boundary-lane visibility, private halo
+and calibration caches, frozen J, empty/extreme cells, invalid configurations and
+versions, calibration failure, and CLI argument errors. Snapshots include every
+public system/orbit/lane field and chord distances; they use no fixed map fixture.
+The existing `ci` job runs the native tests and Python lint/tests. Test targets
+compile with `-Wall -Wextra -Wpedantic`; `-DBUILD_TESTING=OFF` builds only the core
+and CLI.
+
+For the optional native/WASM comparison, obtain WASI SDK separately and use Node
+22+ with WASI preview1 support (validated with WASI SDK 34.0 and Node 22.23.4):
+
+```sh
+python3 galaxy/tests/test_wasm.py --sdk /path/to/wasi-sdk --native-build build/galaxy --build-dir build/galaxy-wasm
+```
+
+This compiles the unchanged core, CLI and public-API probe for WASM, then compares
+native/WASM records and JSON across seeds and reveal orders. Its compiler/linker
+calls use the same desktop build lock. It downloads nothing and is separate from
+the native CI run; no viewer is included. A small WASM galaxy-map viewer remains a
+later follow-up, distinct from issue #13's replay viewer.

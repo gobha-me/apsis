@@ -36,3 +36,12 @@ jobs:
           test -s README.md
           test -s LICENSE
           test -s build/placeholder.txt
+      - name: Lint galaxy test scripts
+        run: |
+          python -m ruff check galaxy/tests
+          python -m ruff format --check galaxy/tests
+      - name: Build and test galaxy
+        run: |
+          cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake --build build/galaxy --parallel 2
+          ctest --test-dir build/galaxy --output-on-failure
