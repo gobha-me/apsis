@@ -21,6 +21,11 @@ bool parse_integer(std::string_view text, Integer &value) {
   if (text.empty()) {
     return false;
   }
+  const auto digits = text.front() == '-' ? text.substr(1) : text;
+  if (digits.empty() ||
+      (digits.front() == '0' && (digits.size() != 1 || text.front() == '-'))) {
+    return false;
+  }
   const auto result =
       std::from_chars(text.data(), text.data() + text.size(), value);
   return result.ec == std::errc{} && result.ptr == text.data() + text.size();
