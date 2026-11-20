@@ -43,8 +43,7 @@ class DeterminismWorldTests(unittest.TestCase):
 
     def report_fixture(self, raw):
         self.fixture(
-            "from pathlib import Path\n"
-            f"Path('world_l2.json').write_bytes({raw!r})"
+            f"from pathlib import Path\nPath('world_l2.json').write_bytes({raw!r})"
         )
 
     def run_world(self, years=YEARS):
@@ -198,16 +197,12 @@ class DeterminismWorldTests(unittest.TestCase):
 
     def test_invalid_json_duplicate_keys_and_nonfinite_values_are_rejected(self):
         valid = json.dumps(VALID_WORLD)
+        duplicate = valid.replace('"threadsOk": 7', '"threadsOk": 6, "threadsOk": 7')
         cases = (
             (b"", "Expecting value"),
             (b"{", "Expecting property name"),
             (valid.encode() + b" trailing", "Extra data"),
-            (
-                valid.replace(
-                    '"threadsOk": 7', '"threadsOk": 6, "threadsOk": 7'
-                ).encode(),
-                "duplicate JSON key: threadsOk",
-            ),
+            (duplicate.encode(), "duplicate JSON key: threadsOk"),
         )
         for raw, diagnostic in cases:
             with self.subTest(raw=raw):

@@ -90,9 +90,7 @@ class DeterminismPrepareTests(unittest.TestCase):
                 result = self.run_prepare(report_dir)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stderr, "")
-                self.assertEqual(
-                    list((report_dir / "apsis-determinism").iterdir()), []
-                )
+                self.assertEqual(list((report_dir / "apsis-determinism").iterdir()), [])
 
     def test_prepare_reports_a_file_in_place_of_the_output_directory(self):
         report_dir = self.root / "not a directory"
