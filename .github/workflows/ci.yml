@@ -92,3 +92,12 @@ jobs:
             "$RUNNER_TEMP/apsis-sim-build/libapsis_world.a" \
             -o "$APSIS_VIEWER_OBSERVATIONS"
           python -m unittest discover -s tests -p test_viewer_export.py -v
+      - name: Lint galaxy test scripts
+        run: |
+          python -m ruff check galaxy/tests
+          python -m ruff format --check galaxy/tests
+      - name: Build and test galaxy
+        run: |
+          cmake -S galaxy -B build/galaxy -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake --build build/galaxy --parallel 2
+          ctest --test-dir build/galaxy --output-on-failure
