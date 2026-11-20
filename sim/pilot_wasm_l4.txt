@@ -1,0 +1,1 @@
+native = WebAssembly with pilots incl. law styles (5 careers x 10 years, full state every month): PASS (digest 115a90f447c9cda6)

@@ -1,0 +1,200 @@
+{
+ "hauler/3": {
+  "careers": 300,
+  "rescues": 545,
+  "debts": 30,
+  "med": 1.78,
+  "p90": 4.85,
+  "max": 10.0,
+  "openAtEnd": 3,
+  "stuck": 0,
+  "ledger": true
+ },
+ "hauler/4": {
+  "careers": 300,
+  "rescues": 148,
+  "debts": 5,
+  "med": 1.75,
+  "p90": 8.37,
+  "max": 8.37,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "hauler/6": {
+  "careers": 300,
+  "rescues": 15,
+  "debts": 1,
+  "med": 0.85,
+  "p90": 0.85,
+  "max": 0.85,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "hauler/all": {
+  "careers": 900,
+  "rescues": 708,
+  "debts": 36,
+  "med": 1.75,
+  "p90": 5.89,
+  "max": 10.0,
+  "openAtEnd": 3,
+  "stuck": 0,
+  "ledger": true
+ },
+ "crisis/3": {
+  "careers": 300,
+  "rescues": 487,
+  "debts": 23,
+  "med": 1.72,
+  "p90": 5.89,
+  "max": 10.0,
+  "openAtEnd": 3,
+  "stuck": 0,
+  "ledger": true
+ },
+ "crisis/4": {
+  "careers": 300,
+  "rescues": 157,
+  "debts": 8,
+  "med": 1.67,
+  "p90": 9.8,
+  "max": 9.8,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "crisis/6": {
+  "careers": 300,
+  "rescues": 17,
+  "debts": 1,
+  "med": 0.85,
+  "p90": 0.85,
+  "max": 0.85,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "crisis/all": {
+  "careers": 900,
+  "rescues": 661,
+  "debts": 32,
+  "med": 1.67,
+  "p90": 5.89,
+  "max": 10.0,
+  "openAtEnd": 3,
+  "stuck": 0,
+  "ledger": true
+ },
+ "pathfinder/3": {
+  "careers": 300,
+  "rescues": 237,
+  "debts": 36,
+  "med": 0.88,
+  "p90": 3.94,
+  "max": 8.11,
+  "openAtEnd": 3,
+  "stuck": 0,
+  "ledger": true
+ },
+ "pathfinder/4": {
+  "careers": 300,
+  "rescues": 66,
+  "debts": 12,
+  "med": 2.79,
+  "p90": 8.04,
+  "max": 8.06,
+  "openAtEnd": 1,
+  "stuck": 0,
+  "ledger": true
+ },
+ "pathfinder/6": {
+  "careers": 300,
+  "rescues": 28,
+  "debts": 10,
+  "med": 3.16,
+  "p90": 9.35,
+  "max": 10.0,
+  "openAtEnd": 2,
+  "stuck": 0,
+  "ledger": true
+ },
+ "pathfinder/all": {
+  "careers": 900,
+  "rescues": 331,
+  "debts": 58,
+  "med": 1.84,
+  "p90": 5.44,
+  "max": 10.0,
+  "openAtEnd": 6,
+  "stuck": 0,
+  "ledger": true
+ },
+ "careful/6": {
+  "careers": 300,
+  "rescues": 186,
+  "debts": 0,
+  "med": null,
+  "p90": null,
+  "max": null,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "bold/6": {
+  "careers": 300,
+  "rescues": 22,
+  "debts": 0,
+  "med": null,
+  "p90": null,
+  "max": null,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "reckless/6": {
+  "careers": 300,
+  "rescues": 1546,
+  "debts": 1,
+  "med": 0.19,
+  "p90": 0.19,
+  "max": 0.19,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "payer/6": {
+  "careers": 300,
+  "rescues": 21,
+  "debts": 0,
+  "med": null,
+  "p90": null,
+  "max": null,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "forgetful/6": {
+  "careers": 300,
+  "rescues": 192,
+  "debts": 0,
+  "med": null,
+  "p90": null,
+  "max": null,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ },
+ "double agent/6": {
+  "careers": 300,
+  "rescues": 17,
+  "debts": 2,
+  "med": 0.79,
+  "p90": 1.27,
+  "max": 1.27,
+  "openAtEnd": 0,
+  "stuck": 0,
+  "ledger": true
+ }
+}
