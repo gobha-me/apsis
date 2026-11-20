@@ -86,6 +86,10 @@ class RescueDebtCliTests(unittest.TestCase):
                     os.kill(os.getppid(), signal.SIGINT)
                     time.sleep(0.1)
                     sys.exit(7)
+                if mode == "sigterm":
+                    os.kill(os.getppid(), signal.SIGTERM)
+                    time.sleep(0.1)
+                    sys.exit(7)
                 if mode == "raw":
                     print(case["text"])
                 else:
@@ -184,7 +188,7 @@ class RescueDebtCliTests(unittest.TestCase):
 
         result = self.invoke("--max-seeds", "2")
 
-        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.returncode, 3, result.stderr)
         summary = self.read_summary()
         self.assertEqual(summary["outcome"], "max_seeds")
         self.assertEqual(summary["actualDebts"], 2)
@@ -292,6 +296,36 @@ class RescueDebtCliTests(unittest.TestCase):
         self.assertIn("KeyboardInterrupt", summary["error"])
         self.assertEqual(len(summary["manifest"]), 1)
         self.assertFalse((self.output / "seed-0000000001.json").exists())
+
+    def test_sigterm_returns_130_and_keeps_completed_seed_checkpoint(self):
+        first = seed_record(0)
+        first["careers"][0]["debtClear"] = [360]
+        self.make_driver({0: {"record": first}, 1: {"mode": "sigterm"}})
+
+        result = self.invoke()
+
+        self.assertEqual(result.returncode, 130, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("KeyboardInterrupt: SIGTERM", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        summary = self.read_summary()
+        self.assertEqual(summary["outcome"], "interrupted")
+        self.assertEqual(summary["error"], "KeyboardInterrupt: SIGTERM")
+        self.assertEqual(summary["actualDebts"], 1)
+        self.assertEqual(summary["completedSeeds"], 1)
+        self.assertEqual(summary["nextSeedIndex"], 1)
+        self.assertEqual(self.calls(), [[40, 0], [40, 1]])
+        self.assertEqual(len(summary["manifest"]), 1)
+        self.assertEqual(summary["manifest"][0]["seedIndex"], 0)
+        self.assertEqual(
+            [path.name for path in self.output.glob("seed-*.json")],
+            ["seed-0000000000.json"],
+        )
+        self.assertEqual(
+            json.loads((self.output / summary["manifest"][0]["file"]).read_text()),
+            first,
+        )
+        self.assertIn("Outcome: interrupted", (self.output / "report.md").read_text())
 
     def test_missing_and_nonexecutable_drivers_fail_before_creating_output(self):
         self.make_driver({})
