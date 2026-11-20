@@ -1,0 +1,7 @@
+333860 J=14 map units (side 80, v0.20 stock reach 22 = 1.57 J)
+110478 J=15 map units (side 80, v0.20 stock reach 22 = 1.47 J)
+697804 J=16 map units (side 80, v0.20 stock reach 22 = 1.38 J)
+57206 J=12 map units (side 80, v0.20 stock reach 22 = 1.83 J)
+632322 J=14 map units (side 80, v0.20 stock reach 22 = 1.57 J)
+517908 J=15 map units (side 80, v0.20 stock reach 22 = 1.47 J)
+552723 J=14 map units (side 90, v0.20 stock reach 22 = 1.57 J)

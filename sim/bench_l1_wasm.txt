@@ -1,0 +1,2 @@
+{"stations":26,"factions":9,"threads":1,"years_per_s":4497,"us_per_day":0.62}
+{"stations":200,"factions":64,"threads":1,"years_per_s":543,"us_per_day":5.12}
