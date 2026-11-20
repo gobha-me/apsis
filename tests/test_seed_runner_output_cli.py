@@ -50,6 +50,26 @@ class SeedRunnerOutputCliTests(unittest.TestCase):
                 'print("adapter-import-original-stdout", file=sys.__stdout__)\n'
                 "from apsis_output_cli_adapter import buffered_outcome as outcome\n"
             ),
+            "apsis_output_cli_libc_adapter": textwrap.dedent("""\
+                import ctypes
+                from apsis_output_cli_adapter import outcome
+
+                libc = ctypes.CDLL(None)
+                libc.printf.argtypes = [ctypes.c_char_p]
+                libc.printf.restype = ctypes.c_int
+
+                def c_outcome(seed):
+                    message = f"adapter-hook-libc-{seed}".encode()
+                    if libc.printf(message) != len(message):
+                        raise RuntimeError("libc printf failed")
+                    return outcome(seed)
+                """),
+            "apsis_output_cli_libc_import": (
+                "from apsis_output_cli_libc_adapter import libc, outcome, c_outcome\n"
+                'message = b"adapter-import-libc"\n'
+                "if libc.printf(message) != len(message):\n"
+                '    raise RuntimeError("libc printf failed")\n'
+            ),
         }
         for module, source in adapters.items():
             path = Path(cls.adapter_directory.name) / f"{module}.py"
@@ -136,6 +156,31 @@ class SeedRunnerOutputCliTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, process.stdout)
                 self.assertIn(marker, process.stderr)
+
+    def test_buffered_libc_import_and_hook_output_cannot_corrupt_stdout_json(self):
+        # Python's unbuffered mode also disables C stdout buffering at startup.
+        self.environment = self.environment.copy()
+        self.environment.pop("PYTHONUNBUFFERED", None)
+        cases = (
+            ("apsis_output_cli_libc_import:outcome", ["adapter-import-libc"]),
+            (
+                "apsis_output_cli_libc_adapter:c_outcome",
+                ["adapter-hook-libc-1", "adapter-hook-libc-2"],
+            ),
+            (
+                "apsis_output_cli_libc_import:c_outcome",
+                ["adapter-import-libc", "adapter-hook-libc-1", "adapter-hook-libc-2"],
+            ),
+        )
+        # No newline or explicit flush: these short printf writes stay in C stdio
+        # until the runner flushes libc while fd 1 still points at stderr.
+        for hook, markers in cases:
+            with self.subTest(hook=hook):
+                process = self.run_cli("--seeds", "1", "2", "--hook", hook)
+                self.assert_passed_report(process)
+                self.assertEqual(process.stderr, "".join(markers))
+                for marker in markers:
+                    self.assertNotIn(marker, process.stdout)
 
     def test_broken_report_pipe_exits_two_without_traceback(self):
         reader, writer = os.pipe()

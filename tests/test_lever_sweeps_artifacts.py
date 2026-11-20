@@ -16,6 +16,31 @@ def imported_result_hashes():
 
 
 class LeverSweepArtifactTests(LeverSweepTestCase):
+    def test_empty_inherited_hooks_are_stripped_from_child_environment(self):
+        self.fixture_binary()
+        # Empty hooks pass the parent's truthy-value guard but must not leak.
+        result = self.cli(
+            "run",
+            *self.run_arguments(),
+            environment={hook: "" for hook in ENV_HOOKS},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = self.manifest()
+        self.assertEqual(manifest["status"], "complete")
+        self.assertEqual(set(manifest["cases"]), {"baseline", "mass", "drive", "space"})
+        for name, case in manifest["cases"].items():
+            with self.subTest(case=name):
+                observed = json.loads(
+                    (self.output / name / "stdout.log").read_text(encoding="utf-8")
+                )
+                for hook in ENV_HOOKS:
+                    if hook != "APSIS_SET":
+                        self.assertNotIn(hook, observed["hooks"])
+                self.assertTrue(observed["hooks"]["APSIS_SET"])
+                self.assertEqual(
+                    observed["hooks"]["APSIS_SET"], case["environment"]["APSIS_SET"]
+                )
+
     def test_fixture_run_isolates_fixed_filenames_and_records_actual_invocations(self):
         before = imported_result_hashes()
         self.assertIn(Path("sim/pilot_l3.json"), before)

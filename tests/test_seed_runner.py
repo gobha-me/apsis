@@ -113,6 +113,36 @@ class WilsonIntervalTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "confidence must be"):
                     wilson_interval(0, 0, confidence)
 
+    def test_fraction_confidence_rounding_to_endpoints_is_rejected(self):
+        cases = (
+            (Fraction(1, 2**1075), 0.0),
+            (Fraction(2**55 - 1, 2**55), 1.0),
+        )
+        for confidence, rounded in cases:
+            self.assertGreater(confidence, 0)
+            self.assertLess(confidence, 1)
+            self.assertEqual(float(confidence), rounded)
+            for passed, completed in ((0, 0), (1, 2)):
+                with self.subTest(rounded=rounded, completed=completed):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "^confidence must be a finite number between 0 and 1$",
+                    ):
+                        wilson_interval(passed, completed, confidence)
+
+    def test_interior_fraction_confidence_matches_float_intervals(self):
+        for confidence in (Fraction(1, 2), Fraction(4, 5), Fraction(19, 20)):
+            for passed, completed in ((0, 0), (0, 3), (1, 3), (3, 3)):
+                with self.subTest(
+                    confidence=confidence, passed=passed, completed=completed
+                ):
+                    interval = wilson_interval(passed, completed, confidence)
+                    self.assertEqual(
+                        interval, wilson_interval(passed, completed, float(confidence))
+                    )
+                    self.assertIs(type(interval["confidence"]), float)
+                    self.assertEqual(interval["confidence"], float(confidence))
+
 
 class RunSeedsTests(unittest.TestCase):
     def test_empty_iterable_has_exact_no_data_report(self):
@@ -306,6 +336,52 @@ class RunSeedsTests(unittest.TestCase):
         )
         self.assertIs(type(interval["confidence"]), float)
         self.assertEqual(json.loads(json.dumps(report, allow_nan=False)), report)
+
+    def test_fraction_confidence_rounding_to_endpoints_prevents_hook_execution(self):
+        cases = (
+            (Fraction(1, 2**1075), 0.0),
+            (Fraction(2**55 - 1, 2**55), 1.0),
+        )
+        calls = []
+
+        def adapter(seed):
+            calls.append(seed)
+            return SeedOutcome("passed")
+
+        for confidence, rounded in cases:
+            self.assertGreater(confidence, 0)
+            self.assertLess(confidence, 1)
+            self.assertEqual(float(confidence), rounded)
+            for seeds in ([], [0, 1]):
+                with self.subTest(rounded=rounded, seeds=seeds):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "^confidence must be a finite number between 0 and 1$",
+                    ):
+                        run_seeds(seeds, adapter, confidence=confidence)
+                    self.assertEqual(calls, [])
+
+    def test_interior_fraction_confidences_preserve_hook_results(self):
+        for confidence in (Fraction(4, 5), Fraction(19, 20)):
+            with self.subTest(confidence=confidence):
+                calls = []
+
+                def adapter(seed):
+                    calls.append(seed)
+                    return SeedOutcome("passed" if seed == 0 else "failed")
+
+                report = run_seeds([0, 1], adapter, confidence=confidence)
+                self.assertEqual(calls, [0, 1])
+                self.assertEqual(report["summary"]["completed"], 2)
+                self.assertEqual(
+                    [row["status"] for row in report["results"]], ["passed", "failed"]
+                )
+                interval = report["summary"]["pass_rate_interval"]
+                self.assertEqual(interval, wilson_interval(1, 2, float(confidence)))
+                self.assertIs(type(interval["confidence"]), float)
+                self.assertEqual(
+                    json.loads(json.dumps(report, allow_nan=False)), report
+                )
 
     def test_string_confidences_are_rejected_before_hook_execution(self):
         calls = []
