@@ -12,14 +12,12 @@ for that review and does not record an answer on the owner's behalf.
 
 **Owner decision, 2026-11-20**
 
-Jump drive price scales with range: 0.5 J = 1,500 cr, 1.0 J = 2,500 cr, 3.0 J = 7,500 cr.
+Jump drive prices are 0.5 J = 1,500, 1.0 J = 2,500, 1.5 J = 3,750, 2.0 J = 5,000 and 3.0 J = 7,500 cr.
 
-`apsis-rules-v3.json`, parts `drive05`, `drive10`, and `drive30`: v3 charges
-2,500 cr for 0.5 J; the other two specified anchors already match. Apply the
+`apsis-rules-v3.json` charges 2,500 cr for 0.5 J, 5,000 cr for 1.5 J, and
+7,500 cr for 2.0 J; the 1.0 J and 3.0 J prices already match. Apply the
 decision in v4 rules and migration only (#49/#55); leave v3 goldens byte-identical.
-For Luna: v3 also has 1.5 J at 5,000 cr and 2.0 J at 7,500 cr. The decision does
-not specify these prices or an interpolation rule. Preserve their provisional
-values pending confirmation; do not invent a new pricing curve.
+Use all five specified prices without inventing an interpolation rule.
 
 ## F02 — Ports and hangars have different size rules
 
@@ -36,12 +34,17 @@ v3 fixtures unchanged and test beyond the former port caps as well.
 
 ## F03 — Airlock alignment needs a precise convention
 
-Open for Luna. `index.html:checkDocking` collects interface labels from any
+**Owner decision, 2026-11-20**
+
+An airlock is aligned when it's on the same deck as the port, on the exterior hull, facing outward, and within 1 cell of offset from the port. Docking ports have no size limit; only hangars limit size.
+
+`index.html:checkDocking` collects interface labels from any
 reachable, clear visitor airlock and checks label equality. It does not compare
-transformed airlock positions or facing. The owner's alignment/clearance rule is
-settled; what placement, orientation, and alignment representation should the
-headless check use? Specify that convention before #50/#52 finalize it. Do not
-claim interface-label equality proves geometric alignment or invent a new rule.
+transformed airlock positions or facing. The v4 docking check must evaluate
+same-deck placement, exterior hull position, outward facing, and the inclusive
+1-cell offset limit, alongside approach clearance (#50/#52). Interface-label
+equality alone does not prove alignment. Remove port size caps; retain hangar
+width, length, and deck-count limits.
 
 ## F04 — Blank action inherits station mode
 
@@ -71,6 +74,10 @@ Do not add a tooltip or scan/log simulation to this headless implementation.
 
 ## F07 — Passing self-test report does not cover Rustbucket
 
+**Owner decision, 2026-11-20**
+
+Rustbucket stays a deliberate failing example, a known-bad fixture the validator must reject. Keep it as a negative test.
+
 `apsis-example-self-test-v3.json` and `index.html:selfTestExamples` cover embedded
 keys `flat`, `kestrel`, `skiff`, `tender`, and `station`. The supplied canonical
 definitions instead include Wren, Skiff, Kestrel Tender, Wayfarer Anchorage, and
@@ -82,9 +89,8 @@ an `unreachable_component` error affecting three components, alongside `power_sh
 and `no_cargo` warnings. Read-only recomputation matched the stored results for
 all five definitions: the other four are ready; Rustbucket is not. Embedded rules
 also match the standalone rules. Preserve the negative fixture and add explicit
-v4 expectations in an independent test session (#48/#50/#51). For Luna: confirm
-whether a separate structurally valid, underpowered stock example is desired;
-do not repair the golden or reclassify its structural errors to manufacture one.
+v4 rejection expectations in an independent test session (#48/#50/#51). Do not
+repair the golden or reclassify its structural errors to make Rustbucket pass.
 
 ## F08 — Automation still depends on prototype packaging and Canvas
 
@@ -98,20 +104,38 @@ set for the canonical definitions; compare only equivalent inputs.
 
 ## F09 — UI limits drift from the exported rules
 
+**Owner decision, 2026-11-20**
+
+The rules file wins: names up to 80 characters, budgets up to 100M cr. The UI should read its limits from the rules.
+
+Clarification (via Luna, 2026-11-20, 5:14 PM America/New_York):
+
+- The 100M cr is only a technical sanity limit on input values, not a game rule. Label it that way in the rules and docs.
+- In the game, a build's budget is whatever the player can afford (money plus available credit). The sim enforces that, not the shipyard.
+- The 80-character name limit stands.
+
 `index.html`, ship-name change handler, truncates to 40 characters; the rules'
 `limits.maxBlueprintName` is 80. Its budget change handler caps at 10,000,000 cr;
-`limits.maxBudget` is 100,000,000 cr. The core reads rules limits. Production
-adapters must read those same limits rather than perpetuate independent constants
-(#49/#52). Any proposed change to the actual game limits goes to Luna.
+`limits.maxBudget` is 100,000,000 cr. In v4, label that value as
+`technicalLimits.maxBudgetInputCr`, a technical input sanity cap, alongside
+`technicalLimits.maxBlueprintNameCharacters` at 80. The core, production
+adapters, and future UI must read these rules fields (#49/#52). The shipyard
+does not enforce player affordability or treat 100M cr as a game budget ceiling.
 
 ## F10 — Formula fallback can conceal invalid rule data
+
+**Owner decision, 2026-11-20**
+
+An undefined or invalid formula rejects the design with a clear error, never a silent zero.
 
 `index.html:formula` substitutes zero for missing variables, zero denominators,
 invalid logarithm input, and nonfinite results. This can make a bad formula look
 like a computed value. The v4 loader must reject malformed formulas, unknown
-variables/operators, and invalid arity (#49). For Luna: specify undefined numeric
-outcomes separately from legitimate zero-thrust/no-drive cases. Do not silently
-change game semantics while hardening rule evaluation.
+variables/operators, and invalid arity (#49). At evaluation, missing variables,
+division by zero, invalid logarithm input, and nonfinite or otherwise undefined
+results reject the design with a clear formula error identifying its rule/path
+(#49/#51). Legitimate zero-thrust/no-drive values remain distinct from formula
+failures; neither zero nor an unavailable value may hide a failed calculation.
 
 ## F11 — Access inside a multi-deck cargo hold
 
