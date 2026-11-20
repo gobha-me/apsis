@@ -253,6 +253,36 @@ class DeterminismReportTests(unittest.TestCase):
                 self.write_json(path, record)
                 self.assert_failure(report_dir, artifact_dir, diagnostic)
 
+    def test_informational_count_rejects_wrong_total(self):
+        for count in (4, 6):
+            with self.subTest(count=count):
+                report_dir, artifact_dir = self.fixture_reports()
+                path = report_dir / "pilot_gates_l3.json"
+                data = self.read_json(path)
+                data["teeth"] = [count, count]
+                self.write_json(path, data)
+                self.assert_failure(
+                    report_dir,
+                    artifact_dir,
+                    f"teeth: got {count}/{count}, expected 5/5",
+                )
+
+    def test_layer1_gate_below_total_fails_the_report(self):
+        report_dir, artifact_dir = self.fixture_reports()
+        self.write_json(
+            report_dir / "gates_l1.json", [{"gate": "fixture", "ok": 0, "n": 1}]
+        )
+        self.assert_failure(
+            report_dir, artifact_dir, "Layer-1: layer-1 gate failed: fixture"
+        )
+
+    def test_empty_layer1_report_is_rejected(self):
+        report_dir, artifact_dir = self.fixture_reports()
+        self.write_json(report_dir / "gates_l1.json", [])
+        self.assert_failure(
+            report_dir, artifact_dir, "Layer-1: layer-1 report must be a nonempty array"
+        )
+
     def test_existing_enforced_checkpoint_counts_still_fail_the_report(self):
         for name, field, value in (
             ("world_core_l2.json", "checkpointResume", [13, 14]),

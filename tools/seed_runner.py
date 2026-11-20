@@ -2,6 +2,7 @@
 
 import argparse
 from contextlib import contextmanager, redirect_stdout
+import ctypes
 from dataclasses import dataclass, field
 import importlib
 import json
@@ -26,20 +27,25 @@ class SeedOutcome:
 SeedHook = Callable[[int], SeedOutcome]
 
 
-def _validate_confidence(confidence: Real) -> None:
+def _validate_confidence(confidence: Real) -> float:
     if (
         isinstance(confidence, bool)
         or not isinstance(confidence, Real)
         or not 0 < confidence < 1
     ):
         raise ValueError("confidence must be a finite number between 0 and 1")
+    # Exact real values such as Fractions can round to a float endpoint.
+    converted = float(confidence)
+    if not 0 < converted < 1:
+        raise ValueError("confidence must be a finite number between 0 and 1")
+    return converted
 
 
 def wilson_interval(
     passed: int, completed: int, confidence: Real = 0.95
 ) -> dict[str, str | float | None]:
     """Two-sided Wilson score interval for a binary pass rate; null if empty."""
-    _validate_confidence(confidence)
+    confidence = _validate_confidence(confidence)
     if (
         type(passed) is not int
         or type(completed) is not int
@@ -48,7 +54,7 @@ def wilson_interval(
         raise ValueError("counts must be integers with 0 <= passed <= completed")
     interval = {
         "method": "wilson",
-        "confidence": float(confidence),
+        "confidence": confidence,
         "lower": None,
         "upper": None,
     }
@@ -89,7 +95,7 @@ def run_seeds(
     seeds: Iterable[int], hook: SeedHook | None = None, confidence: Real = 0.95
 ) -> dict[str, object]:
     """Run each distinct seed in input order; adapter errors remain explicit."""
-    _validate_confidence(confidence)
+    confidence = _validate_confidence(confidence)
     unique_seeds = []
     seen = set()
     for seed in seeds:
@@ -163,7 +169,7 @@ def _parse_seed(value: str) -> int:
 
 def _parse_confidence(value: str) -> float:
     try:
-        if value != value.strip():
+        if value != value.strip() or "_" in value:
             raise ValueError
         return float(value)
     except ValueError as exc:
@@ -202,6 +208,9 @@ def _flush_cli_stream(stream) -> None:
 
 @contextmanager
 def _cli_stdout():
+    libc = ctypes.CDLL(None)
+    libc.fflush.argtypes = [ctypes.c_void_p]
+    libc.fflush.restype = ctypes.c_int
     _flush_cli_stream(sys.stdout)
     # Check stderr before dup(1) can reuse a closed fd 2.
     os.fstat(2)
@@ -211,6 +220,10 @@ def _cli_stdout():
         yield original_stdout
     finally:
         try:
+            # Drain C stdio while fd 1 still targets stderr. If flushing fails,
+            # leave fd 1 redirected so a later retry cannot corrupt the report.
+            if libc.fflush(None) != 0:
+                raise OSError("cannot flush C output")
             os.dup2(original_stdout, 1)
         finally:
             os.close(original_stdout)
