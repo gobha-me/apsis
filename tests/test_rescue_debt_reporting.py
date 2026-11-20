@@ -85,9 +85,7 @@ class RescueDebtReportingTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     row["pooling"],
-                    "tanks 3/4/6 pooled by episode"
-                    if row["tank"] == "all"
-                    else "none",
+                    "tanks 3/4/6 pooled by episode" if row["tank"] == "all" else "none",
                 )
 
     def test_completed_only_statistics_exclude_open_lower_bounds(self):

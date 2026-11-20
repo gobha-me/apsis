@@ -300,9 +300,7 @@ class RescueDebtCliTests(unittest.TestCase):
             "seed-driver must be an executable file",
         )
         self.driver.chmod(0o644)
-        self.assert_usage_error(
-            self.invoke(), "seed-driver must be an executable file"
-        )
+        self.assert_usage_error(self.invoke(), "seed-driver must be an executable file")
 
     def test_invalid_options_and_uint32_wrap_fail_before_a_campaign_starts(self):
         self.make_driver({})
