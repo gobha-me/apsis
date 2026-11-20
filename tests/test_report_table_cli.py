@@ -1,6 +1,7 @@
 """Exercise the report-table command with actual processes and files."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -166,6 +167,115 @@ class ReportTableCliTests(unittest.TestCase):
         self.assert_input_error(
             self.run_cli("-", "extra.json"), "unrecognized arguments"
         )
+
+    def test_lone_surrogates_are_rejected_under_strict_and_permissive_stdout(self):
+        for surrogate in ("\ud800", "\udcff"):
+            for field in ("columns", "rows"):
+                for index in range(3):
+                    report = {
+                        "columns": REPORT["columns"][:],
+                        "rows": [REPORT["rows"][0][:]],
+                    }
+                    cells = (
+                        report["columns"] if field == "columns" else report["rows"][0]
+                    )
+                    cells[index] = f"before{surrogate}after"
+                    for errors in ("strict", "surrogateescape"):
+                        with self.subTest(
+                            surrogate=ascii(surrogate),
+                            field=field,
+                            index=index,
+                            errors=errors,
+                        ):
+                            result = subprocess.run(
+                                [
+                                    sys.executable,
+                                    str(REPO_ROOT / "tools" / "report_table.py"),
+                                ],
+                                input=json.dumps(report),
+                                capture_output=True,
+                                encoding="utf-8",
+                                env={
+                                    **os.environ,
+                                    "PYTHONIOENCODING": f"utf-8:{errors}",
+                                },
+                                cwd=REPO_ROOT,
+                                timeout=10,
+                                check=False,
+                            )
+                            self.assert_input_error(result, "surrogates not allowed")
+                            self.assertNotIn("Exception ignored", result.stderr)
+
+    def test_100000_deep_json_from_stdin_or_file_exits_cleanly(self):
+        source = (
+            '{"columns":["M","B","C"],"rows":'
+            + "[" * 100_000
+            + "0"
+            + "]" * 100_000
+            + "}"
+        )
+        with tempfile.TemporaryDirectory(prefix="report-table-tests-") as directory:
+            path = Path(directory) / "deep.json"
+            path.write_text(source, encoding="utf-8")
+            for arguments, stdin in (
+                ((), source),
+                (("-",), source),
+                ((str(path),), ""),
+            ):
+                with self.subTest(arguments=arguments):
+                    result = self.run_cli(*arguments, source=stdin)
+                    self.assert_input_error(result, "recursion")
+                    self.assertNotIn("Exception ignored", result.stderr)
+
+    def test_closed_output_pipe_exits_cleanly_for_buffered_and_large_tables(self):
+        for length in (1, 128 * 1024):
+            with self.subTest(cell_length=length):
+                report = {
+                    "columns": REPORT["columns"],
+                    "rows": [["x" * length, "95.00%", "96.00%"]],
+                }
+                read_fd, write_fd = os.pipe()
+                os.close(read_fd)
+                with os.fdopen(write_fd, "wb") as output:
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            "-X",
+                            "dev",
+                            str(REPO_ROOT / "tools" / "report_table.py"),
+                        ],
+                        input=json.dumps(report),
+                        stdout=output,
+                        stderr=subprocess.PIPE,
+                        encoding="utf-8",
+                        cwd=REPO_ROOT,
+                        timeout=10,
+                        check=False,
+                    )
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("usage:", result.stderr)
+                self.assertIn("error:", result.stderr)
+                self.assertIn("Broken pipe", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertNotIn("Exception ignored", result.stderr)
+                self.assertNotIn("ResourceWarning", result.stderr)
+
+    def test_code_spans_and_control_characters_are_escaped_after_json_decoding(self):
+        report = {
+            "columns": ["`N\x00UL`", "`T\tAB`", "`L\u2028S`"],
+            "rows": [["`a|b`", "``a`b\\<&>``", "`x\r\ny&#124;`"]],
+        }
+        result = self.run_cli(source=json.dumps(report))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout,
+            "| `N&#0;UL` | `T&#9;AB` | `L&#8232;S` |\n"
+            "| --- | --- | --- |\n"
+            "| `a&#124;b` | ``a`b&#92;&lt;&amp;&gt;`` | `x<br>y&amp;#124;` |\n",
+        )
+        self.assertEqual(result.stderr, "")
+        for character in ("\x00", "\t", "\u2028"):
+            self.assertNotIn(character, result.stdout)
 
 
 if __name__ == "__main__":
