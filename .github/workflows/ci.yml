@@ -41,14 +41,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends cmake make g++-13
       - name: Build native sim
+        id: native_build
         run: |
           cmake -S sim -B "$RUNNER_TEMP/apsis-sim-build" -DCMAKE_CXX_COMPILER=g++-13
           cmake --build "$RUNNER_TEMP/apsis-sim-build" --parallel 2
+      - name: Prepare fresh determinism evidence
+        id: determinism_prepare
+        run: python tools/determinism.py prepare --report-dir "$RUNNER_TEMP"
       - name: Run native layer-1 gates
+        id: native_layer1
         working-directory: ${{ runner.temp }}
         run: |
           "$RUNNER_TEMP/apsis-sim-build/gates" "$GITHUB_WORKSPACE/sim/ref/vectors.txt" 3600 "$RUNNER_TEMP/gates_l1.json"
       - name: Run native world and pilot standing gates
+        id: native_standing
         working-directory: ${{ runner.temp }}
         run: |
           "$RUNNER_TEMP/apsis-sim-build/world_core" gates
@@ -56,6 +62,20 @@ jobs:
           "$RUNNER_TEMP/apsis-sim-build/pilot_gates" switches
           "$RUNNER_TEMP/apsis-sim-build/pilot_gates" endstates
           "$RUNNER_TEMP/apsis-sim-build/pilot_gates" law
+      - name: Enforce real-world 1/2/8-thread hashes
+        id: world_threads
+        if: ${{ !cancelled() && steps.native_build.outcome == 'success' && steps.determinism_prepare.outcome == 'success' }}
+        run: |
+          python tools/determinism.py world --build-dir "$RUNNER_TEMP/apsis-sim-build" --report-dir "$RUNNER_TEMP" --years 300
+      - name: Publish native determinism report
+        if: ${{ always() }}
+        run: |
+          python tools/determinism.py report --report-dir "$RUNNER_TEMP" \
+            --build-status "${{ steps.native_build.outcome }}" \
+            --prepare-status "${{ steps.determinism_prepare.outcome }}" \
+            --layer1-status "${{ steps.native_layer1.outcome }}" \
+            --standing-status "${{ steps.native_standing.outcome }}" \
+            --world-status "${{ steps.world_threads.outcome }}"
       - name: Lint galaxy test scripts
         run: |
           python -m ruff check galaxy/tests
