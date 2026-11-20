@@ -64,11 +64,13 @@
               <h2 id="timeline-heading">Observation timeline</h2>
               <span id="timeline-count"></span>
             </div>
-            <p class="note">General-war transitions and stranding-counter deltas are
-              <strong>derived observations</strong>. Rescue events and prices come from
-              <code>Pilot.ev</code>. Entries appear as playback reaches their day.</p>
-            <p class="note">The existing general-war predicate requires at least two
-              great-house pairs in total, with hostile pairs × 2 ≥ all great-house pairs.</p>
+            <p class="note">Daily war-gate statistic threshold changes and counter deltas
+              for rescues and lost-in-space deaths are <strong>derived observations</strong>.
+              Actual events and rescue prices come from <code>Pilot.ev</code>.
+              Entries appear as playback reaches their day.</p>
+            <p class="note">The war-gate statistic is over threshold when there are at least
+              two great-house pairs in total and hostile pairs × 2 ≥ all great-house pairs.
+              This is a daily sample, not a war state or declaration.</p>
             <p id="empty-timeline"></p>
             <ol id="timeline"></ol>
           </section>
@@ -77,8 +79,12 @@
         <section class="panel provenance" aria-labelledby="provenance-heading">
           <h2 id="provenance-heading">Run record</h2>
           <p><strong>Final run checkpoint hash</strong> <code id="hash"></code></p>
-          <p class="note">This hash belongs to the completed export, not the current playback
-            frame. Reloading the export returns to the same recorded timeline and final hash.</p>
+          <p class="note">Before playback, this page checks the supplied final checkpoint
+            against this hash and checks every displayed daily frame against a separate
+            digest linked to it. These are consistency checks on exporter-supplied evidence;
+            anyone who edits the export can also forge that evidence. They do not authenticate
+            the run or replay the simulation. Metadata, settings, inputs, and the observation
+            timeline are outside these checks. The final hash belongs to the completed export.</p>
           <p id="history-gap"></p>
           <p class="note"><code>World.log</code> is an input journal, not an outcome history.
             No war declarations or stranding event kinds exist in the imported simulator.</p>

@@ -199,9 +199,11 @@ int main() {
     value(out, entry.a.f);
     out << '}';
   }
-  out << "]},\"frames\":[";
+  out << "]}";
+  std::ostringstream frames;
+  frames << '[';
   War previous = warOf(world);
-  frame(out, world,
+  frame(frames, world,
         previous); // baseline before START, not a declaration/transition
   std::ostringstream timeline;
   bool comma = false;
@@ -244,16 +246,25 @@ int main() {
     }
     previous = war;
     strandings = world.pl.n.strand;
-    out << ',';
-    frame(out, world, war);
+    frames << ',';
+    frame(frames, world, war);
   }
+  frames << ']';
   const auto finalCheckpoint = checkpoint(world);
-  out << "],\"timeline\":[" << timeline.str() << "],\"finalCheckpoint\":\"";
+  const auto finalStateHash = apsis::hashBytes(finalCheckpoint);
+  // Bind every rendered frame field to the completed checkpoint hash. This is
+  // a reproducible consistency check, not an authenticated or signed record.
+  const std::string frameEvidence =
+      "apsis-viewer-frames-v1\n" + finalStateHash + "\n" + frames.str();
+  const auto framesHash = apsis::hashBytes(
+      std::vector<uint8_t>(frameEvidence.begin(), frameEvidence.end()));
+  out << ",\"frames\":" << frames.str() << ",\"timeline\":[" << timeline.str()
+      << "],\"finalCheckpoint\":\"";
   static constexpr char hex[] = "0123456789abcdef";
   for (uint8_t byte : finalCheckpoint)
     out << hex[byte >> 4] << hex[byte & 15];
-  out << "\",\"finalStateHash\":\"" << apsis::hashBytes(finalCheckpoint)
-      << "\"}\n";
+  out << "\",\"finalStateHash\":\"" << finalStateHash << "\",\"framesHash\":\""
+      << framesHash << "\"}\n";
   std::cout << out.str();
   return std::cout ? 0 : 1;
 }

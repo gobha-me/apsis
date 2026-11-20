@@ -1,5 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const controls = document.querySelectorAll('[data-run-control]');
+const maxExportBytes = 32 * 1024 * 1024;
 const endStates = ['active', 'lost in space', 'death by hazard', 'bankrupt'];
 const eventNames = new Map([
   [1, 'Debt warning'],
@@ -28,24 +29,57 @@ function pause() {
   byId('play').textContent = 'Play';
 }
 
+const isHash = (value) => typeof value === 'string' && /^[0-9a-f]{16}$/.test(value);
+
+function hashBytes(bytes) {
+  // Match both apsis::hashBytes lanes, including uint32 overflow.
+  let firstLane = 0x811c9dc5;
+  let secondLane = 0x1b873593;
+  for (const byte of bytes) {
+    firstLane = Math.imul(firstLane ^ byte, 0x01000193) >>> 0;
+    secondLane = Math.imul(secondLane ^ byte, 0x5bd1e995) >>> 0;
+  }
+  return [firstLane, secondLane].map((lane) => lane.toString(16).padStart(8, '0')).join('');
+}
+
 function verifyFinalCheckpoint(value) {
   const checkpoint = value.finalCheckpoint;
-  if (!/^[0-9a-f]{16}$/.test(value.finalStateHash) ||
+  if (!isHash(value.finalStateHash) ||
       typeof checkpoint !== 'string' || checkpoint.length === 0 ||
       checkpoint.length % 2 !== 0 || /[^0-9a-f]/.test(checkpoint)) {
     throw new Error('The export requires a valid final checkpoint and 16-digit lowercase hex hash.');
   }
-  // Match apsis::hashBytes over the full checkpoint, including the pilot.
-  let firstLane = 0x811c9dc5;
-  let secondLane = 0x1b873593;
-  for (let offset = 0; offset < checkpoint.length; offset += 2) {
-    const byte = Number.parseInt(checkpoint.slice(offset, offset + 2), 16);
-    firstLane = Math.imul(firstLane ^ byte, 0x01000193) >>> 0;
-    secondLane = Math.imul(secondLane ^ byte, 0x5bd1e995) >>> 0;
+  const bytes = new Uint8Array(checkpoint.length / 2);
+  for (let offset = 0; offset < bytes.length; offset++) {
+    bytes[offset] = Number.parseInt(checkpoint.slice(offset * 2, offset * 2 + 2), 16);
   }
-  const hash = [firstLane, secondLane].map((lane) => lane.toString(16).padStart(8, '0')).join('');
-  if (hash !== value.finalStateHash) {
+  if (hashBytes(bytes) !== value.finalStateHash) {
     throw new Error('The final checkpoint hash does not match finalStateHash.');
+  }
+}
+
+function isInt64String(value) {
+  return typeof value === 'string' && value.length <= 20 &&
+    /^(0|-?[1-9][0-9]*)$/.test(value) &&
+    BigInt(value) >= -9223372036854775808n && BigInt(value) <= 9223372036854775807n;
+}
+
+function verifyFrames(value) {
+  // Rebuild the exporter's frame() JSON order; input whitespace/key order do not matter.
+  // Include every frame field rendered by the page, with its validated JSON type.
+  const frames = value.frames.map(({ day, war, pilot }) => ({
+    day,
+    war: { active: war.active, hostilePairs: war.hostilePairs, pairs: war.pairs },
+    pilot: {
+      alive: pilot.alive, at: pilot.at, system: pilot.system, busyUntil: pilot.busyUntil,
+      tripActive: pilot.tripActive, tripDestination: pilot.tripDestination,
+      end: pilot.end, endDay: pilot.endDay, wallet: pilot.wallet, fuel: pilot.fuel,
+      strandings: pilot.strandings, debt: pilot.debt,
+    },
+  }));
+  const evidence = `apsis-viewer-frames-v1\n${value.finalStateHash}\n${JSON.stringify(frames)}`;
+  if (!isHash(value.framesHash) || hashBytes(new TextEncoder().encode(evidence)) !== value.framesHash) {
+    throw new Error('The daily frames hash does not match framesHash and the final checkpoint hash.');
   }
 }
 
@@ -62,8 +96,16 @@ function validate(value) {
     throw new Error('The export must contain a baseline frame and one frame per bounded run day.');
   }
   for (const [index, frame] of value.frames.entries()) {
-    if (frame.day !== value.run.startDay + index || !frame.pilot || !frame.war ||
-        typeof frame.war.active !== 'boolean') {
+    const pilot = frame?.pilot;
+    const war = frame?.war;
+    if (frame?.day !== value.run.startDay + index || !Number.isSafeInteger(frame.day) ||
+        !pilot || !war || typeof war.active !== 'boolean' ||
+        ![war.hostilePairs, war.pairs].every((field) => Number.isSafeInteger(field) && field >= 0) ||
+        typeof pilot.alive !== 'boolean' || typeof pilot.tripActive !== 'boolean' ||
+        ![pilot.at, pilot.system, pilot.busyUntil, pilot.tripDestination, pilot.endDay]
+          .every(Number.isSafeInteger) ||
+        !Number.isInteger(pilot.end) || !Object.hasOwn(endStates, pilot.end) ||
+        ![pilot.wallet, pilot.fuel, pilot.strandings, pilot.debt].every(isInt64String)) {
       throw new Error('The export has an invalid or missing daily state frame.');
     }
   }
@@ -78,6 +120,7 @@ function validate(value) {
     priorDay = entry.day;
   }
   verifyFinalCheckpoint(value);
+  verifyFrames(value);
   return value;
 }
 
@@ -95,11 +138,11 @@ function setState(rows) {
 
 function timelineText(entry) {
   if (entry.type === 'general-war') {
-    return `General-war predicate ${entry.active ? 'became active' : 'became inactive'}: ` +
+    return `War-gate statistic ${entry.active ? 'over' : 'below'} threshold (derived, daily): ` +
       `${entry.hostilePairs} hostile / ${entry.pairs} pairs.`;
   }
   if (entry.type === 'stranding') {
-    return `Stranding counter changed by ${entry.delta}; cumulative total ${entry.total}.`;
+    return `Rescues and lost-in-space deaths counter changed by ${entry.delta}; cumulative total ${entry.total}.`;
   }
   if (entry.kind === 5) return `Rescued · actual rescue price ${entry.arg}.`;
   return `${eventNames.get(entry.kind) ?? `Pilot event kind ${entry.kind}`} · argument ${entry.arg}.`;
@@ -125,7 +168,7 @@ function renderTimeline(day) {
   byId('timeline-count').textContent = `${visible.length} / ${artifact.timeline.length} entries`;
   byId('empty-timeline').hidden = visible.length > 0;
   byId('empty-timeline').textContent = artifact.timeline.length === 0
-    ? 'No general-war transitions, stranding deltas, or pilot events were recorded in this run.'
+    ? 'No daily war-gate threshold changes, rescues and lost-in-space deaths counter deltas, or pilot events were recorded in this run.'
     : 'No entries through this day. Later observations appear as you advance.';
 }
 
@@ -133,13 +176,13 @@ function render() {
   const frame = artifact.frames[position];
   const pilot = frame.pilot;
   const baseline = artifact.frames[0].war;
-  const warLabel = (war) => `${war.active ? 'active' : 'inactive'} (${war.hostilePairs} / ${war.pairs} hostile pairs)`;
+  const warLabel = (war) => `${war.active ? 'over' : 'below'} threshold (${war.hostilePairs} / ${war.pairs} hostile pairs)`;
   byId('position').value = String(position);
   byId('day').textContent = `Day ${frame.day} · ${position}/${artifact.run.horizon}`;
   byId('step').disabled = position === artifact.frames.length - 1;
   setState([
     ['Pilot', pilot.alive ? 'alive' : position === 0 ? 'not started' : 'not alive'],
-    ['Career end', endStates[pilot.end] ?? `end state ${pilot.end}`],
+    ['Career end', Object.hasOwn(endStates, pilot.end) ? endStates[pilot.end] : `end state ${pilot.end}`],
     ['End day', pilot.endDay < 0 ? 'none' : `day ${pilot.endDay}`],
     ['Location', pilot.at >= 0 ? `station ${pilot.at}, system ${pilot.system}` : `undocked, system ${pilot.system}`],
     ['Trip', pilot.tripActive ? `active, destination ${pilot.tripDestination}` : 'inactive'],
@@ -147,9 +190,9 @@ function render() {
     ['Wallet', pilot.wallet],
     ['Fuel', pilot.fuel],
     ['Debt', pilot.debt],
-    ['Stranding counter', pilot.strandings],
-    ['General war (derived)', warLabel(frame.war)],
-    ['Start war baseline (derived)', warLabel(baseline)],
+    ['Rescues and lost-in-space deaths (derived counter)', pilot.strandings],
+    ['War-gate statistic over threshold (derived, daily)', warLabel(frame.war)],
+    ['Start war-gate statistic baseline (derived, daily)', warLabel(baseline)],
   ]);
   renderTimeline(frame.day);
 }
@@ -177,19 +220,28 @@ async function loadRun(file) {
   pause();
   controls.forEach((control) => { control.disabled = true; });
   byId('run').hidden = true;
+  byId('hash').textContent = '';
+  byId('state').replaceChildren();
+  byId('timeline').replaceChildren();
   byId('status').className = '';
   byId('status').textContent = `Loading ${file ? file.name : 'run.json'}…`;
   try {
-    if (file && file.size > 32 * 1024 * 1024) throw new Error('Choose an export smaller than 32 MiB.');
+    if (file && file.size > maxExportBytes) throw new Error('Choose an export smaller than 32 MiB.');
     let text;
     if (file) {
       text = await file.text();
     } else {
       const response = await fetch('run.json', { cache: 'no-store' });
       if (!response.ok) throw new Error(`run.json returned HTTP ${response.status}.`);
+      if (Number(response.headers?.get('content-length')) > maxExportBytes) {
+        throw new Error('Choose an export smaller than 32 MiB.');
+      }
       text = await response.text();
     }
     if (request !== loadNumber) return;
+    if (text.length > maxExportBytes || new TextEncoder().encode(text).byteLength > maxExportBytes) {
+      throw new Error('Choose an export smaller than 32 MiB.');
+    }
     artifact = validate(JSON.parse(text));
     artifactText = text;
     selectedFile = file;

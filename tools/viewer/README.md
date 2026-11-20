@@ -21,7 +21,7 @@ also accepts a saved artifact. Generated binaries and `run.json` are ignored by 
 The page needs no package install, network service, or browser WASI shim.
 
 On a shared build desktop, wrap compilation and replay commands in the existing
-heavy-work locks, for example `HEAVY_WAIT=0 flock -n /tmp/desktop-temp-heavy.lock
+heavy-work locks, for example `HEAVY_WAIT=0 /config/engine/tools/temp-heavy.v1.sh
 heavy-run sh tools/viewer/build.sh native`. A busy lock means skip the local build;
 do not bypass it. The portable build script itself does not manage desktop locks.
 
@@ -45,8 +45,9 @@ Zig; a successful native build alone does not verify that target.
 allowed. The first row is `seed majors startDay horizon station`. The supplied
 recipe uses seed 333860, four majors, a day-9000 warmup (25 simulation years), a
 720-day horizon, and start station 0. Its timed flight inputs target home stations
-1, 2, 3, and 0. It does not promise war, strandings, or rescues: the sim determines
-outcomes and the viewer displays absent observations plainly.
+1, 2, 3, and 0. It does not promise war-gate statistic threshold changes, rescues,
+or lost-in-space deaths: the sim determines outcomes and the viewer displays absent
+observations plainly.
 
 Supported bounds are a uint32 seed, **3–5 majors**, start day 0–36000, horizon
 1–3600 days, and at most 4095 timed inputs. The adapter checks the start station
@@ -88,11 +89,14 @@ the same source/settings reproduces its timeline and final checkpoint hash.
 `World.log` is only the input journal and is not checkpointed. No complete seed
 outcome history exists. The adapter therefore owns this bounded observation list:
 
-- **Derived general-war transitions:** sample `generalWarPairs` after each tick
-  using exactly `hostilePairs * 2 >= pairs && pairs >= 2`. The starting predicate
-  is a baseline, not a transition or war declaration.
-- **Derived stranding-counter deltas:** compare `Pilot.n.strand` between frames.
-  A delta is not a new sim event; it can accompany a fatal failed rescue.
+- **Derived daily war-gate statistic threshold changes:** sample `generalWarPairs`
+  after each tick using exactly `hostilePairs * 2 >= pairs && pairs >= 2`. The UI
+  labels this "War-gate statistic over threshold (derived, daily)". The starting
+  statistic is a baseline; neither it nor a threshold change is a war state or
+  declaration.
+- **Derived rescues and lost-in-space deaths counter deltas:** compare
+  `Pilot.n.strand` between frames. This counter increments on both rescue and
+  lost-in-space death. A delta is a derived observation, not a new `Pilot.ev` event.
 - **Actual pilot outcomes:** copy each new `[day, kind, arg]` from `Pilot.ev`.
   `EV_RESCUED` (kind 5) uses its real `arg` as the rescue price. Other existing
   events retain their kinds and arguments, including debt warnings and deaths.
@@ -101,13 +105,32 @@ These observations are sampled daily and do not claim a complete sub-tick histor
 No event kinds or logging are added under `sim/src/`. Rescue handling immediately
 relocates the pilot and sets `busy`; no rescue trajectory exists to animate.
 The page shows location, trip status, busy interval, state, and observations only.
-The displayed final hash belongs to the completed export, not the selected frame;
-the browser recomputes `apsis::hashBytes` from `finalCheckpoint` before displaying
-the recorded hash or enabling playback. Missing or malformed checkpoint/hash
-fields and non-matching hashes leave the run hidden with an error and disabled
-playback. Older exports without checkpoint bytes must be regenerated. The browser
-does not rerun the simulation. This is a consistency check on the supplied full
-checkpoint, not a cryptographic signature or verification of the daily observations.
+The displayed final hash belongs to the completed export, not the selected frame.
+Before showing the run or enabling playback, the browser validates frame field
+types and recomputes `apsis::hashBytes` from `finalCheckpoint`, requiring
+`finalStateHash` to be exactly 16 lowercase hexadecimal digits.
+
+The exporter also writes `framesHash`, using the same two-lane `hashBytes` algorithm
+over the UTF-8 bytes of `apsis-viewer-frames-v1\n`, followed by `finalStateHash`, a
+newline, and the compact canonical frames JSON. The frame array preserves day
+order. Each frame uses the exporter's `frame()` field order: `day`, `war` (`active`,
+`hostilePairs`, `pairs`), then `pilot` (`alive`, `at`, `system`, `busyUntil`,
+`tripActive`, `tripDestination`, `end`, `endDay`, `wallet`, `fuel`, `strandings`,
+`debt`). The browser reconstructs this encoding from the loaded fields and checks
+`framesHash` before rendering. Changing any displayed frame field while retaining
+the original evidence therefore fails, even if the checkpoint and its hash remain
+untouched. JSON whitespace and object-property order do not affect this check.
+
+Missing or malformed checkpoint/hash fields, malformed frame fields, and digest
+mismatches leave the run hidden with an error and disabled playback. Older exports
+without `finalCheckpoint` or `framesHash` must be regenerated. Chosen files and
+fetched `run.json` are both limited to 32 MiB.
+
+These are consistency checks on supplied checkpoint and frame evidence, not
+cryptographic signatures, authentication, or independent verification that the
+frames resulted from the simulation. Anyone editing the export can also forge
+the evidence. The browser does not rerun the simulation. Metadata, run settings,
+timed inputs, and the observation timeline are not covered by these digests.
 
 Existing viewer coverage lives under `tests/`; test and fixture updates belong to
 a separate `Agent-Role: tests` session.
