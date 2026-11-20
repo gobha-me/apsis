@@ -112,3 +112,43 @@ like a computed value. The v4 loader must reject malformed formulas, unknown
 variables/operators, and invalid arity (#49). For Luna: specify undefined numeric
 outcomes separately from legitimate zero-thrust/no-drive cases. Do not silently
 change game semantics while hardening rule evaluation.
+
+## F11 — Access inside a multi-deck cargo hold
+
+**Open for Luna, not guessed.** For [#60](https://github.com/gobha-me/apsis/issues/60),
+what ladder or other access rules apply inside a hold? The prototype has no
+multi-deck holds, so there is nothing to match from v3. These findings leave v3
+goldens unchanged; new rules await Luna.
+
+## F12 — Walkability across the open space
+
+**Open for Luna, not guessed.** A hold is one volume with no floor between the
+decks it spans. What walkability rules apply across that open space, including
+edges, railings, and falls? Do not infer traversable routes from volume membership.
+
+## F13 — Holds meeting or overlapping hangars
+
+**Open for Luna, not guessed.** How may a multi-deck hold meet or overlap a hangar,
+and how do hangar deck-count limits apply at that boundary or overlap?
+
+## F14 — Partial openings versus full spans
+
+**Open for Luna, not guessed.** Can holds be partially open, or must their open
+space fully span the decks they cover? Do not invent intermediate-floor exceptions.
+
+## F15 — Minimum and maximum hold span
+
+**Open for Luna, not guessed.** The requirement describes N >= 2 decks. What
+minimum and maximum spans should the rules allow beyond that stated shape?
+
+## F16 — Deck and level numbering across a hold
+
+**Open for Luna, not guessed.** How are decks and levels numbered across a
+multi-deck hold, including the intervening open space? Do not infer numbering
+or labels from the prototype's single-deck cargo behavior.
+
+## F17 — Docking and airlocks at a hold
+
+**Open for Luna, not guessed.** How do docking and airlocks interact with a
+multi-deck hold? Keep hold-specific placement, access, and alignment rules pending
+Luna rather than extending existing docking rules by assumption.

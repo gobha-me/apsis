@@ -114,8 +114,9 @@ FAIL; 400 for malformed requests, 413 for oversized input, 422 for schema-invali
 input, 501 for an unavailable operation, 503 for capacity/readiness failure, and
 500 for internal errors. JSON errors use the envelope. Do not expose exception
 stacks, filesystem paths, or input contents in public diagnostics or access logs.
-Provide `GET /healthz` for process liveness and `GET /readyz` for successfully
-loaded rules/assets. Readiness does not run a costly self-test per request.
+Provide `GET /healthz` for process liveness and `GET /readyz` for loaded,
+SHA-verified rules/assets, available capacity, and a service that is not draining.
+Readiness does not run a costly self-test per request.
 
 Start with one request at a time and explicit configurable input/output byte,
 JSON nesting, render-pixel, and execution-time limits. Use the same input limits
@@ -192,6 +193,39 @@ policy. Define the exact numeric comparison and canonicalization contract in
 #49 with independent tests; keep unavailable quantities explicit rather than
 writing NaN or inventing zero after a calculation failure (F10).
 
+## Multi-deck cargo holds
+
+**Owner requirement, 2026-11-20, via Atlas**, recorded in
+[#60](https://github.com/gobha-me/apsis/issues/60) (part of #50; depends on
+#47, #48, and #49):
+
+one hold spans two or more decks, for tall cargo or vehicles. It counts as a single volume for capacity, mass and walkability, with open space (no floor) between the decks it spans.
+
+The v4 blueprint schema represents each hold with one record identifying the
+hold, its footprint, and its deck span covering N >= 2 decks. The span references
+the blueprint's decks; it is not a separate cargo module on every deck. The
+definition wrapper carries that same blueprint representation. Capacity and
+mass are computed once for the entire hold, and walkability treats it as one
+volume. Inside its footprint, there is open space with no floor between the
+decks it spans; normalization and rendering must preserve that opening.
+Validation must distinguish this required opening from an ordinary missing-floor
+error, without inferring access or traversal rules.
+
+All unresolved game rules remain pending Luna, not guessed: internal ladders
+and access (F11); crossing the opening, edges, railings, and falls (F12); hangar
+interfaces or overlap and deck-count limits (F13); partial openings versus a
+full span (F14); minimum beyond the required two decks and maximum span (F15);
+deck/level numbering, including generated names (F16); and docking/airlock
+interactions (F17). The single
+walkability volume does not settle how traversal across open space works.
+Record any further open point in [FINDINGS.md](FINDINGS.md) as pending Luna
+before assigning it a rule.
+
+The prototype has no multi-deck holds, so there is nothing to match from v3.
+Leave v3 goldens unchanged. Schema/validator implementation and independent
+valid/invalid-span fixtures belong to later sessions for #49/#50/#60, after the
+applicable Luna decisions; this note adds no implementation or fixtures.
+
 ## Headless rendering
 
 Implement a CPU renderer over the normalized model (#53), with no DOM, GPU, or
@@ -210,35 +244,99 @@ Kestrel, not all five canonical designs. Preserve unexplained differences as
 findings. Preview PNGs and UI screenshots stay reference material for now; #48
 imports only the seven specified JSON goldens, not image archives or the HTML.
 
-## Container and deploy shape — Talos review required
+## Container and deploy shape
 
-**Talos must review this section before any implementation code lands. Argus
-must review the design note. This proposal authorizes no deployment.**
+Talos reviewed the shape at `32ce061b`; the requirements below complete that
+shape for [#57](https://github.com/gobha-me/apsis/issues/57). Talos review remains
+a gate before any implementation code lands; Argus must review the design note.
+**This proposal authorizes no deployment. Talos performs every deploy.**
 
-For #57, propose a multi-stage native image: build the standalone C++23 targets
-and run their checks in a builder, then copy only runtime binaries, validated
-v4 rules, schemas, stock designs, renderer assets, and a compact versioned
-self-test suite with approved expectations into a small runtime image.
-Select and pin the base image/dependencies in that reviewed work. Support both
-one-shot CLI execution and `shipyard serve`; exclude compilers, prototype HTML,
-source archives, and the full historical v3 fixture corpus from the service image.
+### Image
 
-Propose a non-root runtime with read-only root filesystem/assets and a bounded
-writable temporary volume for rendering. Clean request scratch on success,
-failure, and shutdown. Initial HTTP listens on configurable port 8080; local
-standalone use binds loopback by default, container use explicitly binds the
-service interface. No database, persistent volume, outbound fetching, or direct
-cluster access is needed. SIGTERM stops accepting work and drains bounded work.
+Use a multi-stage native image: build the standalone C++23 targets and run their
+checks in a builder, then copy only runtime binaries, validated v4 rules, schemas,
+stock designs, renderer assets, and a compact versioned self-test suite with
+approved expectations into a minimal runtime base with no shell or package
+manager. Select and pin the base image/dependencies in #57; statically link small
+dependencies where practical. Set a numeric non-root `USER`, for example
+`65532:65532`, and OCI labels recording the git SHA and rules SHA-256.
 
-The deploy request to Talos must justify the bot service, port, measured CPU,
-memory and scratch bounds, concurrency/timeouts, liveness/readiness probes,
-network access, and lack of persistence. Include the immutable image digest,
-rules/assets identities, successful CI/self-test evidence, and rollback to the
-previous digest. Talos decides ingress, TLS/authentication, access policy,
-resource allocations, release and rollback, and performs every deploy. The
-service must not be publicly exposed before that access policy is approved.
-No cluster commands, manifests applied to a cluster, registry publishing, deploy
-secrets, or automated release triggers are part of this documentation PR.
+Support one-shot CLI execution and `shipyard serve`; exclude compilers,
+prototype HTML, source archives, and the full historical v3 fixture corpus from
+the service image. Target an image under 100 MB. Images live in the internal registry.
+Deploy only by `@sha256` digest, never by tag.
+
+### Pod security
+
+Set `allowPrivilegeEscalation: false`, drop `ALL` capabilities, and use seccomp
+`RuntimeDefault`. Set `automountServiceAccountToken: false` and
+`readOnlyRootFilesystem: true`. No `hostPath`, `hostNetwork`, or privileged pods.
+
+### Scratch and request caps
+
+Use one disk-backed `emptyDir` mounted at `/tmp`, with a `sizeLimit` of about
+`256Mi`, justified from measurements in #57. It must not be memory-backed.
+Clean request scratch on success, failure, and shutdown. Document per-request
+caps for maximum body size, deck count, PNG dimensions and total pixels, and ZIP
+bytes. Set the numeric caps from measurements in #57; no values are invented
+here. Keep these operational caps distinct from game limits in the rules.
+
+### Concurrency and resources
+
+Use one replica and a fixed worker/concurrency cap, initially one request at a
+time as in the HTTP contract. When full, return `503` with
+`Retry-After`; do not create an unbounded queue. Set a per-request timeout.
+Measure requests and limits in #57: expect about `100m` CPU / `128Mi` memory
+requests and at most `500m` / `512Mi` limits. Rendering, including the worst
+allowed request, must stay within the limit.
+
+### Probes and shutdown
+
+`/healthz` is liveness only: it performs no work and does not re-read rules.
+`/readyz` means rules are loaded and their SHA verified, the service is under the
+concurrency cap, and it is not draining. On `SIGTERM`, make readiness false first,
+then stop accepting requests, then drain work. State a maximum drain time in
+#57, with exact seconds measured and set there, satisfying
+`request timeout < max drain time < terminationGracePeriodSeconds`.
+
+### Network
+
+Use a `ClusterIP` Service only, with port named `http` on `8080`. Set the bind
+address by flag or environment: `0.0.0.0` in the container, loopback by default
+for local standalone use. No Ingress, TLS, or auth until the access policy is
+approved. Deny egress entirely; the service needs no DNS. Allow ingress only
+from the namespaces of the calling bots named in #57; that issue must name them
+before deployment, without inventing namespace names here. No outbound fetching
+or direct cluster access is needed.
+
+### Placement
+
+Give the service its own namespace with a `ResourceQuota` and `LimitRange`.
+No PVC, ConfigMap, or Secrets. Rules are baked into the image, so the image digest
+pins the rules identity. No database or persistence is needed.
+
+### Observability
+
+Write JSON logs to stdout with request id, op, status, and duration. Never log
+bodies or blueprint contents, and cap log line size. Optional `/metrics` exposes
+request counts, latency, in-flight requests, and rejects.
+
+### Deploy request for #57
+
+The request to Talos must justify the bot service, port, measured CPU, memory and
+scratch bounds, concurrency/timeouts, probes, network access, and lack of
+persistence. Include all of the following:
+
+- CI and self-test evidence for the exact image digest, plus rules/assets identities.
+- Image size.
+- Measured peak RSS and scratch use under the worst allowed request.
+- The previous digest, for rollback.
+- Release through Talos only, with no automated deploy trigger.
+
+Talos decides ingress, TLS/authentication, access policy, resource allocations,
+release and rollback, and performs every deploy. No cluster commands, manifests
+applied to a cluster, registry publishing, deploy secrets, or automated release
+triggers are part of this documentation PR.
 
 ## Test strategy and delivery gates
 
