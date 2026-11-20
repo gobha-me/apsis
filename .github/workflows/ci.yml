@@ -44,7 +44,12 @@ jobs:
       - name: Install native sim build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake make g++-13
+          sudo apt-get install --yes --no-install-recommends cmake make g++-13 libssl-dev
+      - name: Build and test shipyard
+        run: |
+          cmake -S shipyard -B build/shipyard -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake --build build/shipyard --parallel 2
+          ctest --test-dir build/shipyard --output-on-failure
       - name: Build and test rescue-debt helper
         env:
           APSIS_RESCUE_DEBT_DRIVER: ${{ runner.temp }}/rescue-debt-build/rescue_debt_seed

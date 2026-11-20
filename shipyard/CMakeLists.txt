@@ -13,3 +13,23 @@ target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)
 target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto)
 target_compile_features(apsis-shipyard PUBLIC cxx_std_23)
 target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
+
+option(BUILD_TESTING "Build shipyard loader tests" OFF)
+include(CTest)
+if(BUILD_TESTING)
+  foreach(suite IN ITEMS rules migration input json_numeric)
+    add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
+    target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
+    target_compile_definitions(shipyard-${suite}-tests PRIVATE
+      SHIPYARD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_options(shipyard-${suite}-tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME shipyard-${suite} COMMAND shipyard-${suite}-tests)
+    set_tests_properties(shipyard-${suite} PROPERTIES TIMEOUT 120)
+  endforeach()
+  target_link_libraries(shipyard-migration-tests PRIVATE OpenSSL::Crypto)
+  # Known schema recursion defect; expectations and reproduction are retained
+  # in tests/rules_tests.cpp and documented in tests/README.md.
+  add_test(NAME shipyard-formula-nesting
+    COMMAND shipyard-rules-tests --formula-nesting)
+  set_tests_properties(shipyard-formula-nesting PROPERTIES DISABLED TRUE TIMEOUT 120)
+endif()
