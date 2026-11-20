@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gobha.me/schemas/apsis-ship-definition-v3.schema.json", "title": "Apsis v3 definition migration input",
+  "type": "object",
+  "properties": {
+    "schema": {"const": "apsis-ship-definition-v3"}, "blueprint": {"$ref": "apsis-shipyard-v3.schema.json"},
+    "derived": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "cost": {"type": ["number", "null"]}, "mass": {"type": ["number", "null"]},
+            "dryMass": {"type": ["number", "null"]}, "currentMass": {"type": ["number", "null"]},
+            "structureMass": {"type": ["number", "null"]}, "componentMass": {"type": ["number", "null"]},
+            "space": {"type": ["number", "null"]}, "occupiedCells": {"type": ["number", "null"]},
+            "freeCells": {"type": ["number", "null"]}, "floorCount": {"type": ["number", "null"]},
+            "widthM": {"type": ["number", "null"]}, "lengthM": {"type": ["number", "null"]},
+            "areaM2": {"type": ["number", "null"]}, "deckCount": {"type": ["number", "null"]},
+            "range": {"type": ["number", "null"]}, "rating": {"type": ["number", "null"]},
+            "fuel": {"type": ["number", "null"]}, "cargo": {"type": ["number", "null"]},
+            "hidden": {"type": ["number", "null"]}, "shield": {"type": ["number", "null"]},
+            "weapon": {"type": ["number", "null"]}, "powerUse": {"type": ["number", "null"]},
+            "powerSupply": {"type": ["number", "null"]}, "endurance": {"type": ["number", "null"]},
+            "role": {"type": ["string", "null"]}, "capabilities": {"type": ["array", "null"]},
+            "berthCount": {"type": ["number", "null"]}, "shuttleCount": {"type": ["number", "null"]},
+            "carriedMass": {"type": ["number", "null"]}, "carriedCurrentMass": {"type": ["number", "null"]},
+            "carriedDryMass": {"type": ["number", "null"]}, "carriedCost": {"type": ["number", "null"]},
+            "passengers": {"type": ["number", "null"]}, "crewCapacity": {"type": ["number", "null"]},
+            "carriedCraft": {"type": ["array", "null"]}, "performance": {"type": ["object", "null"]},
+            "combat": {"type": ["object", "null"]}, "airlocks": {"type": ["array", "null"]},
+            "dockingTargets": {"type": ["array", "null"]}, "sublightFuel": {"type": ["number", "null"]},
+            "service": {"type": ["number", "null"]}, "lifeReserve": {"type": ["number", "null"]},
+            "moduleCount": {"type": ["number", "null"]}, "capacity": {"type": ["number", "null"]}
+          },
+          "required": [], "additionalProperties": false,
+          "description": "Informational cache only. Nested cache objects are opaque, discarded on import, and never used as rule or calculation inputs."
+        },
+        {"type": "null"}
+      ]
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ready": {"type": ["boolean", "null"]}, "jumpReady": {"type": ["boolean", "null"]},
+            "issues": {"type": "array", "items": {"type": "object"}}
+          },
+          "required": [], "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "schema": {"const": "apsis-ship-rules-v3"}, "version": {"const": 3}, "notes": {"type": "string"},
+        "floorMass": {"type": "number"}, "floorCost": {"type": "number"}, "cellSizeM": {"type": "number"},
+        "massReference": {"type": "number"}, "floor": {"type": "object"}, "grid": {"type": "object"},
+        "limits": {"type": "object"}, "defaults": {"type": "object"}, "numeric": {"type": "object"},
+        "rotations": {"type": "array"}, "docking": {"type": "object"}, "performance": {"type": "object"},
+        "validation": {"type": "object"}, "formulas": {"type": "object"}, "parts": {"type": "array"},
+        "buildTypes": {"type": "array"}, "carrier": {"type": "object"}, "schemaIds": {"type": "object"},
+        "migration": {"type": "object"}, "combat": {"type": "object"}, "advisories": {"type": "object"}
+      },
+      "required": [
+        "schema", "version", "notes", "floorMass", "floorCost", "cellSizeM", "massReference", "floor", "grid",
+        "limits", "defaults", "numeric", "rotations", "docking", "performance", "validation", "formulas", "parts",
+        "buildTypes", "carrier", "schemaIds", "migration", "combat", "advisories"
+      ],
+      "additionalProperties": false,
+      "description": "Historical informational snapshot only; nested contents are discarded and never used as authority."
+    }
+  },
+  "required": ["schema", "blueprint"], "additionalProperties": false
+}

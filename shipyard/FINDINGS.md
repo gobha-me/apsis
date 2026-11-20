@@ -322,3 +322,24 @@ The owner pick gives the alignment requirements but does not define the visitor
 deck mapping, distance measure, or reference point. An inclusive 1-cell limit
 is an interpretation pending this answer, not a settled rule. Keep F03's other
 requirements and F18's port checks; do not guess the missing convention.
+
+## F22 — Loader boundary and encoding contract (#49)
+
+Implementation note, not a new game rule or an answer to any open finding.
+The #49 loader validates input shape and active-rule scalar/reference limits,
+then recomputes direct costs, capacities, and masses. It discards imported
+derived/validation caches and embedded rules as authority. Structural legality,
+carried-fit/empty-berth legality, readiness, performance, and docking remain
+unimplemented for #50/#51; exported readiness is unset with structured pending
+issues, including `pending_F20` for applicable blank/engine-less cases. No F20
+evaluation path or excluded numeric value is exposed. In
+particular, migration preserves Rustbucket's geometry without repairing it.
+
+Stable serialization, exact input comparisons, absolute epsilon, and computed
+rounding are specified in CONTRACT.md for the independent tests session. Character
+limits count Unicode scalar values, matching JSON Schema length semantics;
+the prototype used JavaScript UTF-16 units. This is the technical encoding
+contract, with no label trimming, truncation, or Unicode normalization.
+Existing migration notes are preserved; when a generated note cannot fit the
+rules limit, changes remain in the migration report with a warning. None of
+F11–F17 or F19–F21 is answered by this scope boundary.
