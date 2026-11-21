@@ -15,10 +15,10 @@ target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto)
 target_compile_features(apsis-shipyard PUBLIC cxx_std_23)
 target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
 
-option(BUILD_TESTING "Build shipyard loader tests" OFF)
+option(BUILD_TESTING "Build shipyard tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
-  foreach(suite IN ITEMS rules migration input json_numeric)
+  foreach(suite IN ITEMS rules migration input json_numeric validator dock pending)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
     target_compile_definitions(shipyard-${suite}-tests PRIVATE
