@@ -298,6 +298,12 @@ dimensions and `W,L` are hangar limits. Failure in both axis-aligned orientation
 is insufficient: a diagonal fit may still be possible. Every other case that
 does not fit unrotated remains `pending_F19`, without choosing any rotation.
 
+Round 4 numeric clarification: the computed diagonal comparison applies active
+absolute `numeric.epsilon` as documented in CONTRACT.md. Only
+`max(w,l) > hypot(W,L) + numeric.epsilon` establishes diagonal rejection;
+unrotated fit, minimum-side rejection, and deck limits remain exact. This
+clarifies the computed comparison without choosing any allowed rotation.
+
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
 **Open for Luna, not guessed.** How should v4 handle these evaluations?

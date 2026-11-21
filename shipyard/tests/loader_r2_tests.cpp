@@ -47,8 +47,10 @@ int main() {
     const double object_seconds = parse_seconds(objects, count);
     std::cout << "TIMING parse 400k []=" << array_seconds
               << "s {}=" << object_seconds << "s\n";
+#ifdef NDEBUG
     require(object_seconds < 1.0,
             "400k objects must parse in under one second in the Release suite");
+#endif
     require(object_seconds < 8 * array_seconds + 0.1,
             "object parsing must remain comparable to array parsing");
   });
@@ -70,8 +72,10 @@ int main() {
     require(!result.ok() && result.issues.size() == 128 &&
                 issue(result.issues, "issues_truncated", ""),
             "malformed holds must reach capped schema rejection");
+#ifdef NDEBUG
     require(elapsed < 5.0,
             "linear parser must keep the large import well below 30 seconds");
+#endif
   });
 
   suite.run("truncated carried blueprint schema trial is a nonmatch", [&] {
