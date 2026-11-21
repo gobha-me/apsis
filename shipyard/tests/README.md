@@ -153,6 +153,28 @@ Saturated performance must fail with null data and at most 128 issues including
 exactly one marker. Default parser, grid, deck, carrier and formula-arity limits
 remain active; no fixture or golden is changed.
 
+`shipyard-loader_r2` compares public parsing of 400,000 object and array
+entries, times the 6.6 MB malformed-holds import, and rejects truncated craft
+schema alternatives and floor-only grid overflow. Timing output records the
+measured Release durations; the parser regression guards stay below the
+existing 30-second watchdog and 120-second CTest timeout.
+
+The r2 public-API suites extend the reviewed fault coverage:
+
+- `shipyard-structure_r2`: command-origin hull flood (N02), bottom-first
+  bridge service selection (N03), missing-command reachability (N06), and
+  local hull connectivity with crew routes disabled (N07).
+- `shipyard-hangar_r2`: rotation-proof minimum-span and diagonal rejection,
+  inclusive boundaries, Skiff 6x10 in 8x8 and a 2x10 visitor in 9x9 remaining
+  pending F19, plus Wren in 10x40 to distinguish the N14 orientation fault.
+- `shipyard-validator_r2_cap`: carried-craft terminal truncation (N10),
+  combined below-cap designs (N16), and marker retention with structural
+  reporting disabled (N15). The public combined result has 124 overlaps,
+  three prior import warnings, and one marker inside the shared 128 slots.
+
+The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
+the inherited linear SAX parser keeps those calls below existing watchdogs.
+
 ## Historical archive: superseded F18 evidence
 
 The following excerpt is preserved verbatim from the pre-merge documentation to

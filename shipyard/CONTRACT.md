@@ -6,7 +6,9 @@ Strict UTF-8 JSON rejects duplicate keys after escape decoding, nonfinite
 numbers, unknown versions/authoritative fields, invalid shapes, and excessive
 nesting before totals. Defaults are operational parser bounds of 8 MiB per
 document and 64 nested containers; callers can set `InputLimits`. These are
-library resource guards, not game limits or deployment sizing. Schema checking
+library resource guards, not game limits or deployment sizing. A checked SAX
+DOM builder avoids rescanning arrays after each object while retaining the
+duplicate-key, nesting, finite-number, and strict JSON checks. Schema checking
 has a recursion-depth cap of 512 (`maxSchemaSteps`), not a total-work budget.
 HTTP request threads need at least 1 MB of stack for these bounded recursive
 checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
@@ -41,6 +43,9 @@ Structural issue collection, carried-craft diagnostics, performance formulas and
 warning-only advisories, and docking's structural details use this same shared bound; no unbounded issue list is accumulated before
 assembling the public result. A carried-craft failure summarizes its child
 diagnostics without recursively copying their complete issue trees.
+A truncated carried-craft report propagates its retained diagnostics and root
+marker through the same cap. Truncation is terminal for `validate` and `dock`,
+which return FAIL with `data: null`, as for top-level truncation.
 
 All fifteen named formulas must exist. Numbers, per-formula variables, and
 operator arrays form the entire expression format. Operators: add/mul take
@@ -94,8 +99,9 @@ Rustbucket or other structural faults.
 same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
 result envelope with active rules identity, sorted structured issues, and
 `data.definition` plus migration details if normalization succeeds. Structural
-errors retain the inspectable definition. `data.structuralPass` and the envelope
-status describe the enabled structural checks. Cached validation is discarded.
+errors retain the inspectable definition unless issue collection is truncated.
+`data.structuralPass` and the envelope status describe the enabled structural
+checks. Cached validation is discarded.
 `validation.ready` is false on structural failure and null on structural pass;
 `jumpReady` stays null in this structural operation; use `perf` for performance
 and readiness.
@@ -147,12 +153,15 @@ inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
 length, and deck limits and enforce the deck limit. A visitor that fits without
-rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
-exceeds the envelope in both orientations reports `widthLengthFit: false` and
+rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
+error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
+`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
+limits. Such a visitor reports `widthLengthFit: false` and
 `dock_hangar_size_limit` at the active docking severity (v3: error), with measured
-dimensions and limits, without `pending_F19`. Only a fit requiring rotation
-remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
-fit. No visitor rotation or airlock picker exists.
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
 recognize a requested blueprint `holds` field (including nested carried craft).
@@ -250,3 +259,23 @@ and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
 canonical form. Later independent tests should lock down the settled contracts;
 the three F22 prototype differences remain open and answer none of F11–F17 or
 F19–F21.
+
+
+## Historical hangar wording before final Argus r2
+
+The following prior F19-related wording is retained verbatim as superseded
+merge evidence. The current docking section above governs: a definite size
+failure needs the rotation-proof minimum-span or diagonal bound; failure in
+both axis-aligned orientations is insufficient. No rotation rule is chosen
+by this historical excerpt.
+
+~~~text
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
+exceeds the envelope in both orientations reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Only a fit requiring rotation
+remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
+fit. No visitor rotation or airlock picker exists.
+~~~
