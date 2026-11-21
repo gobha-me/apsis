@@ -192,6 +192,10 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                      {"checks", std::move(checks)}};
         if (kind == "hangar") {
             const auto& dimensions = visitor.value->definition.at("derived");
+            const auto width = dimensions.at("widthM").get<double>();
+            const auto length = dimensions.at("lengthM").get<double>();
+            const auto max_width = docking.at("maxWidthM").get<double>();
+            const auto max_length = docking.at("maxLengthM").get<double>();
             const auto deck_count = visitor_blueprint.at("decks").size();
             const auto max_decks = docking.at("maxDecks").get<std::size_t>();
             data["hangar"] = {{"visitorWidthM", dimensions.at("widthM")},
@@ -203,15 +207,21 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                 detail::add_issue(issues, {"dock_hangar_deck_limit", severity, "Visitor exceeds the hangar's rule-defined deck limit.",
                                   "/visitor/blueprint/decks", {{"actual", deck_count}, {"maximum", max_decks}}});
             }
-            if (dimensions.at("widthM").get<double>() <= docking.at("maxWidthM").get<double>() &&
-                dimensions.at("lengthM").get<double>() <= docking.at("maxLengthM").get<double>()) {
+            if (width <= max_width && length <= max_length) {
                 // An unrotated fit does not require an F19 rotation decision.
                 data["hangar"]["widthLengthFit"] = true;
-            } else {
+            } else if (length <= max_width && width <= max_length) {
                 pending = true;
                 detail::add_issue(issues, {"pending_F19", "warning",
                     "pending F19: allowed visitor docking rotations await Luna; hangar width/length fit is not certified.",
                     "/visitor/blueprint/decks", {{"finding", "F19"}}});
+            } else {
+                // Neither orientation fits, regardless of the F19 rotation decision.
+                data["hangar"]["widthLengthFit"] = false;
+                detail::add_issue(issues, {"dock_hangar_size_limit", severity,
+                    "Visitor exceeds the hangar's width/length envelope in both orientations.",
+                    "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
+                                              {"maxWidthM", max_width}, {"maxLengthM", max_length}}});
             }
         }
         data["pending"] = pending;

@@ -395,16 +395,13 @@ airlock, a clear approach, the size envelope, deck limits, and station crew
 reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
 until Luna defines same-deck mapping and the distance/reference/inclusivity
 convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
-visitor fits unrotated. Other width/length outcomes remain uncertified with
+visitor fits unrotated. A visitor exceeding the envelope in both orientations
+reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+docking severity (v3: error), including measured dimensions and limits, without
+`pending_F19`. Only a fit requiring rotation remains uncertified with
 `pending_F19`; the rule-defined deck cap is enforced.
-These pending results preserve F03/F18 without inventing F19/F21 answers.
-Argus S2 is partially implemented: an unrotated fit now returns
-`widthLengthFit: true`. An envelope exceeded in both orientations should return
-false with a size error; this remaining case needs no owner pick. Only a fit
-requiring rotation should remain pending F19. Existing oversized-Wren tests
-explicitly assert null/pending with no size error, so the definite oversize fix
-requires a coordinated independent tests update; those assertions are not
-changed in this code session.
+Argus S2's definite-envelope behavior is implemented without an F19 owner pick.
+The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all

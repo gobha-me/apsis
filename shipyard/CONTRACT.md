@@ -145,14 +145,12 @@ inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
 length, and deck limits and enforce the deck limit. A visitor that fits without
-rotation reports `widthLengthFit: true` without `pending_F19`. Other dimensional
-fits remain uncertified with `pending_F19`; no dock can pass by ignoring that
-pending fit. No visitor rotation or airlock picker exists.
-Definite oversize remains an implementation limitation: an envelope exceeded
-in both orientations needs no F19 owner decision and should return false with
-a size error. Only a fit requiring rotation should retain `pending_F19`.
-That remaining follow-up conflicts with the existing oversized-Wren pending
-assertions in the independent tests session; this code session does not change them.
+rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
+exceeds the envelope in both orientations reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Only a fit requiring rotation
+remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
+fit. No visitor rotation or airlock picker exists.
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
 recognize a requested blueprint `holds` field (including nested carried craft).
