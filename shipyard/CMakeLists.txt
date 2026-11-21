@@ -1,17 +1,26 @@
 cmake_minimum_required(VERSION 3.20)
-project(apsis_shipyard LANGUAGES CXX)
+project(apsis_shipyard LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
+add_library(apsis-shipyard-miniz STATIC
+  vendor/miniz/miniz.c vendor/miniz/miniz_tdef.c
+  vendor/miniz/miniz_tinfl.c vendor/miniz/miniz_zip.c)
+target_include_directories(apsis-shipyard-miniz SYSTEM PUBLIC vendor/miniz)
+target_compile_definitions(apsis-shipyard-miniz PUBLIC
+  MINIZ_NO_STDIO MINIZ_NO_TIME MINIZ_NO_ZLIB_APIS
+  MINIZ_NO_ZLIB_COMPATIBLE_NAMES MINIZ_USE_UNALIGNED_LOADS_AND_STORES=0)
+set_target_properties(apsis-shipyard-miniz PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
 add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
-  src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp)
+  src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp
+  src/render.cpp)
 add_library(apsis::shipyard ALIAS apsis-shipyard)
 target_include_directories(apsis-shipyard PUBLIC include)
 target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)
-target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto)
+target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto apsis-shipyard-miniz)
 target_compile_features(apsis-shipyard PUBLIC cxx_std_23)
 target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
 

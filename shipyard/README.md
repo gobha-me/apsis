@@ -2,7 +2,8 @@
 
 C++23 authoring library, independent of simulation and galaxy internals.
 The library implements loading, schema checks, direct totals, explicit v3
-migration, structural validation, docking checks, and performance evaluation.
+migration, structural validation, docking checks, performance evaluation, and
+headless PNG/ZIP rendering.
 Public CLI/HTTP adapters remain separate work.
 
 Build (CMake 3.20+, g++-13, OpenSSL 3.x development files):
@@ -76,3 +77,10 @@ sources use active defaults and retain their structural validation report.
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.
+
+
+Include `<apsis/shipyard/render.hpp>` for the headless CPU renderer. Its
+`render` operation validates through the existing library and returns in-memory
+per-deck PNGs, `stack.png`, a hashed manifest, and a deterministic stack ZIP.
+See [RENDERING.md](RENDERING.md) for the public API, exact pixel/manifest contract,
+operational bounds, and independent-test surface. CLI/HTTP adapters remain #52.

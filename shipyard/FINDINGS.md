@@ -541,3 +541,26 @@ invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
 ~~~
+
+
+## F25 — Headless preview presentation and reference-scene boundary (#53)
+
+Implementation evidence, not a new game rule or an answer to Luna. The preserved
+prototype preview manifest identifies an edited five-deck `Kestrel`, including
+two decks with zero floor plates in its stack preview. The canonical v3
+`Kestrel Tender` definition has three decks with different names and content.
+The preview is therefore not an approved image baseline for the canonical ship.
+
+The reference stack was visually inspected: it uses a shaded, textured
+orthographic scene and an exploded stack. The headless renderer deliberately
+uses integer top-down schematic panels and a vertical contact sheet, with active
+rule colors, rotated footprints, and facing. These are explicit presentation
+differences, not unexplained changes to ship geometry. A source-matched content
+or pixel comparison remains unavailable until the matching edited blueprint is
+identified; no missing decks, geometry, or prototype image expectations are
+invented. No preview PNG/ZIP or prototype HTML is imported as a golden.
+
+Every rendered panel retains its blueprint index and name. This does not decide
+physical deck levels or hold numbering (F16). F11–F17, F19, F20, and F21 remain
+**Open for Luna, not guessed**. Unsupported holds remain pending through the
+existing validator, and rendering supplies no stand-in performance values.
