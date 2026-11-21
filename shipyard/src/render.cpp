@@ -7,6 +7,7 @@
 #include <openssl/evp.h>
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <charconv>
 #include <cstdlib>
 #include <limits>
@@ -98,15 +99,15 @@ struct Canvas {
             }
     }
     void line(int x, int y, int end_x, int end_y, Color color) {
-        const int dx = std::abs(end_x - x), sx = x < end_x ? 1 : -1;
-        const int dy = -std::abs(end_y - y), sy = y < end_y ? 1 : -1;
-        int error = dx + dy;
-        for (;;) {
+        // Arrow shafts are cardinal and their wings are exactly 45 degrees.
+        const int sx = std::clamp(end_x - x, -1, 1);
+        const int sy = std::clamp(end_y - y, -1, 1);
+        const auto steps = static_cast<std::size_t>(
+            std::max(std::abs(end_x - x), std::abs(end_y - y)));
+        for (std::size_t step = 0; step <= steps; ++step) {
             rect(x, y, 1, 1, color);
-            if (x == end_x && y == end_y) break;
-            const int twice = error * 2;
-            if (twice >= dy) { error += dy; x += sx; }
-            if (twice <= dx) { error += dx; y += sy; }
+            x += sx;
+            y += sy;
         }
     }
     void text(int x, int y, std::string_view text, int max_width, Color color) {
@@ -117,10 +118,14 @@ struct Canvas {
             if (c >= 'a' && c <= 'z') c = static_cast<unsigned char>(c - 'a' + 'A');
             auto glyph = detail::render_glyphs.find(static_cast<char>(c));
             if (glyph == std::string_view::npos) glyph = detail::render_glyphs.find('?');
-            for (int row = 0; row < 7; ++row)
-                for (int col = 0; col < 5; ++col)
-                    if (detail::render_font[glyph][row] & (1 << (4 - col)))
-                        rect(x + col, y + row, 1, 1, color);
+            for (int row = 0; row < 7; ++row) {
+                auto bits = static_cast<unsigned int>(detail::render_font[glyph][row]);
+                while (bits != 0) {
+                    const int col = 4 - std::countr_zero(bits);
+                    rect(x + col, y + row, 1, 1, color);
+                    bits &= bits - 1U;
+                }
+            }
             x += 6;
         }
     }
@@ -206,7 +211,7 @@ Canvas draw_deck(const Json& deck, std::size_t index, const Json& rules,
         canvas.rect(x, y, w, h, border);
         const int inset = view.cell >= 3 ? 1 : 0;
         canvas.rect(x + inset, y + inset, w - 2 * inset, h - 2 * inset, rule_color(part.at("color")));
-        if (options.labels && w >= 10 && h >= 11)
+        if (options.labels && w >= 11 && h >= 11)
             canvas.text(x + 3, y + 3, part.at("id").get_ref<const std::string&>(), w - 6, dark_ink);
         if (view.cell >= 4) {
             const int cx = x + w / 2, cy = y + h / 2;
@@ -246,12 +251,15 @@ struct ZipOutput {
 };
 std::size_t zip_write(void* opaque, mz_uint64 offset, const void* data, std::size_t size) {
     auto& out = *static_cast<ZipOutput*>(opaque);
-    if (offset > out.limit || size > out.limit - static_cast<std::size_t>(offset)) {
+    const auto bounded_offset = std::min<mz_uint64>(offset, out.limit);
+    const auto bounded_size = std::min(size, out.limit);
+    if (offset != bounded_offset || size != bounded_size ||
+        bounded_offset + bounded_size > out.limit) {
         out.limited = true; return 0;
     }
     try {
         const auto begin = static_cast<std::size_t>(offset);
-        if (out.bytes.size() < begin + size) out.bytes.resize(begin + size);
+        out.bytes.resize(std::max(out.bytes.size(), begin + size));
         std::copy_n(static_cast<const std::uint8_t*>(data), size, out.bytes.begin() + static_cast<std::ptrdiff_t>(begin));
     } catch (const std::bad_alloc&) { out.limited = true; return 0; }
     return size;
@@ -312,10 +320,6 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
         if (raw_blueprint.is_object() && raw_blueprint.contains("decks") &&
             raw_blueprint.at("decks").is_array() && raw_blueprint.at("decks").size() > limits.maxDecks)
             fail("render_resource_limit", "Deck count exceeds the operational render limit.");
-        for (const auto& part : rules.data().at("parts"))
-            if (part.at("w").get<std::uint64_t>() > max_grid_cells ||
-                part.at("h").get<std::uint64_t>() > max_grid_cells)
-                fail("render_resource_limit", "Part dimensions exceed operational raster coordinate limits.");
         auto checked = validate(bytes, rules, schemas, {}, input_limits);
         checked["operation"] = "render";
         if (!checked.at("pass").get<bool>()) { checked["data"] = nullptr; return {std::move(checked), {}}; }
@@ -338,11 +342,11 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
                 {"stackLayout", "vertical-blueprint-order"}}},
             {"decks", Json::array()}, {"artifacts", Json::array()}};
         std::vector<RenderArtifact> artifacts;
-        std::size_t output_size = 0;
+        std::size_t remaining_bytes = limits.maxOutputBytes;
         const auto append = [&](RenderArtifact artifact) {
-            if (artifact.bytes.size() > limits.maxOutputBytes - output_size)
+            if (artifact.bytes.size() > remaining_bytes)
                 fail("render_resource_limit", "Rendered output exceeds the operational byte limit.");
-            output_size += artifact.bytes.size();
+            remaining_bytes -= artifact.bytes.size();
             artifacts.push_back(std::move(artifact));
         };
         Canvas stack(options.width, static_cast<std::uint32_t>(stack_height));
@@ -363,7 +367,7 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
         const auto manifest_bytes = canonical_json(manifest) + "\n";
         append({"manifest.json", "application/json", {manifest_bytes.begin(), manifest_bytes.end()},
             sha256(manifest_bytes.data(), manifest_bytes.size())});
-        append(zip(artifacts, limits.maxOutputBytes - output_size));
+        append(zip(artifacts, remaining_bytes));
         Json artifact_metadata = Json::array();
         for (const auto& artifact : artifacts) artifact_metadata.push_back(metadata(artifact));
         checked["data"] = {{"manifest", std::move(manifest)}, {"artifacts", std::move(artifact_metadata)}};
