@@ -18,7 +18,7 @@
       "items": {
         "type": "object",
         "properties": {
-          "name": {"type": "string"},
+          "name": {"type": "string"}, "nameGenerated": {"type": "boolean"},
           "floors": {
             "type": "object", "propertyNames": {"pattern": "^(0|[1-9][0-9]*),(0|[1-9][0-9]*)$"},
             "additionalProperties": {"const": true}

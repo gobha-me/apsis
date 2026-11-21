@@ -47,6 +47,7 @@
     "shipName": "Untitled vessel",
     "stationName": "Untitled station",
     "deckName": "Main deck",
+    "deckNamePrefix": "Deck ",
     "templateAlias": {
       "starter": "flat"
     },
