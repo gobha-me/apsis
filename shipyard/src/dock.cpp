@@ -197,6 +197,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             const auto length = dimensions.at("lengthM").get<double>();
             const auto max_width = docking.at("maxWidthM").get<double>();
             const auto max_length = docking.at("maxLengthM").get<double>();
+            const auto epsilon = rules.data().at("numeric").at("epsilon").get<double>();
             const auto deck_count = visitor_blueprint.at("decks").size();
             const auto max_decks = docking.at("maxDecks").get<std::size_t>();
             data["hangar"] = {{"visitorWidthM", dimensions.at("widthM")},
@@ -212,7 +213,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                 // An unrotated fit does not require an F19 rotation decision.
                 data["hangar"]["widthLengthFit"] = true;
             } else if (std::min(width, length) > std::min(max_width, max_length) ||
-                       std::max(width, length) > std::hypot(max_width, max_length)) {
+                       std::max(width, length) > std::hypot(max_width, max_length) + epsilon) {
                 // Minimum span and diagonal bounds rule out every rotation.
                 // Failure of both axis-aligned fits alone is inconclusive.
                 data["hangar"]["widthLengthFit"] = false;
