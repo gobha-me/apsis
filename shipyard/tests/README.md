@@ -1,10 +1,11 @@
 # Independent shipyard tests
 
-These tests exercise the public APIs in `loader.hpp` and `validator.hpp`, with no mocks. Expectations
+These tests exercise the public APIs in `loader.hpp`, `validator.hpp`, and
+`perf.hpp`, with no mocks. Expectations
 come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
 fixtures. Loader tests cover loading, migration, and direct totals; validator,
-dock, and pending suites cover #50. Performance evaluation remains #51 work;
-no open game decision is assigned a value here.
+dock, and pending suites cover #50. The three perf suites cover #51 without
+assigning values to open game decisions.
 
 Run with g++-13, C++23, CMake, and OpenSSL 3.x development files:
 
@@ -30,6 +31,45 @@ must load; 65 levels must fail with a readable `invalid_formula` issue at
 
 The ordinary suites still check parser depth boundaries, import resource guards,
 carried-craft depth, formula operand bounds, and malformed formula rejection.
+
+## Performance
+
+`shipyard-perf` imports the five canonical v3 definitions normally, then evaluates
+their public `perf` results using active v4 rules. F24 approves the preserved
+prototype performance metrics as the baseline: all defined scenario, propellant,
+jump, and power values are compared with finite binary64 arithmetic and absolute
+`numeric.epsilon`, without relative tolerance. A fractional-load case checks
+direct mass rounding at `numeric.precision` before acceleration/range evaluation.
+Deliberately misleading imported `derived` and `validation` caches must leave the
+complete recomputed result unchanged. A schema-valid misleading embedded `rules`
+snapshot must preserve calculated results and structural findings while its
+changed rule identity is recorded in the migration report.
+
+The suite separately checks F24's v4 costs, including Kestrel Tender's reduction
+from 65,580 to 64,330 cr, and all five explicit F01 jump-drive prices through
+public perf results. Rustbucket stays structurally invalid with its missing
+airlock and three unreachable modules. Its jump power shortfall (12 supply,
+16.2 demand, -4.2 margin), missing jump fuel, and no-cargo findings retain active
+rule severities. Skiff's no-cargo advisory also appears at its nested location
+when carried by Kestrel Tender. No golden is repaired or regenerated.
+
+`shipyard-perf_pending` uses `blank_blueprint` for default ships and explicit
+stations. It checks every DESIGN F20 identity, every scenario's zero-mass
+omissions, engine-less burn-rate omissions, deltaV's pending exhaust-velocity
+dependency, and an explicit blank ln(0) evaluation. Omitted metrics cannot acquire
+zero, null, NaN, or string stand-ins. Blank structural reports remain inspectable;
+Wayfarer Anchorage remains structurally valid and passes perf. Positive-mass
+engine-less cases distinguish legitimate computed zeros from excluded formulas.
+
+`shipyard-perf_scenario` checks current/empty/half/full loads, optional overrides,
+active scenario fractions, exact input bounds and nonfinite loads, separate
+readiness/jump-readiness/theoretical-range outcomes, and a performance check
+promoted to error through public rules loading. F10 failures reject, including
+an independent invalid operand beside an F20 exclusion and a formula that fails
+only in carried Skiff. Parent load overrides preserve the child's current loads.
+
+All three suites use the existing CTest wiring and warning-as-error test flags;
+the existing CI build/test step discovers them without workflow changes.
 
 ## Validation and pending decisions
 

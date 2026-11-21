@@ -18,7 +18,8 @@ target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
 option(BUILD_TESTING "Build shipyard tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
-  foreach(suite IN ITEMS rules migration input json_numeric validator dock pending)
+  foreach(suite IN ITEMS rules migration input json_numeric validator dock pending
+      perf perf_pending perf_scenario)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
     target_compile_definitions(shipyard-${suite}-tests PRIVATE
