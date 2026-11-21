@@ -9,7 +9,9 @@ namespace apsis::shipyard {
 namespace {
 using Documents = std::map<std::string, Json, std::less<>>;
 constexpr std::size_t maxIssues = 128;
-constexpr std::size_t maxSchemaSteps = 256;
+// References and alternatives consume several schema steps per formula level.
+// Admit all 64 formula levels; load_rules checks that independent bound first.
+constexpr std::size_t maxSchemaSteps = 512;
 
 // Only the three anchored patterns used by the bundled schemas are supported.
 // Linear ASCII scans keep large untrusted strings out of recursive regex

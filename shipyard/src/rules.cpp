@@ -220,16 +220,24 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
     for (const auto& [key, values] : r["validation"]["requiredSystems"].items())
         check_systems(values, "/validation/requiredSystems/" + key);
     check_systems(r["validation"]["uniqueSystems"], "/validation/uniqueSystems");
-    // Validate the entire expression catalogue before any definition is used.
-    for (const auto& [name, vars] : signatures)
-        check_formula(r["formulas"][name], vars, "/formulas/" + name, issues);
 }
 } // namespace
 
 Result<RulesSnapshot> load_rules(std::string_view bytes, const SchemaSet& schemas, InputLimits limits) {
     auto parsed = parse_json(bytes, limits);
     if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
-    auto issues = schemas.validate(*parsed.value, "apsis-ship-rules-v4");
+    std::vector<Issue> issues;
+    const auto& r = *parsed.value;
+    // Enforce formula bounds before schema traversal, regardless of the parser's
+    // nesting allowance. Missing names and invalid container shapes stay with
+    // the schema; check_formula safely validates each present expression.
+    if (r.is_object() && r.contains("formulas") && r["formulas"].is_object())
+        for (const auto& [name, vars] : signatures)
+            if (r["formulas"].contains(name))
+                check_formula(r["formulas"][name], vars, "/formulas/" + name, issues);
+    sort_issues(issues);
+    if (!issues.empty()) return {std::nullopt, std::move(issues)};
+    issues = schemas.validate(r, "apsis-ship-rules-v4");
     if (!issues.empty()) return {std::nullopt, std::move(issues)};
     check_semantics(*parsed.value, issues);
     sort_issues(issues);
