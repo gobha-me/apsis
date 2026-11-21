@@ -298,6 +298,12 @@ dimensions and `W,L` are hangar limits. Failure in both axis-aligned orientation
 is insufficient: a diagonal fit may still be possible. Every other case that
 does not fit unrotated remains `pending_F19`, without choosing any rotation.
 
+Round 4 numeric clarification: the computed diagonal comparison applies active
+absolute `numeric.epsilon` as documented in CONTRACT.md. Only
+`max(w,l) > hypot(W,L) + numeric.epsilon` establishes diagonal rejection;
+unrotated fit, minimum-side rejection, and deck limits remain exact. This
+clarifies the computed comparison without choosing any allowed rotation.
+
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
 **Open for Luna, not guessed.** How should v4 handle these evaluations?
@@ -431,3 +437,216 @@ totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
+
+## F24 — Performance implementation boundary and canonical comparison (#51)
+
+Implementation note, not a new game rule or a resolution of an open finding.
+The public `perf` operation recomputes performance from normalized blueprints
+and active rules, with current/empty/half/full scenarios, propellant/endurance,
+jump charges, and idle/cruise/jump power. Its default performance severities are
+warnings; active rule severities determine whether a finding fails the result.
+Structural validation and docking behavior remain as recorded in F23.
+
+The comparison baseline is the prototype's preserved `derived.performance`
+output in all five canonical v3 definitions. Read-only recomputation from their
+blueprints with v4 formula trees matches every defined scenario, jump, sublight,
+and power metric within `numeric.epsilon`. No v3 golden is edited. Current
+mass, acceleration, and range are:
+
+| Example | Current mass | Acceleration | Range | v4 cost (cr) |
+| --- | ---: | ---: | ---: | ---: |
+| Wren | 66.3 | 3.619909502 | 1.508295626 | 29,080 |
+| Skiff | 8.75 | 2.057142857 | 0 | 5,470 |
+| Kestrel Tender | 134.45 | 1.785050205 | 1.115656378 | 64,330 |
+| Wayfarer Anchorage | 152.45 | 0 | 0 | 72,310 |
+| Rustbucket | 62.6 | 0.287539936 | 4.792332268 | 13,530 |
+
+F01's five explicit v4 prices are 0.5 J = 1,500, 1.0 J = 2,500,
+1.5 J = 3,750, 2.0 J = 5,000, and 3.0 J = 7,500 cr. Only Kestrel Tender's
+canonical cost changes: 65,580 to 64,330 cr, from its 1.5 J drive. The other four
+costs are unchanged. Prices come directly from the active catalogue.
+
+Rustbucket retains its historical v3 jump `power_shortfall` warning: supply 12,
+jump demand 16.2, margin −4.2. It also lacks jump fuel despite a theoretical range
+of about 4.7923. This evidence remains intact; v4 severities come from the active
+rules. Its structural `missing_airlock` and three `unreachable_component` findings
+remain errors under the shipped rules. Migration does not repair its geometry.
+Skiff retains its `no_cargo` advisory and has no jump drive.
+The recursive performance report also exposes that advisory on Kestrel Tender's
+carried Skiff; the prototype's parent issue list omitted it. This extra nested
+diagnostic uses the active severity and changes no canonical numeric result.
+Child formula failures reject the containing design under F10.
+
+Wayfarer Anchorage's historical full/current burnSeconds and exhaustVelocity
+fallback zeros become structured `pending_F20` issues with those values omitted.
+Its deltaV also remains omitted because exhaustVelocity is pending, rather than
+acquiring a fabricated zero. Blank ship/station sources likewise omit all F20
+zero-mass divisions and ln(0) results; pending issues identify each evaluation.
+Other formula failures still reject, including invalid independent operands
+beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
+range are separate outputs. The blank source defaults to a ship; station
+creation is explicit, without editor history.
+
+Independent performance tests remain for the later tests session. F11–F17,
+F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
+rotation, or same-deck distance convention is assigned here.
+
+
+## Historical boundary notes preserved by the #63/#65 integration
+
+The following is the complete pre-review F22/F23 text from the performance
+branch, retained as historical evidence of that side of the merge. It is
+**superseded** by the current F22/F23 entries above, including the Argus review
+corrections; it assigns no current rule or owner decision. In particular its
+encoding-contract, hull-connectivity, docking-envelope, and pending-hold
+descriptions do not override the reviewed behavior above. F24 remains current.
+No finding was renumbered.
+
+~~~text
+## F22 — Loader boundary and encoding contract (#49)
+
+Implementation note, not a new game rule or an answer to any open finding.
+The #49 loader validates input shape and active-rule scalar/reference limits,
+then recomputes direct costs, capacities, and masses. It discards imported
+derived/validation caches and embedded rules as authority. Structural legality,
+carried-fit/empty-berth legality, readiness, performance, and docking remain
+unimplemented for #50/#51; exported readiness is unset with structured pending
+issues, including `pending_F20` for applicable blank/engine-less cases. No F20
+evaluation path or excluded numeric value is exposed. In
+particular, migration preserves Rustbucket's geometry without repairing it.
+
+Stable serialization, exact input comparisons, absolute epsilon, and computed
+rounding are specified in CONTRACT.md for the independent tests session. Character
+limits count Unicode scalar values, matching JSON Schema length semantics;
+the prototype used JavaScript UTF-16 units. This is the technical encoding
+contract, with no label trimming, truncation, or Unicode normalization.
+Existing migration notes are preserved; when a generated note cannot fit the
+rules limit, changes remain in the migration report with a warning. None of
+F11–F17 or F19–F21 is answered by this scope boundary.
+
+## F23 — Validator implementation boundary and canonical comparison (#50)
+
+Implementation note, not a new game rule or a resolution of an open finding.
+The public `validate` operation now recomputes direct totals and structural
+issues with active rules. Canonical v3 inputs after migration give structural
+PASS for Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage; Rustbucket remains
+FAIL with `missing_airlock` and three `unreachable_component` findings. Its
+geometry is preserved. No canonical structural outcome changed under v4.
+The original passing self-test report does not include Rustbucket (F07).
+
+Performance advisories from the prototype, including Skiff's `no_cargo` and
+Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
+jump readiness remain unset on structural success; structural failure sets
+ready false. Wayfarer's three excluded burn-rate formula evaluations remain
+nonblocking `pending_F20`, with no excluded values or numeric substitutes.
+The #49 blank-design F20 exclusions remain unchanged.
+
+Unlike the prototype's interface-only docking success, a compatible port
+candidate returns FAIL with `pending_F21` until Luna defines same-deck mapping
+and the distance/reference/inclusivity convention. Hangar width/length fit also
+remains uncertified with `pending_F19`; the rule-defined deck cap is enforced.
+These pending results preserve F03/F18 without inventing F19/F21 answers.
+Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
+have independent public switches, with selected-target access/approach rule
+families disabled consistently when (b)/(d) is disabled; defaults retain all
+structural faults. Visitor-airlock access and clearance remain structural
+findings at their active rule severities (v3 error).
+
+Multi-deck holds remain unavailable: a requested `holds` field returns
+structured pending F11–F17 issues before any guessed hold totals, access,
+traversal, or ordinary missing-floor finding. No hold schema or geometry is
+invented, and no opening is filled. The independent tests session must cover
+the public switches with mutation evidence and the remaining pending gates.
+F11–F17, F19, F20, and F21 remain Open for Luna.
+~~~
+
+
+## F25 — Headless preview presentation and reference-scene boundary (#53)
+
+Implementation evidence, not a new game rule or an answer to Luna. The preserved
+prototype preview manifest identifies an edited five-deck `Kestrel`, including
+two decks with zero floor plates in its stack preview. The canonical v3
+`Kestrel Tender` definition has three decks with different names and content.
+The preview is therefore not an approved image baseline for the canonical ship.
+
+The reference stack was visually inspected: it uses a shaded, textured
+orthographic scene and an exploded stack. The headless renderer deliberately
+uses integer top-down schematic panels and a vertical contact sheet, with active
+rule colors, rotated footprints, and facing. These are explicit presentation
+differences, not unexplained changes to ship geometry. A source-matched content
+or pixel comparison remains unavailable until the matching edited blueprint is
+identified; no missing decks, geometry, or prototype image expectations are
+invented. No preview PNG/ZIP or prototype HTML is imported as a golden.
+
+Every rendered panel retains its blueprint index and name. This does not decide
+physical deck levels or hold numbering (F16). F11–F17, F19, F20, and F21 remain
+**Open for Luna, not guessed**. Unsupported holds remain pending through the
+existing validator, and rendering supplies no stand-in performance values.
+
+## Historical F23 before the final Argus r2 review
+
+The complete prior reviewed F23 entry below is retained verbatim as historical
+merge evidence. The current F19/F23 entries above are authoritative: in
+particular the older two-axis-envelope wording below is superseded by the
+rotation-proof minimum-span/diagonal bounds, and terminal child truncation
+returns null data. This excerpt assigns no owner decision or current rule.
+No finding was renumbered.
+
+~~~text
+## F23 — Validator implementation boundary and canonical comparison (#50)
+
+Implementation note, not a new game rule or a resolution of an open finding.
+The public `validate` operation now recomputes direct totals and structural
+issues with active rules. Canonical v3 inputs after migration give structural
+PASS for Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage; Rustbucket remains
+FAIL with `missing_airlock` and three `unreachable_component` findings. Its
+geometry is preserved. No canonical structural outcome changed under v4.
+The original passing self-test report does not include Rustbucket (F07).
+
+Argus M2 exposed two additional layouts where the initial v4 implementation
+accepted what v3 rejected. The implementation now matches v3 with production
+defaults: hull connectivity floods from the first command module across paired
+ladder links, so an isolated floored deck without a ladder produces
+`disconnected_hull`. Crew reach starts from the single v3 `bridgeStart` service
+cell (bottom edge first), rather than every walkable cell beside every bridge.
+The cockpit at x=4 in a single floor row no longer joins the reactor at x=1 to
+life support at x=7; the component on the other side remains unreachable.
+The former per-deck-only hull and multiple-start crew rules are superseded.
+
+Performance advisories from the prototype, including Skiff's `no_cargo` and
+Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
+jump readiness remain unset on structural success; structural failure sets
+ready false. Wayfarer's three excluded burn-rate formula evaluations remain
+nonblocking `pending_F20`, with no excluded values or numeric substitutes.
+The #49 blank-design F20 exclusions remain unchanged.
+
+The prototype required structural validity, a reachable and clear visitor
+airlock, a clear approach, the size envelope, deck limits, and station crew
+reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
+until Luna defines same-deck mapping and the distance/reference/inclusivity
+convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
+visitor fits unrotated. A visitor exceeding the envelope in both orientations
+reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+docking severity (v3: error), including measured dimensions and limits, without
+`pending_F19`. Only a fit requiring rotation remains uncertified with
+`pending_F19`; the rule-defined deck cap is enforced.
+Argus S2's definite-envelope behavior is implemented without an F19 owner pick.
+The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
+Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
+have independent public switches, with selected-target access/approach rule
+families disabled consistently when (b)/(d) is disabled; defaults retain all
+structural faults. Visitor-airlock access and clearance remain structural
+findings at their active rule severities (v3 error).
+CLI and HTTP always use default options and never map request fields onto these
+switches. The public option types remain solely because existing independent
+tests exercise the real library through them; moving them would require changes
+to those test callers.
+
+Multi-deck holds remain unavailable: after schema-checking a bounded probe with
+only unsupported `holds` fields removed, a requested `holds` field returns
+structured pending F11–F17 issues once per finding kind before any guessed hold
+totals, access, traversal, or ordinary missing-floor finding. No hold schema or
+geometry is invented, and no opening is filled. The independent tests session must cover
+the public switches with mutation evidence and the remaining pending gates.
+F11–F17, F19, F20, and F21 remain Open for Luna.
+~~~
