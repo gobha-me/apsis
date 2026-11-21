@@ -56,4 +56,14 @@ if(BUILD_TESTING)
         --source ${CMAKE_CURRENT_SOURCE_DIR} --suite ${suite})
     set_tests_properties(shipyard-render-${suite} PROPERTIES TIMEOUT 120)
   endforeach()
+  add_executable(shipyard-render-argus-driver tests/render_argus_driver.cpp)
+  target_link_libraries(shipyard-render-argus-driver PRIVATE apsis::shipyard)
+  target_compile_definitions(shipyard-render-argus-driver PRIVATE
+    SHIPYARD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_options(shipyard-render-argus-driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  add_test(NAME shipyard-render-Argus
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/render_argus_tests.py
+      --driver $<TARGET_FILE:shipyard-render-argus-driver>
+      --source ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(shipyard-render-Argus PROPERTIES TIMEOUT 120)
 endif()
