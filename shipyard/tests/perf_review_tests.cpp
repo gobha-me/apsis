@@ -131,6 +131,26 @@ Json scenarios(const SchemaSet &schema, const RulesSnapshot &active) {
       data["advisories"]["no_cargo"]["minModuleCount"] = minimum;
     });
   }
+  auto two_deck_data = active.data();
+  two_deck_data["limits"]["minDecks"] = 2;
+  const auto two_deck_rules = load_rules(canonical_json(two_deck_data), schema);
+  require(two_deck_rules.ok(), "Public rules must accept two minimum decks");
+  for (const auto type : {BlankType::ship, BlankType::station}) {
+    const auto blueprint = blank_blueprint(*two_deck_rules.value, type);
+    const auto *name = type == BlankType::ship ? "two_deck_blank_ship"
+                                               : "two_deck_blank_station";
+    reports[name] =
+        perf(canonical_json(blueprint), *two_deck_rules.value, schema);
+  }
+  auto mixed_cargo = wren;
+  mixed_cargo["decks"][0]["modules"][4]["type"] = "hidden";
+  mixed_cargo["loads"]["cargo"] = 1;
+  for (const auto capacity : {10, 20}) {
+    const auto name = "mixed_cargo_threshold_" + std::to_string(capacity);
+    changed_rules(name.c_str(), mixed_cargo, [capacity](Json &data) {
+      data["advisories"]["no_cargo"]["maxCargoCapacity"] = capacity;
+    });
+  }
   return reports;
 }
 
@@ -382,6 +402,43 @@ int main(int argc, char **argv) {
         require(findings(reports.at("module_threshold_7"), "no_cargo").empty(),
                 "Six cargo-less modules fall below a seven-module threshold");
       });
+
+  suite.run("blank authoring honors accepted multi-deck minimum rules", [&] {
+    for (const auto *name : {"two_deck_blank_ship", "two_deck_blank_station"}) {
+      const auto &report = reports.at(name);
+      require(!report.at("data").is_null(),
+              "A blank source with the active minimum deck count must import");
+      const auto &blueprint =
+          report.at("data").at("definition").at("blueprint");
+      require(blueprint.at("decks").size() == 2,
+              "Both public blank types must create exactly two minimum decks");
+      for (const auto &deck : blueprint.at("decks")) {
+        require(
+            deck.at("name") == active.data().at("defaults").at("deckName") &&
+                deck.at("floors").empty() && deck.at("modules").empty(),
+            "Every minimum deck retains the active empty authoring defaults");
+      }
+    }
+  });
+
+  suite.run("no-cargo advice adds ordinary and concealed capacity", [&] {
+    for (const auto *name :
+         {"mixed_cargo_threshold_10", "mixed_cargo_threshold_20"}) {
+      const auto &report = reports.at(name);
+      require(report.at("pass") == true,
+              "A Wren with one ordinary and one concealed hold remains valid");
+      const auto &totals = report.at("data").at("definition").at("derived");
+      require(totals.at("cargo") == 10 && totals.at("hidden") == 10 &&
+                  performance(report).at("cargoMass") == 20,
+              "The public report must expose both ten-unit capacities and "
+              "their loaded sum");
+    }
+    require(
+        findings(reports.at("mixed_cargo_threshold_10"), "no_cargo").empty(),
+        "Twenty combined cargo units exceed a ten-unit no-cargo threshold");
+    advisory(reports.at("mixed_cargo_threshold_20"), "no_cargo", "/performance",
+             {{"rule", "/validation/checks/no_cargo"}});
+  });
 
   return suite.finish();
 }
