@@ -42,3 +42,9 @@ schema, import, formula-loading, and rules-loading paths. A saturated list keeps
 127 ordinary issues and exactly one root `issues_truncated` error with the
 documented limit and suppression details. `shipyard-loader_regression` checks
 engine-equipped canonical ships, grid capacity, and embedded-rule identity.
+
+`shipyard-loader_r2` compares public parsing of 400,000 object and array
+entries, times the 6.6 MB malformed-holds import, and rejects truncated craft
+schema alternatives and floor-only grid overflow. Timing output records the
+measured Release durations; the parser regression guards stay below the
+existing 30-second watchdog and 120-second CTest timeout.
