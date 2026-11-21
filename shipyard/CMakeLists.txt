@@ -19,7 +19,7 @@ option(BUILD_TESTING "Build shipyard tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
   foreach(suite IN ITEMS rules migration input json_numeric validator dock pending
-      perf perf_pending perf_scenario perf_issue_cap
+      perf perf_pending perf_scenario perf_issue_cap perf_review
       issue_cap loader_regression schema_boundary structure_regression
       dock_regression validator_cap loader_r2 structure_r2 hangar_r2 validator_r2_cap)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
