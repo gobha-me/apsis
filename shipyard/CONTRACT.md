@@ -288,6 +288,11 @@ existing `defaults.deckName` followed by one space. Rules loading checks the
 prefix for controls and that generated names through `maxDecks` fit
 `limits.maxDeckName`. Labels are never truncated or trimmed.
 
+Adding `defaults.deckNamePrefix` changes the bundled v4 rules bytes and their
+`rulesSha256`, while `rulesVersion` remains `4`. Saved v4 definitions carrying
+the previous SHA report `rulesIdentityChanged: true` in the import migration
+report; active rules are applied and direct totals are recomputed.
+
 New generated decks, including those in a blank blueprint, carry
 `nameGenerated: true`. An explicit name sets no ownership marker; absent or
 false provenance always means explicit. Import preserves both text and any

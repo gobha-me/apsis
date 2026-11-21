@@ -96,6 +96,11 @@ with bundled rules). Older v4 snapshots without that optional field use their
 existing `defaults.deckName` plus a space as the prefix. This does not choose
 the multi-deck-hold numbering convention in F16 or add hold behavior.
 
+Rules identity note (#55): adding `defaults.deckNamePrefix` changes the bundled
+v4 `rulesSha256` while `rulesVersion` stays `4`. Saved v4 definitions carrying
+the previous SHA report `rulesIdentityChanged: true` in the import migration
+report; active rules are applied and direct totals are recomputed.
+
 ## F06 — Concealed-cargo tooltip is deferred to a UI
 
 Deferred in #55. `index.html`, `concealedHelp`, contains claims about hiding cargo
