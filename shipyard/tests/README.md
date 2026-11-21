@@ -198,6 +198,167 @@ schema, import, formula-loading, and rules-loading paths. A saturated list keeps
 documented limit and suppression details. `shipyard-loader_regression` checks
 engine-equipped canonical ships, grid capacity, and embedded-rule identity.
 
+## Mutation baseline after merging reviewed main
+
+Reviewed main `efe5fd82992f07bf29b5cc076931681bd0cf5c4a` (including the #63
+squash) was plainly merged into #66 as
+`9577f3dfdfdffbfa57f02eaeb08251832ffafea6`. A complete fresh measurement of all
+**18 existing CTest commands** recorded **390/491 (79.429735234216%), with
+101 survivors**. This replaces the historical **336/446, 110-survivor**
+baseline after final-source validation.
+
+This baseline update adds no test cases and changes no assertions, time bounds,
+source filters, or mutation operators. The reviewed upstream hangar epsilon
+boundary assertions and main Release-only loader guards are included unchanged
+in the measured source.
+
+The minimum is the exact measured fraction **390/491**.
+The helper requires `measured_killed * 491 >= 390 * measured_total`,
+at least **491** distinct mutations, at most **101**
+survivors, and membership of each survivor's operator/file/begin/end span in
+the committed list. Exact cross multiplication improves on 336/446; rounding
+or extra kills cannot conceal a new survivor. Against the historical minimum,
+`390 * 446 = 173940 >= 336 * 491 = 164976`.
+The total grows from 446 to 491, and the survivor
+ceiling falls from 110 to 101.
+The full baseline is in
+[`mull-baseline.json`](../mull-baseline.json).
+
+Toolchain and scope: Clang20.1.8, Mull0.37.0 and its LLVM20 plugin,
+`cxx_default`, all owned source/public-header paths, `--include-not-covered`,
+and two workers. Release retains full `-g -gz=zlib`, recorded compiler
+arguments, and explicit `-Wl,--compress-debug-sections=zlib` linking, without
+dropping debug types or line tables. All 18 original commands executed their
+unmutated warmup and baseline. Actual kills combine by OR across this fresh
+SQLite run; later bypasses return success only for earlier genuine kills.
+There are no status-6 discovery rows in this complete measurement.
+
+Release defines `NDEBUG`, so the current loader regression's 1-second
+parse and 5-second import limits remain active; its object/array ratio guard
+also runs. This baseline work changed none of those assertions or time bounds.
+
+The exact source passed the ordinary g++13 C++23 Release `-Werror` build
+and **18/18 CTest**; all **24 owned C++ translation units** passed clang-tidy
+20.1.8 with warnings as errors and owned headers included; the updated compressed
+instrumented build passed **18/18 CTest**. The 30-second assertions and
+120-second CTest bounds remain. No production edits or survivor-killing tests
+accompanied this rebaseline. Any later survivor-killing work uses a different
+tests process after this phase's exact-head required CI succeeds.
+
+### Complete measured survivor identities
+
+Rows record observed zero exits under the active mutation in every applicable
+suite. Survival alone does not establish equivalence, lack of coverage, or a
+specific missing assertion. All spans/replacements were reviewed against the
+final source; no cause is guessed.
+
+| File | Begin (line:column) | End (line:column) | Operator | Replacement |
+| --- | --- | --- | --- | --- |
+| `shipyard/src/dock.cpp` | `33:30` | `33:32` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/dock.cpp` | `33:58` | `33:60` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/import.cpp` | `72:26` | `72:27` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/import.cpp` | `73:43` | `73:45` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/import.cpp` | `127:26` | `127:27` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/import.cpp` | `130:51` | `130:53` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/import.cpp` | `147:42` | `147:43` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/import.cpp` | `158:55` | `158:57` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/import.cpp` | `195:35` | `195:37` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/import.cpp` | `237:67` | `237:69` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/import.cpp` | `282:42` | `282:43` | `cxx_mul_to_div` | `/` |
+| `shipyard/src/import.cpp` | `289:87` | `289:88` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/import.cpp` | `295:62` | `295:63` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/import.cpp` | `297:49` | `297:50` | `cxx_mul_to_div` | `/` |
+| `shipyard/src/import.cpp` | `297:61` | `297:62` | `cxx_mul_to_div` | `/` |
+| `shipyard/src/import.cpp` | `298:34` | `298:35` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/json.cpp` | `25:23` | `25:24` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/rules.cpp` | `79:23` | `79:25` | `cxx_eq_to_ne` | `!=` |
+| `shipyard/src/rules.cpp` | `80:28` | `80:29` | `cxx_div_to_mul` | `*` |
+| `shipyard/src/rules.cpp` | `83:23` | `83:25` | `cxx_le_to_gt` | `>` |
+| `shipyard/src/rules.cpp` | `83:23` | `83:25` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/rules.cpp` | `113:37` | `113:38` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `117:38` | `117:39` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `117:52` | `117:53` | `cxx_div_to_mul` | `*` |
+| `shipyard/src/rules.cpp` | `131:38` | `131:40` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/rules.cpp` | `133:42` | `133:44` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/rules.cpp` | `170:76` | `170:77` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `177:31` | `177:32` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `177:56` | `177:58` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/rules.cpp` | `192:81` | `192:83` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/rules.cpp` | `207:35` | `207:36` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `207:52` | `207:54` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/rules.cpp` | `216:35` | `216:36` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/rules.cpp` | `216:52` | `216:54` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/schema.cpp` | `26:19` | `26:21` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/schema.cpp` | `26:31` | `26:33` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/schema.cpp` | `26:57` | `26:59` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/schema.cpp` | `31:51` | `31:53` | `cxx_eq_to_ne` | `!=` |
+| `shipyard/src/schema.cpp` | `54:54` | `54:56` | `cxx_ne_to_eq` | `==` |
+| `shipyard/src/schema.cpp` | `54:94` | `54:95` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `129:39` | `129:40` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/schema.cpp` | `129:55` | `129:57` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/schema.cpp` | `139:56` | `139:57` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/schema.cpp` | `146:39` | `146:40` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/schema.cpp` | `146:39` | `146:40` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/schema.cpp` | `146:55` | `146:57` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/schema.cpp` | `147:48` | `147:50` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/schema.cpp` | `193:73` | `193:74` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `198:82` | `198:83` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `206:59` | `206:61` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/schema.cpp` | `206:59` | `206:61` | `cxx_ge_to_lt` | `<` |
+| `shipyard/src/schema.cpp` | `210:64` | `210:65` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/schema.cpp` | `210:64` | `210:65` | `cxx_gt_to_le` | `<=` |
+| `shipyard/src/schema.cpp` | `229:104` | `229:105` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `233:107` | `233:108` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `241:88` | `241:89` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/schema.cpp` | `245:43` | `245:44` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/schema.cpp` | `245:43` | `245:44` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/schema.cpp` | `245:48` | `245:50` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/schema.cpp` | `262:33` | `262:35` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/structure.cpp` | `34:16` | `34:17` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `34:27` | `34:28` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `34:38` | `34:39` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `34:49` | `34:50` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `42:41` | `42:42` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `76:21` | `76:23` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/structure.cpp` | `76:41` | `76:43` | `cxx_le_to_lt` | `<` |
+| `shipyard/src/structure.cpp` | `78:41` | `78:42` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `87:19` | `87:20` | `cxx_lt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `87:19` | `87:20` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `87:51` | `87:52` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `88:32` | `88:33` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `94:60` | `94:61` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `94:71` | `94:72` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `95:19` | `95:20` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `97:44` | `97:45` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `97:55` | `97:56` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `168:47` | `168:48` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `168:75` | `168:76` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `182:39` | `182:40` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `202:52` | `202:53` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `202:70` | `202:71` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `258:32` | `258:33` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `258:60` | `258:61` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `258:72` | `258:73` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `259:50` | `259:51` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `281:88` | `281:89` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `283:55` | `283:56` | `cxx_sub_to_add` | `+` |
+| `shipyard/src/structure.cpp` | `284:39` | `284:41` | `cxx_ge_to_gt` | `>` |
+| `shipyard/src/structure.cpp` | `284:82` | `284:83` | `cxx_add_to_sub` | `-` |
+| `shipyard/src/structure.cpp` | `343:48` | `343:49` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `344:52` | `344:53` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `398:42` | `398:43` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `399:43` | `399:44` | `cxx_lt_to_le` | `<=` |
+| `shipyard/src/structure.cpp` | `402:27` | `402:28` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/structure.cpp` | `403:28` | `403:29` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/validate.cpp` | `19:22` | `19:23` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/validate.cpp` | `26:47` | `26:49` | `cxx_pre_inc_to_pre_dec` | `--` |
+| `shipyard/src/validate.cpp` | `29:39` | `29:40` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/validate.cpp` | `30:72` | `30:73` | `cxx_gt_to_ge` | `>=` |
+| `shipyard/src/validate.cpp` | `32:53` | `32:55` | `cxx_pre_inc_to_pre_dec` | `--` |
+
+<details>
+<summary>Historical setup before the final upstream test updates</summary>
+
 ## Phase2 test setup while final review is pending
 
 The current #63 integration adds six CTest commands to the historical eight:
@@ -239,6 +400,8 @@ after the final reviewed #63 integration remain required.
 The final source tree must pass its original suites, lint, and complete Mull
 measurement before any new exact minimum can be accepted.
 
+</details>
+
 ## C++ static analysis
 
 CI installs the Ubuntu `clang-tidy-20` package through apt. The versioned major
@@ -250,7 +413,7 @@ This checks C++ semantics without imposing an unrelated formatting rewrite.
 The compilation database comes from the ordinary g++-13 Release C++23 build,
 with its existing `-Werror`, includes, and test definitions. Exporting the
 database does not change compilation flags. Every tracked `shipyard/src/*.cpp`
-and `shipyard/tests/*.cpp` is checked (20 translation units at this integration).
+and `shipyard/tests/*.cpp` is checked (24 translation units in this source tree).
 The header filter also includes owned source, public, and test headers; vendor
 code remains a system include. No NOLINT, disabled checks, or weaker flags are
 used. The lint step runs before the existing mutation gate and has no condition
