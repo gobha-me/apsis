@@ -51,51 +51,44 @@ Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
 visitor wider than the former v3 cap without a size-envelope failure. Multiple
 compatible exterior airlocks are counted without selecting one. These cases
 remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
-overall FAIL: alignment has not been certified. Hangar width/length fit remains
-null with `pending_F19`; tests retain rule-defined dimensions and enforce the
-settled deck cap without deciding permitted rotations.
+overall FAIL: alignment has not been certified. Hangar tests distinguish a
+definite unrotated fit, a definite oversize error, and a fit possible only after
+rotation (`pending_F19`), while retaining active dimensions and deck limits.
 
-## F18 disable-toggle mutation evidence
+## Per-check fault coverage
 
-`shipyard-dock` has a separate case for each check and asserts both sides of
-each toggle. A valid baseline controls the authored fault. Only the named
-option changes between calls; all other options retain their true defaults.
-Disabling (b) or (d) must also suppress the selected target's duplicate finding
-inside (a), as CONTRACT.md specifies. Visitor-airlock access/clearance remain
-under (a), at active rule severities, without duplicate failures under (c).
+These public API tests author concrete faults in real blueprints and assert the
+responsible issue or measured check. The table maps the review mutants to those
+faults; no mutation-run score is claimed. Positive controls establish that the
+baseline reaches the intended check. Each fixture uses the installed schemas,
+rules, catalogue footprints, and library implementation.
 
-| Check | Option | Fault | Enabled-only assertion | Same assertion with only that option disabled | Invocation on `shipyard-dock-tests` |
-| --- | --- | --- | --- | --- | --- |
-| (a) Structural | `structural` | Reactor footprint lacks a floor | Green (exit 0): `missing_floor` caught, (a) FAIL | Red (exit 1): finding missing, (a) DISABLED | `--enabled-only a`, then append `--disable a` |
-| (b) Station crew access | `portReachability` | Nonwalkable seats surround the selected port | Green (exit 0): `dock_port_unreachable` caught, (b) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (b) DISABLED | `--enabled-only b`, then append `--disable b` |
-| (c) Matching airlock | `matchingAirlock` | Visitor airlock has an incompatible interface | Green (exit 0): `dock_no_matching_airlock` caught, (c) FAIL | Red (exit 1): finding missing, (c) DISABLED | `--enabled-only c`, then append `--disable c` |
-| (d) Approach | `approachClearance` | Connected hull obstructs the selected port's approach | Green (exit 0): `dock_blocked_approach` caught, (d) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (d) DISABLED | `--enabled-only d`, then append `--disable d` |
+| Reviewed fault | Authored input | Required public result | Suite |
+| --- | --- | --- | --- |
+| S07: command access removed | Bridge enclosed by nonwalkable parts | `command_access` | `structure_regression` |
+| S10 / S12: airlock reach / clearance ignored | Sole airlock unreachable or approach obstructed | `missing_airlock` in each case | `structure_regression` |
+| S14: station propulsion removed | Station carrying an engine | `station_propulsion` | `structure_regression` |
+| S17 / S18: carried dimensions / decks ignored | Craft exceeds one berth dimension or its deck count | `carried_fit` | `structure_regression` |
+| S21: module footprint ignored | Another module occupies the approach corridor | `blocked_approach` on the approached module | `structure_regression` |
+| S23 / K05: exterior always true | Floor directly in front of matching visitor airlock | No exterior candidate; `dock_no_matching_airlock` | `structure_regression`, `dock_regression` |
+| S27: negative-dy approach reversed | Rotation-2 module obstructed on its outward side | `blocked_approach` | `structure_regression` |
+| K08 / K09: type early return removed | Nonstation host / nonship visitor | Typed rejection with `data: null` | `dock_regression` |
+| K10: nondocking target accepted | Ordinary station system selected as target | `invalid_docking_target`; no escaping exception | `dock_regression` |
+| K12: inclusive hangar deck boundary rejected | Visitor with exactly two decks | `deckCountFits: true`, no deck-limit issue | `dock_regression` |
+| K14: failed check ignored at warning severity | Docking rule severity is warning and a check fails | Overall FAIL despite absence of error issues | `dock_regression` |
+| K18: target kinds ignored | Station airlock selected as a target | `invalid_docking_target` | `dock_regression` |
+| Cross-deck hull / bridge shortcut differences | Unlinked floored deck / separated bridge-side crew paths | `disconnected_hull` / `unreachable_component` | `structure_regression` |
+| M1: unbounded diagnostic amplification | Grid-capacity overlapping modules / large malformed holds body | At most 128 issues including exactly one structured truncation error | `validator_cap` |
 
-The table concerns the fault-specific assertion, not overall dock status:
-F21 still blocks compatible candidates when other checks are disabled. The
-ordinary CTest suite stays green by explicitly asserting that enabled catches
-the fault and disabled misses it. No validator implementation is replaced.
+`shipyard-dock` also retains paired `DockOptions` enable/disable cases for F18(a)
+through (d). Those are wiring checks: they show that each public switch controls
+its check and the selected target duplicate suppression. They do not establish
+that the check logic rejects every fault. The fault-specific regressions above
+exercise that logic with defaults (apart from an explicit isolated warning-rule
+case). No validator implementation is replaced.
 
-After the build above, a reviewer can run the identical enabled-only assertions
-and see each go red by flipping its own option:
-
-```sh
-for check in a b c d; do
-  build/shipyard/shipyard-dock-tests --enabled-only "$check"
-  build/shipyard/shipyard-dock-tests --enabled-only "$check" --disable "$check"
-done
-```
-
-For each check the first invocation exits 0 and the second exits 1 with a
-`FAIL` diagnostic. The normal executable without arguments asserts both sides
-and exits 0. These eight invocations are the session's mutation evidence.
-
-Mull is deferred as a follow-up. This session uses the prescribed g++-13 build
-and public option toggles; a separate LLVM-instrumented build and mutation run
-would add toolchain/build work within the bounded scratch and session budget.
-Mull is not added to CI. The existing CTest step runs every suite, including
-`shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
-byte-identical.
+The existing CTest step runs every suite without workflow changes. The v3
+goldens remain byte-identical.
 
 `shipyard-schema_boundary` exercises embedded informational formulas in a v4
 wrapper with the parser bound raised. The bundled schema reaches recursion step
