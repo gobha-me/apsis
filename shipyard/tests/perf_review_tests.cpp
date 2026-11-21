@@ -93,6 +93,15 @@ Json scenarios(const SchemaSet &schema, const RulesSnapshot &active) {
   changed_rules("epsilon_power", wren, [](Json &data) {
     part(data, "reactor")["generation"] = 10.0999995;
   });
+  changed_rules("exact_epsilon_power", wren, [](Json &data) {
+    const auto epsilon = std::ldexp(1.0, -20);
+    data["numeric"]["epsilon"] = epsilon;
+    // Equal phase operands produce the same accumulated 10.1 demand, so the
+    // power-of-two deficit is exact in both cruise and jump comparisons.
+    for (auto &candidate : data.at("parts"))
+      candidate["powerModes"]["jump"] = candidate.at("powerModes").at("cruise");
+    part(data, "reactor")["generation"] = 10.1 - epsilon;
+  });
   changed_rules("zero_engine_burn", wren,
                 [](Json &data) { part(data, "engine")["burnRate"] = 0; });
   changed_rules("tied_acceleration_bands", wren, [](Json &data) {
@@ -227,6 +236,19 @@ int main(int argc, char **argv) {
                 findings(report, "power_shortfall").empty(),
             "A half-epsilon power deficit is tolerated for readiness and "
             "advisories");
+  });
+
+  suite.run("exact negative epsilon is included in power tolerance", [&] {
+    const auto &report = reports.at("exact_epsilon_power");
+    const auto epsilon = std::ldexp(1.0, -20);
+    require(
+        report.at("pass") == true &&
+            performance(report).at("power").at("marginJump").get<double>() ==
+                -epsilon &&
+            report.at("data").at("jumpReady") == true &&
+            findings(report, "power_shortfall").empty(),
+        "An exact negative power-of-two epsilon remains jump ready without "
+        "shortfall");
   });
 
   suite.run("endurance requires an installed life support system", [&] {
