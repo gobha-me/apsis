@@ -319,10 +319,6 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
         auto checked = validate(bytes, rules, schemas, {}, input_limits);
         checked["operation"] = "render";
         if (!checked.at("pass").get<bool>()) { checked["data"] = nullptr; return {std::move(checked), {}}; }
-        for (auto& issue : checked.at("issues")) {
-            if (issue.at("code") == "pending_performance")
-                issue["message"] = "Performance is not evaluated by render(); call perf() for performance results.";
-        }
         const auto& definition = checked.at("data").at("definition");
         const auto& blueprint = definition.at("blueprint");
         const auto& decks = blueprint.at("decks");
