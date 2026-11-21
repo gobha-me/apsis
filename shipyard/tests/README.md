@@ -216,3 +216,38 @@ would add toolchain/build work within the bounded scratch and session budget.
 Mull is not added to CI. The existing CTest step runs every suite, including
 `shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
 byte-identical.
+
+
+## Independent nits coverage (#55; F04/F05/F06)
+
+`shipyard-authoring` uses the public `authoring.hpp` and loader APIs. It checks
+default blank ships and explicit/imported stations, automatic names for all
+active minimum decks, literal custom prefixes and older-v4 prefix fallback.
+Insertion, movement in both directions, removal, and rename preserve retained
+floors, module geometry/IDs, `nextId`, metadata, and nested carried craft.
+Automatic labels follow ordinary one-based physical deck positions. Imported
+labels and explicit names, including generated-looking names, retain their
+text. True, false, and absent provenance survive normalization and canonical
+export/reimport; renaming explicitly clears ownership and nullopt restores it.
+This chooses no F16 multi-deck-hold numbering convention.
+
+Positive controls accompany invalid indices, exact deck-count/input-byte/name
+bounds, malformed UTF-8, C0/DEL controls, and invalid provenance types. Rejected
+edits must return structured errors with no partially edited result. Blank
+authoring/import retains structured `pending_F20` and absent excluded metrics,
+without numeric or null substitutes. Empty/whitespace labels retain only the
+existing interim F22 contract. F11–F17/F19/F20/F21 remain open.
+
+`shipyard-nits_owner` independently checks all five explicit owner-picked jump
+prices through public performance and direct costs; ports without size fields
+or an envelope for Wren; exact and over-limit hangar width, length, and deck
+counts. Deck-boundary visitors have real paired ladders and pass ordinary
+structural validation. Eligible docking remains pending F21; definite fits and
+oversize cases do not assign F19 rotation rules. Existing perf, pending, dock,
+and regression suites retain their wider-than-former-port-cap coverage.
+
+The migration suite's literal v4 rules SHA pin was independently reviewed and
+updated for the sole rules-file delta, `defaults.deckNamePrefix: "Deck "`. Its
+independent digest and whitespace-sensitive identity assertions remain intact.
+No v3 fixture or manifest was edited. F06's concealed-cargo tooltip remains
+explicitly deferred until a UI exists, as issue #55 and FINDINGS require.
