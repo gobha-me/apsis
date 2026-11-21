@@ -50,9 +50,73 @@ labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
 versions, rule-identity changes, and deterministic changes; notes are deduplicated
 on reimport. Existing full note lists are preserved; extra changes remain in
-the report with a warning. Export is always v4. Missing systems, overlaps, hull
-access, and carried-fit legality remain for #50; migration never repairs them.
-Rustbucket remains available for later structural rejection.
+the report with a warning. Export is always v4. Import alone does not approve
+missing systems, overlaps, hull access, or carried-fit legality; call `validate`
+for these checks. Migration never repairs Rustbucket or other structural faults.
+
+## Structural validation and docking (#50)
+
+`validate(bytes, rules, schemas, ValidationOptions{}, InputLimits{})` accepts the
+same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
+result envelope with active rules identity, sorted structured issues, and
+`data.definition` plus migration details if normalization succeeds. Structural
+errors retain the inspectable definition. `data.structuralPass` and the envelope
+status describe the enabled structural checks. Cached validation is discarded.
+`validation.ready` is false on structural failure and null on structural pass;
+`jumpReady` stays null until #51 evaluates rule-defined performance checks.
+Applicable `pending_F20` remains nonblocking and excluded values remain absent.
+No performance warnings or affordability checks are introduced here.
+
+`ValidationOptions.crewRoutes` and `.approachClearance` default to true and are
+reported in `data.checks`. Geometry uses active part footprints and cardinal
+facing directions, four-neighbor floor/walk routes, and paired `verticalLink`
+modules at matching coordinates on adjacent decks. Walkability follows the
+active floor and part records. Hull connectivity is checked within each deck;
+crew connectivity between decks requires those ladder pairs. Missing floors,
+overlap, out-of-grid footprints, duplicate unique systems, and carried-fit
+violations retain specific issue codes and use the `invalid_blueprint` severity
+family. All structural severities use the active validation checks and their
+default severity; issue details identify the rule. Carried blueprints use these same checks; their
+occupied dimensions and deck counts are checked against carrier limits without
+inventing docking rotations.
+
+`dock(hostBytes, targetDeckIndex, targetModuleId, visitorBytes, rules, schemas,
+DockOptions{}, InputLimits{})` requires a station host, ship visitor, and active
+rule-defined target. `data.checks.a` through `.d` contain enabled flags, statuses,
+and measured details. `DockOptions.structural`, `.portReachability`,
+`.matchingAirlock`, and `.approachClearance` independently disable F18(a), (b),
+(c), and (d). With defaults, (a) includes all host/visitor structural issues.
+Disabling (b) also disables the selected target's crew-access finding inside
+(a); disabling (d) likewise disables that target's approach finding inside (a).
+Other modules retain their checks. Disabling (a) leaves (b) and (d) active.
+Visitor-airlock crew access and clearance are structural findings under (a), at
+the active `unreachable_component` and `blocked_approach` severities (v3: error).
+They are not duplicated under (c). This permits independent mutation evidence
+for each check without mocking. Disabled checks are explicit in the output.
+
+Check (c) counts compatible, exterior, outward-facing airlocks without choosing
+one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
+than guessing visitor-deck mapping, a distance measure, reference point, or
+inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
+pending (`data.pending=true`), even though the pending issue is a warning.
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits, enforce the deck limit, and leave width/length fit
+uncertified with `pending_F19` until allowed rotations are settled. No dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+
+Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
+recognize a requested blueprint `holds` field (including nested carried craft)
+and return blocking `pending_F11` through `pending_F17` issues with null data.
+They do not assign a hold schema, capacity, mass, access, or floor/traversal rule.
+In particular they never misreport the intended opening as an ordinary missing
+floor. The #49 importer and bundled schemas remain unchanged. Ordinary cargo
+modules and adjacent-deck ladders continue to work normally.
+
+The independent tests session should exercise canonical structural outcomes,
+rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
+switch with mutation evidence, multiple compatible airlocks, ports beyond former
+size caps, hangar limits subject to F19, and all pending gates. No new tests or
+workflow steps are supplied by this implementation session.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative

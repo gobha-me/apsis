@@ -343,3 +343,38 @@ contract, with no label trimming, truncation, or Unicode normalization.
 Existing migration notes are preserved; when a generated note cannot fit the
 rules limit, changes remain in the migration report with a warning. None of
 F11–F17 or F19–F21 is answered by this scope boundary.
+
+## F23 — Validator implementation boundary and canonical comparison (#50)
+
+Implementation note, not a new game rule or a resolution of an open finding.
+The public `validate` operation now recomputes direct totals and structural
+issues with active rules. Canonical v3 inputs after migration give structural
+PASS for Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage; Rustbucket remains
+FAIL with `missing_airlock` and three `unreachable_component` findings. Its
+geometry is preserved. No canonical structural outcome changed under v4.
+The original passing self-test report does not include Rustbucket (F07).
+
+Performance advisories from the prototype, including Skiff's `no_cargo` and
+Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
+jump readiness remain unset on structural success; structural failure sets
+ready false. Wayfarer's three excluded burn-rate formula evaluations remain
+nonblocking `pending_F20`, with no excluded values or numeric substitutes.
+The #49 blank-design F20 exclusions remain unchanged.
+
+Unlike the prototype's interface-only docking success, a compatible port
+candidate returns FAIL with `pending_F21` until Luna defines same-deck mapping
+and the distance/reference/inclusivity convention. Hangar width/length fit also
+remains uncertified with `pending_F19`; the rule-defined deck cap is enforced.
+These pending results preserve F03/F18 without inventing F19/F21 answers.
+Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
+have independent public switches, with selected-target access/approach rule
+families disabled consistently when (b)/(d) is disabled; defaults retain all
+structural faults. Visitor-airlock access and clearance remain structural
+findings at their active rule severities (v3 error).
+
+Multi-deck holds remain unavailable: a requested `holds` field returns
+structured pending F11–F17 issues before any guessed hold totals, access,
+traversal, or ordinary missing-floor finding. No hold schema or geometry is
+invented, and no opening is filled. The independent tests session must cover
+the public switches with mutation evidence and the remaining pending gates.
+F11–F17, F19, F20, and F21 remain Open for Luna.
