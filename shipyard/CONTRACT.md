@@ -250,3 +250,42 @@ and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
 canonical form. Later independent tests should lock down the settled contracts;
 the three F22 prototype differences remain open and answer none of F11–F17 or
 F19–F21.
+
+## Deck authoring (#55)
+
+`authoring.hpp` exposes `insert_deck`, `move_deck`, `remove_deck`, and
+`rename_deck`. Each accepts blueprint or definition bytes and active rules and
+schemas, then returns `Result<Json>` containing a normalized v4 blueprint.
+These are library authoring helpers, not new CLI/HTTP operations or structural
+approval. They recompute direct totals/import diagnostics and preserve the
+ordinary structured `pending_F20` omissions. Input failures have no result;
+invalid indices return `invalid_deck_index`, and active minimum/maximum deck
+violations return `deck_limit`. Name constraints and input bounds remain active.
+Operations edit a copy, so failed edits leave the caller's source unchanged.
+
+Deck indices are zero-based array positions; generated ordinary deck labels use
+the corresponding one-based decimal level. This does not settle F16's open
+multi-deck-hold convention. Naming is a literal prefix plus that level, with no
+formatting language: bundled rules provide `defaults.deckNamePrefix: "Deck "`.
+The field is optional for earlier v4 snapshots; without it, the prefix is the
+existing `defaults.deckName` followed by one space. Rules loading checks the
+prefix for controls and that generated names through `maxDecks` fit
+`limits.maxDeckName`. Labels are never truncated or trimmed.
+
+New generated decks, including those in a blank blueprint, carry
+`nameGenerated: true`. An explicit name sets no ownership marker; absent or
+false provenance always means explicit. Import preserves both text and any
+provenance exactly; it never guesses ownership from a name pattern. Inserting,
+moving, or removing a deck renumbers only generated root-deck names. An explicit
+rename clears ownership, even when the supplied name equals a generated label;
+passing `nullopt` to `rename_deck` restores generated naming. The same optional
+name behavior applies to insertion. Empty explicit labels remain subject to the
+existing interim F22 behavior. Retained deck contents, coordinates, module IDs,
+`nextId`, and carried-craft labels are unchanged. Removal deletes only the
+selected deck; subsequent structural validation reports any resulting faults.
+
+F04's default blank ship and explicit blank station are already provided by
+#65. F01's five prices are already in the v4 rules from #62; F02's port checks
+omit size envelopes and hangars retain dimensions/deck caps through #63. #55
+preserves these behaviors and leaves F06's concealed-cargo tooltip deferred
+until a UI. None of F11–F17, F19, F20, or F21 is resolved here.

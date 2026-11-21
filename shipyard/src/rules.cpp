@@ -184,6 +184,18 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; }))
             fail("/defaults/" + std::string(key), "Default names cannot contain control characters.");
     }
+    // A literal prefix plus decimal level is the entire naming configuration.
+    // Older v4 snapshots fall back to their existing deck label and one space.
+    const bool has_deck_prefix = r["defaults"].contains("deckNamePrefix");
+    const auto deck_prefix = has_deck_prefix
+        ? r["defaults"]["deckNamePrefix"].get<std::string>()
+        : r["defaults"]["deckName"].get<std::string>() + " ";
+    const auto prefix_path = has_deck_prefix ? "/defaults/deckNamePrefix" : "/defaults/deckName";
+    const auto longest_level = std::to_string(r["limits"]["maxDecks"].get<std::size_t>());
+    if (detail::character_count(deck_prefix) + longest_level.size() > r["limits"]["maxDeckName"].get<std::size_t>())
+        fail(prefix_path, "Generated deck names exceed the active deck-name character limit.");
+    if (std::any_of(deck_prefix.begin(), deck_prefix.end(), [](unsigned char c) { return c < 32 || c == 127; }))
+        fail(prefix_path, "Deck-name prefixes cannot contain control characters.");
     std::set<std::pair<double, double>> directions;
     for (std::size_t i = 0; i < r["rotations"].size(); ++i) {
         const auto& rotation = r["rotations"][i];

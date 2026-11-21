@@ -53,6 +53,7 @@
           "required": ["cargo", "jumpFuel", "sublightFuel"], "additionalProperties": false
         },
         "shipName": {"type": "string"}, "stationName": {"type": "string"}, "deckName": {"type": "string"},
+        "deckNamePrefix": {"type": "string"},
         "templateAlias": {
           "type": "object", "properties": {"starter": {"type": "string"}}, "required": ["starter"],
           "additionalProperties": false

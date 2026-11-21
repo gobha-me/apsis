@@ -24,21 +24,6 @@ Json envelope(const RulesSnapshot& rules, std::vector<Issue> issues, Json data) 
 }
 } // namespace
 
-Json blank_blueprint(const RulesSnapshot& rules, BlankType type) {
-    const auto& active = rules.data();
-    const auto& defaults = active.at("defaults");
-    Json decks = Json::array();
-    for (std::size_t d = 0; d < active.at("limits").at("minDecks").get<std::size_t>(); ++d) {
-        decks.push_back({{"name", defaults.at("deckName")},
-                         {"floors", Json::object()}, {"modules", Json::array()}});
-    }
-    return {{"schema", active.at("schemaIds").at("blueprint")},
-        {"name", defaults.at(type == BlankType::station ? "stationName" : "shipName")},
-        {"buildType", type == BlankType::station ? "station" : "ship"},
-        {"budget", defaults.at("budget")}, {"loads", defaults.at("loads")},
-        {"decks", std::move(decks)}, {"nextId", 1}, {"migrationNotes", Json::array()}};
-}
-
 Json perf(std::string_view bytes, const RulesSnapshot& rules,
           const SchemaSet& schemas, LoadFractions loads, InputLimits limits) {
     Json overrides = Json::object();

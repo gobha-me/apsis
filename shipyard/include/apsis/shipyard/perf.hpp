@@ -14,6 +14,7 @@ struct LoadFractions {
 enum class BlankType { ship, station };
 // An empty blueprint using active defaults and the minimum deck count. This
 // authoring source does not imply structural approval or assign F20 values.
+// Generated deck names use active deckNamePrefix and their one-based level.
 Json blank_blueprint(const RulesSnapshot& rules, BlankType type = BlankType::ship);
 
 // DESIGN.md result envelope, including a freshly normalized definition and

@@ -7,7 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
-  src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp)
+  src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp
+  src/authoring.cpp)
 add_library(apsis::shipyard ALIAS apsis-shipyard)
 target_include_directories(apsis-shipyard PUBLIC include)
 target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)

@@ -74,5 +74,28 @@ exact pending-F20 evaluations in DESIGN.md: those emit `pending_F20` and omit
 the values, including dependent values, without numeric substitutes. Blank
 sources use active defaults and retain their structural validation report.
 
+Include `<apsis/shipyard/authoring.hpp>` to edit a blueprint's decks through the
+library. `insert_deck`, `move_deck`, `remove_deck`, and `rename_deck` return a
+`Result<Json>` with the edited, normalized v4 blueprint; they do not imply
+structural approval. Indices are zero-based, while generated labels use the
+one-based deck level:
+
+~~~cpp
+auto blank = blank_blueprint(rules); // ship; BlankType::station is explicit
+auto inserted = insert_deck(canonical_json(blank), 0, rules, schemas);
+auto named = rename_deck(canonical_json(*inserted.value), 0,
+                         std::string("Cargo deck"), rules, schemas);
+~~~
+
+With bundled rules, generated labels are `Deck 1`, `Deck 2`, and so on. Their
+optional `nameGenerated: true` provenance lets insert/move/remove renumber only
+generated labels. User/imported labels without that marker remain explicit,
+even when they look generated. An explicit rename clears the marker; `nullopt`
+restores generated naming. The active rules supply a literal `deckNamePrefix`;
+older v4 snapshots fall back to `deckName` plus one space. Rules bound both the
+prefix and the resulting label length. See CONTRACT.md for failure codes and
+preservation guarantees. Concealed-cargo tooltip work remains deferred to a UI
+(F06); no CLI, HTTP, container, or deploy code is added here.
+
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.

@@ -70,6 +70,11 @@ already supports an explicit type. The proposed headless default is a ship,
 with explicit station creation; do not inherit editor history. Preserve imported
 definitions' explicit station mode. Tests come from a separate session.
 
+Implementation status (#55): the public `blank_blueprint` source on #65 already
+defaults to a ship and requires `BlankType::station` for a station. Its result
+does not depend on a prior design. This behavior is retained; the separate #55
+tests session must also cover the default and explicit station source.
+
 ## F05 — Generated deck names can disagree with physical level
 
 Known nit in #55. `index.html:addDeckAt` uses total deck count plus one to name
@@ -79,12 +84,28 @@ at index 4. Generated names must track deck level in new production operations;
 preserve explicit user names and historical fixture names. Track automatic versus
 explicit naming so reorder/insert does not silently overwrite a user's label.
 
+Implementation status (#55): library deck-authoring operations now persist the
+optional boolean `nameGenerated`. Only `true` gives the authoring operations
+ownership of a label; absence or `false` is explicit, including imported names
+that happen to look generated. Insert, move, and remove update generated labels
+to the ordinary one-based position; explicit labels and retained module geometry
+and IDs are preserved. An explicit rename clears generated ownership, while a
+null optional name restores it. The active rules provide a literal
+`defaults.deckNamePrefix`, followed by the decimal level (`Deck 1`, `Deck 2`, ...
+with bundled rules). Older v4 snapshots without that optional field use their
+existing `defaults.deckName` plus a space as the prefix. This does not choose
+the multi-deck-hold numbering convention in F16 or add hold behavior.
+
 ## F06 — Concealed-cargo tooltip is deferred to a UI
 
 Deferred in #55. `index.html`, `concealedHelp`, contains claims about hiding cargo
 from scans but not departure logs; the `hidden` part description also mentions
 that distinction. Keep wording/visibility questions for Luna and future UI work.
 Do not add a tooltip or scan/log simulation to this headless implementation.
+
+Implementation status (#55): concealed-cargo tooltip wording and visibility
+remain explicitly deferred until a UI exists. No tooltip, scan/log simulation,
+container, or deployment implementation is added by this headless change.
 
 ## F07 — Passing self-test report does not cover Rustbucket
 
