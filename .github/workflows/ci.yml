@@ -50,6 +50,30 @@ jobs:
           cmake -S shipyard -B build/shipyard -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
           cmake --build build/shipyard --parallel 2
           ctest --test-dir build/shipyard --output-on-failure
+      - name: Mutation test shipyard (Mull 0.37.0)
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clang-20 libclang-rt-20-dev
+          package_dir="$RUNNER_TEMP/shipyard-mull-packages"
+          mkdir -p "$package_dir"
+          cd "$package_dir"
+          curl --fail --location --retry 3 --remote-name https://github.com/mull-project/mull/releases/download/0.37.0/Mull-0.37.0-ubuntu-amd64-24.04.deb
+          curl --fail --location --retry 3 --remote-name https://github.com/mull-project/mull/releases/download/0.37.0/Mull-20-0.37.0-LLVM-20.1.2-ubuntu-amd64-24.04.deb
+          printf '%s\n' \
+            'd8c804720ca494d03d5b25dce4cb898a26089c9745831df161c140739a74d856  Mull-0.37.0-ubuntu-amd64-24.04.deb' \
+            '1e43cd585930b42a2164a6a860f9bf7aa46bffed1c355da32360dfc0c427561f  Mull-20-0.37.0-LLVM-20.1.2-ubuntu-amd64-24.04.deb' | sha256sum --check --strict
+          sudo apt-get install --yes --no-install-recommends ./Mull-*.deb
+          cd "$GITHUB_WORKSPACE"
+          python -m ruff check shipyard/mutation.py
+          python -m ruff format --check shipyard/mutation.py
+          export MULL_CONFIG="$GITHUB_WORKSPACE/shipyard/mull.yml"
+          cmake -S shipyard -B "$RUNNER_TEMP/shipyard-mull-build" \
+            -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
+          cmake --build "$RUNNER_TEMP/shipyard-mull-build" --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/shipyard-mull-build" --output-on-failure --parallel 2
+          python shipyard/mutation.py "$RUNNER_TEMP/shipyard-mull-build"
       - name: Build and test rescue-debt helper
         env:
           APSIS_RESCUE_DEBT_DRIVER: ${{ runner.temp }}/rescue-debt-build/rescue_debt_seed

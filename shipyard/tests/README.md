@@ -96,3 +96,71 @@ would add toolchain/build work within the bounded scratch and session budget.
 Mull is not added to CI. The existing CTest step runs every suite, including
 `shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
 byte-identical.
+
+## Required Mull mutation gate (#64)
+
+This section supersedes the historical Mull deferral above. The required `ci`
+job now runs a separate Clang/LLVM 20 build with Mull 0.37.0, in addition to
+the unchanged ordinary g++-13 Release build and CTest step. CI installs the
+Ubuntu LLVM compiler/runtime packages and checksum-verified, versioned Mull
+release `.deb` packages; CMake, make, and OpenSSL are reused from earlier setup.
+
+The measured baseline at #63 head
+`f476383d6c25ba485c07935b14dc17a2080fb1d6` is **336 killed / 446 distinct
+mutations = 75.33632286995515%, with 110 survivors**. It was measured using
+Clang 20.1.8 and Mull 0.37.0 (LLVM 20 plugin), with all eight existing CTest
+entries, including the `--formula-nesting` invocation. CI uses Ubuntu's Clang
+20 package. The complete measured survivor identities, source spans, operators,
+and replacements are recorded in [`../mull-baseline.json`](../mull-baseline.json).
+Survivors are follow-up test work; no existing tests or assertions were changed.
+
+The chosen minimum is the **exact measured ratio, 336/446**, rather than a
+rounded percentage. Mull's own integer threshold is 75%; `mutation.py` also
+requires `killed * 446 >= 336 * total`, at least 446 distinct mutations, no more
+than 110 survivors, and every current survivor identity to be in the measured
+list. Thus neither percentage rounding nor additional killed mutations can
+conceal an additional or replacement survivor. The existing survivors are
+explicitly retained, without lowering the measured minimum.
+
+[`../mull.yml`](../mull.yml) fixes Mull's standard `cxx_default` operators
+(increment, arithmetic, comparison, and boundary) and includes shipyard sources
+and public headers. Test code and vendor code are outside that scope. Each
+CTest command is discovered from CTest's JSON manifest and run with its original
+arguments. `--include-not-covered` also executes mutations on uncovered lines;
+there is no coverage-based exclusion. The per-command SQLite results are
+combined by mutant identity: a failure in any suite kills the mutant. Individual
+runs allow survivors so that every suite completes; the final reporter and
+exact baseline checks enforce the gate. A fresh database is used each time.
+
+Both build and mutation workers are limited to two. Mull's `--timeout 3000`
+limits its original test runs; mutant timeouts use Mull 0.37.0's default of
+ten times the baseline duration, with a 30 ms minimum. Crashes and timeouts
+are detected mutations under Mull's scoring rules; unexpected or unexecuted
+result statuses fail the helper.
+
+After installing the pinned packages shown in `.github/workflows/ci.yml`, run:
+
+```sh
+export MULL_CONFIG="$PWD/shipyard/mull.yml"
+cmake -S shipyard -B build/shipyard-mull \
+  -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+  "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
+cmake --build build/shipyard-mull --parallel 2
+ctest --test-dir build/shipyard-mull --output-on-failure --parallel 2
+python3 shipyard/mutation.py build/shipyard-mull
+```
+
+The helper prints the exact score and every survivor; the combined report is
+`build/shipyard-mull/shipyard-mull.sqlite`. Mull reports survival when the
+applicable test programs exit zero with that mutation active. It does not
+establish whether a survivor is equivalent, unexecuted, or insufficiently
+asserted. Do not infer a missing assertion from survival alone.
+
+An intentional rebaseline requires a complete measured run, review of every
+survivor, and an updated explanation here. `--record-baseline` writes that
+measurement explicitly; CI never passes this option. Do not regenerate the
+baseline merely to make a regression pass. See Mull's
+[CTest integration](https://mull.readthedocs.io/en/latest/tutorials/CTestIntegration.html)
+and [multiple-target reporting](https://mull.readthedocs.io/en/latest/tutorials/MultipleTestTargets.html)
+for the combined-report approach.
