@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gobha.me/schemas/apsis-ship-rules-v4.schema.json", "title": "Apsis authoritative v4 rules",
+  "type": "object",
+  "properties": {
+    "schema": {"const": "apsis-ship-rules-v4"}, "version": {"const": 4}, "notes": {"type": "string"},
+    "floorMass": {"type": "number", "minimum": 0}, "floorCost": {"type": "number", "minimum": 0},
+    "cellSizeM": {"type": "number", "minimum": 0}, "massReference": {"type": "number", "minimum": 0},
+    "floor": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"}, "name": {"type": "string"}, "description": {"type": "string"},
+        "category": {"type": "string"}, "uiCategory": {"type": "string"}, "w": {"type": "integer", "minimum": 1},
+        "h": {"type": "integer", "minimum": 1}, "cost": {"type": "number", "minimum": 0},
+        "mass": {"type": "number", "minimum": 0}, "space": {"type": "number", "minimum": 0}, "color": {"type": "string"},
+        "power": {"type": "number", "minimum": 0}, "walkable": {"type": "boolean"},
+        "cellSizeM": {"type": "number", "minimum": 0}
+      },
+      "required": [
+        "id", "name", "description", "category", "uiCategory", "w", "h", "cost", "mass", "space", "color", "power",
+        "walkable", "cellSizeM"
+      ],
+      "additionalProperties": false
+    },
+    "grid": {
+      "type": "object", "properties": {"w": {"type": "integer", "minimum": 1}, "h": {"type": "integer", "minimum": 1}},
+      "required": ["w", "h"], "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "minDecks": {"type": "integer", "minimum": 1}, "maxDecks": {"type": "integer", "minimum": 1},
+        "maxCarryDepth": {"type": "integer", "minimum": 0}, "maxModuleId": {"type": "integer", "minimum": 1},
+        "maxDeckName": {"type": "integer", "minimum": 1}, "maxTemplateName": {"type": "integer", "minimum": 1},
+        "maxMigrationNotes": {"type": "integer", "minimum": 1}, "maxNoteLength": {"type": "integer", "minimum": 1}
+      },
+      "required": [
+        "minDecks", "maxDecks", "maxCarryDepth", "maxModuleId", "maxDeckName", "maxTemplateName", "maxMigrationNotes",
+        "maxNoteLength"
+      ],
+      "additionalProperties": false
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "buildType": {"type": "string"}, "budget": {"type": "integer", "minimum": 0},
+        "loads": {
+          "type": "object",
+          "properties": {
+            "cargo": {"type": "number", "minimum": 0}, "jumpFuel": {"type": "number", "minimum": 0},
+            "sublightFuel": {"type": "number", "minimum": 0}
+          },
+          "required": ["cargo", "jumpFuel", "sublightFuel"], "additionalProperties": false
+        },
+        "shipName": {"type": "string"}, "stationName": {"type": "string"}, "deckName": {"type": "string"},
+        "templateAlias": {
+          "type": "object", "properties": {"starter": {"type": "string"}}, "required": ["starter"],
+          "additionalProperties": false
+        },
+        "defaultCraft": {"type": "string"}
+      },
+      "required": ["buildType", "budget", "loads", "shipName", "stationName", "deckName", "templateAlias", "defaultCraft"],
+      "additionalProperties": false
+    },
+    "numeric": {
+      "type": "object",
+      "properties": {"precision": {"type": "integer", "minimum": 0}, "epsilon": {"type": "number", "exclusiveMinimum": 0}},
+      "required": ["precision", "epsilon"], "additionalProperties": false
+    },
+    "rotations": {
+      "type": "array",
+      "items": {
+        "type": "object", "properties": {"dx": {"type": "integer"}, "dy": {"type": "integer"}}, "required": ["dx", "dy"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "docking": {
+      "type": "object",
+      "properties": {
+        "interfaces": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}, "minItems": 1},
+        "defaultInterface": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+        "targetKinds": {"type": "array", "items": {"enum": ["port", "hangar"]}, "minItems": 1}
+      },
+      "required": ["interfaces", "defaultInterface", "targetKinds"], "additionalProperties": false
+    },
+    "performance": {
+      "type": "object",
+      "properties": {
+        "massReference": {"type": "number", "minimum": 0}, "cargoMassPerUnit": {"type": "number", "minimum": 0},
+        "jumpFuelMassPerCharge": {"type": "number", "minimum": 0}, "jumpFuelPerJump": {"type": "number", "minimum": 0},
+        "baseLifeSupportDays": {"type": "number", "minimum": 0}, "suitReserveDays": {"type": "number", "minimum": 0},
+        "reserveLifeSupportDays": {"type": "number", "minimum": 0},
+        "scenarioFractions": {
+          "type": "object",
+          "properties": {
+            "empty": {"type": "number", "minimum": 0}, "half": {"type": "number", "minimum": 0},
+            "full": {"type": "number", "minimum": 0}
+          },
+          "required": ["empty", "half", "full"], "additionalProperties": false
+        },
+        "accelerationBands": {
+          "type": "array",
+          "items": {
+            "type": "object", "properties": {"min": {"type": "number", "minimum": 0}, "label": {"type": "string"}},
+            "required": ["min", "label"], "additionalProperties": false
+          }
+        },
+        "underpoweredAcceleration": {"type": "number", "minimum": 0},
+        "advisoryShieldCount": {"type": "number", "minimum": 0}, "advisoryWeaponCount": {"type": "number", "minimum": 0},
+        "units": {
+          "type": "object",
+          "properties": {
+            "mass": {"type": "string"}, "thrust": {"type": "string"}, "acceleration": {"type": "string"},
+            "sublightFuel": {"type": "string"}, "burnRate": {"type": "string"}, "deltaV": {"type": "string"},
+            "jumpFuel": {"type": "string"}, "power": {"type": "string"}
+          },
+          "required": ["mass", "thrust", "acceleration", "sublightFuel", "burnRate", "deltaV", "jumpFuel", "power"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "massReference", "cargoMassPerUnit", "jumpFuelMassPerCharge", "jumpFuelPerJump", "baseLifeSupportDays",
+        "suitReserveDays", "reserveLifeSupportDays", "scenarioFractions", "accelerationBands",
+        "underpoweredAcceleration", "advisoryShieldCount", "advisoryWeaponCount", "units"
+      ],
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "requiredSystems": {
+          "type": "object",
+          "properties": {
+            "ship": {"type": "array", "items": {"type": "string"}},
+            "station": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["ship", "station"], "additionalProperties": false
+        },
+        "requiredAirlock": {
+          "type": "object", "properties": {"ship": {"type": "boolean"}, "station": {"type": "boolean"}},
+          "required": ["ship", "station"], "additionalProperties": false
+        },
+        "uniqueSystems": {"type": "array", "items": {"type": "string"}}, "fundingDefault": {"type": "boolean"},
+        "checks": {
+          "type": "object",
+          "properties": {
+            "required_system": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "command_access": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "missing_airlock": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "blocked_approach": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "unreachable_component": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "disconnected_hull": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "budget": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "power_shortfall": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "weak_acceleration": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "no_sublight_fuel": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "no_jump_fuel": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "unpaired_ladder": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "carried_not_ready": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "excess_defence": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "station_propulsion": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "migration": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "docking": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "invalid_blueprint": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "many_engines": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "large_fuel_capacity": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            },
+            "no_cargo": {
+              "type": "object", "properties": {"severity": {"enum": ["error", "warning"]}}, "required": ["severity"],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "required_system", "command_access", "missing_airlock", "blocked_approach", "unreachable_component",
+            "disconnected_hull", "budget", "power_shortfall", "weak_acceleration", "no_sublight_fuel", "no_jump_fuel",
+            "unpaired_ladder", "carried_not_ready", "excess_defence", "station_propulsion", "migration", "docking",
+            "invalid_blueprint", "many_engines", "large_fuel_capacity", "no_cargo"
+          ],
+          "additionalProperties": false
+        },
+        "defaultSeverity": {"enum": ["error", "warning"]}
+      },
+      "required": ["requiredSystems", "requiredAirlock", "uniqueSystems", "fundingDefault", "checks", "defaultSeverity"],
+      "additionalProperties": false
+    },
+    "formulas": {
+      "type": "object",
+      "properties": {
+        "structureMass": {"$ref": "#/$defs/formula"}, "dryMass": {"$ref": "#/$defs/formula"},
+        "cargoMass": {"$ref": "#/$defs/formula"}, "jumpFuelMass": {"$ref": "#/$defs/formula"},
+        "loadedMass": {"$ref": "#/$defs/formula"}, "acceleration": {"$ref": "#/$defs/formula"},
+        "range": {"$ref": "#/$defs/formula"}, "burnSeconds": {"$ref": "#/$defs/formula"},
+        "exhaustVelocity": {"$ref": "#/$defs/formula"}, "deltaV": {"$ref": "#/$defs/formula"},
+        "jumpCount": {"$ref": "#/$defs/formula"}, "endurance": {"$ref": "#/$defs/formula"},
+        "weaponDps": {"$ref": "#/$defs/formula"}, "fuelCapacityMass": {"$ref": "#/$defs/formula"},
+        "fuelToDryMassRatio": {"$ref": "#/$defs/formula"}
+      },
+      "required": [
+        "structureMass", "dryMass", "cargoMass", "jumpFuelMass", "loadedMass", "acceleration", "range", "burnSeconds",
+        "exhaustVelocity", "deltaV", "jumpCount", "endurance", "weaponDps", "fuelCapacityMass", "fuelToDryMassRatio"
+      ],
+      "additionalProperties": false
+    },
+    "buildTypes": {"type": "array", "items": {"enum": ["ship", "station"]}, "minItems": 1},
+    "carrier": {
+      "type": "object",
+      "properties": {"allowedBuildTypes": {"type": "array", "items": {"type": "string"}}, "defaultPart": {"type": "string"}},
+      "required": ["allowedBuildTypes", "defaultPart"], "additionalProperties": false
+    },
+    "schemaIds": {
+      "type": "object",
+      "properties": {
+        "blueprint": {"const": "apsis-shipyard-v4"}, "definition": {"const": "apsis-ship-definition-v4"},
+        "acceptedBlueprints": {"type": "array", "items": {"enum": ["apsis-shipyard-v3", "apsis-shipyard-v4"]}, "minItems": 1},
+        "acceptedDefinitions": {"type": "array", "items": {"enum": ["apsis-ship-definition-v3", "apsis-ship-definition-v4"]}, "minItems": 1}
+      },
+      "required": ["blueprint", "definition", "acceptedBlueprints", "acceptedDefinitions"],
+      "additionalProperties": false
+    },
+    "combat": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "type": "object",
+          "properties": {
+            "damage": {"type": "string"}, "capacity": {"type": "string"}, "recharge": {"type": "string"},
+            "range": {"type": "string"}, "power": {"type": "string"}, "cooldown": {"type": "string"}
+          },
+          "required": ["damage", "capacity", "recharge", "range", "power", "cooldown"], "additionalProperties": false
+        },
+        "note": {"type": "string"}
+      },
+      "required": ["units", "note"], "additionalProperties": false
+    },
+    "advisories": {
+      "type": "object",
+      "properties": {
+        "many_engines": {
+          "type": "object",
+          "properties": {
+            "buildTypes": {"type": "array", "items": {"type": "string"}},
+            "minEngineCount": {"type": "number", "minimum": 0}, "text": {"type": "string"}
+          },
+          "required": ["buildTypes", "minEngineCount", "text"], "additionalProperties": false
+        },
+        "large_fuel_capacity": {
+          "type": "object",
+          "properties": {
+            "buildTypes": {"type": "array", "items": {"type": "string"}},
+            "minFuelToDryMassRatio": {"type": "number", "minimum": 0}, "text": {"type": "string"}
+          },
+          "required": ["buildTypes", "minFuelToDryMassRatio", "text"], "additionalProperties": false
+        },
+        "no_cargo": {
+          "type": "object",
+          "properties": {
+            "buildTypes": {"type": "array", "items": {"type": "string"}},
+            "minModuleCount": {"type": "number", "minimum": 0}, "maxCargoCapacity": {"type": "number", "minimum": 0},
+            "text": {"type": "string"}
+          },
+          "required": ["buildTypes", "minModuleCount", "maxCargoCapacity", "text"], "additionalProperties": false
+        }
+      },
+      "required": ["many_engines", "large_fuel_capacity", "no_cargo"], "additionalProperties": false
+    },
+    "technicalLimits": {
+      "type": "object",
+      "properties": {
+        "maxBlueprintNameCharacters": {"type": "integer", "minimum": 1},
+        "maxBudgetInputCr": {"type": "integer", "minimum": 0}
+      },
+      "required": ["maxBlueprintNameCharacters", "maxBudgetInputCr"], "additionalProperties": false
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}, "name": {"type": "string"},
+          "category": {"type": "string"}, "system": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+          "description": {"type": "string"}, "w": {"type": "integer", "minimum": 1},
+          "h": {"type": "integer", "minimum": 1}, "cost": {"type": "number", "minimum": 0},
+          "mass": {"type": "number", "minimum": 0}, "space": {"type": "number", "minimum": 0},
+          "color": {"type": "string"}, "power": {"type": "number"}, "uiCategory": {"type": "string"},
+          "walkable": {"type": "boolean"},
+          "powerModes": {
+            "type": "object",
+            "properties": {
+              "idle": {"type": "number", "minimum": 0}, "cruise": {"type": "number", "minimum": 0},
+              "jump": {"type": "number", "minimum": 0}
+            },
+            "required": ["idle", "cruise", "jump"], "additionalProperties": false
+          },
+          "effect": {
+            "type": "object",
+            "properties": {
+              "crewCapacity": {"type": "number", "minimum": 0}, "lifeReserve": {"type": "number", "minimum": 0},
+              "passengers": {"type": "number", "minimum": 0}, "rating": {"type": "number", "minimum": 0},
+              "fuel": {"type": "number", "minimum": 0}, "cargo": {"type": "number", "minimum": 0},
+              "hidden": {"type": "number", "minimum": 0}, "shield": {"type": "number", "minimum": 0},
+              "weapon": {"type": "number", "minimum": 0}, "service": {"type": "number", "minimum": 0},
+              "sublightFuel": {"type": "number", "minimum": 0}
+            },
+            "required": [], "additionalProperties": false
+          },
+          "verticalLink": {"type": "boolean"}, "generation": {"type": "number", "minimum": 0},
+          "thrustKN": {"type": "number", "minimum": 0}, "sublightCapacity": {"type": "number", "minimum": 0},
+          "burnRate": {"type": "number", "minimum": 0}, "clearApproach": {"type": "boolean"},
+          "carrier": {
+            "type": "object",
+            "properties": {
+              "maxWidthM": {"type": "number", "exclusiveMinimum": 0},
+              "maxLengthM": {"type": "number", "exclusiveMinimum": 0}, "maxDecks": {"type": "integer", "minimum": 1},
+              "defaultTemplate": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}
+            },
+            "required": ["maxWidthM", "maxLengthM", "maxDecks", "defaultTemplate"], "additionalProperties": false
+          },
+          "shield": {
+            "type": "object",
+            "properties": {
+              "capacity": {"type": "number", "minimum": 0}, "recharge": {"type": "number", "minimum": 0},
+              "draw": {"type": "number", "minimum": 0}
+            },
+            "required": ["capacity", "recharge", "draw"], "additionalProperties": false
+          },
+          "weapon": {
+            "type": "object",
+            "properties": {
+              "damage": {"type": "number", "minimum": 0}, "cooldown": {"type": "number", "minimum": 0},
+              "range": {"type": "number", "minimum": 0}, "power": {"type": "number", "minimum": 0}
+            },
+            "required": ["damage", "cooldown", "range", "power"], "additionalProperties": false
+          },
+          "docking": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {"kind": {"const": "airlock"}, "interface": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}},
+                "required": ["kind", "interface"], "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {"kind": {"const": "port"}, "interface": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}},
+                "required": ["kind", "interface"], "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {"const": "hangar"}, "interface": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+                  "maxWidthM": {"type": "number", "exclusiveMinimum": 0},
+                  "maxLengthM": {"type": "number", "exclusiveMinimum": 0}, "maxDecks": {"type": "integer", "minimum": 1}
+                },
+                "required": ["kind", "interface", "maxWidthM", "maxLengthM", "maxDecks"], "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "category", "color", "cost", "description", "h", "id", "mass", "name", "power", "powerModes", "space",
+          "uiCategory", "w", "walkable"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "schema", "version", "notes", "floorMass", "floorCost", "cellSizeM", "massReference", "floor", "grid", "limits",
+    "defaults", "numeric", "rotations", "docking", "performance", "validation", "formulas", "buildTypes", "carrier",
+    "schemaIds", "combat", "advisories", "technicalLimits", "parts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "formula": {
+      "anyOf": [
+        {"type": "number"},
+        {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [{"type": "number"}, {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}, {"$ref": "#/$defs/formula"}]
+          },
+          "minItems": 2
+        }
+      ]
+    }
+  }
+}

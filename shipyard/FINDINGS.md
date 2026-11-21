@@ -287,6 +287,10 @@ tests can assert permitted orientations. Do not infer quarter-turn permission
 or prohibition from the prototype; F02's port size decision does not settle
 hangar rotations.
 
+The v4 rules deliberately omit v3 `docking.allowQuarterTurn: true`
+(`fixtures/v3/apsis-rules-v3.json:85`) pending Luna. The omission encodes
+neither permission nor prohibition; F19 remains **Open for Luna, not guessed**.
+
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
 **Open for Luna, not guessed.** How should v4 handle these evaluations?
@@ -322,3 +326,39 @@ The owner pick gives the alignment requirements but does not define the visitor
 deck mapping, distance measure, or reference point. An inclusive 1-cell limit
 is an interpretation pending this answer, not a settled rule. Keep F03's other
 requirements and F18's port checks; do not guess the missing convention.
+
+## F22 — Loader boundary and open prototype differences (#49)
+
+The #49 loader boundary does not answer any open finding. The loader
+validates input shape and active-rule scalar/reference limits,
+then recomputes direct costs, capacities, and masses. It discards imported
+derived/validation caches and embedded rules as authority. Structural legality,
+carried-fit/empty-berth legality, readiness, performance, and docking remain
+unimplemented for #50/#51; exported readiness is unset with structured pending
+issues, including `pending_F20` for applicable blank/engine-less cases. No F20
+evaluation path or excluded numeric value is exposed. In
+particular, migration preserves Rustbucket's geometry without repairing it.
+
+Stable serialization, exact input comparisons, absolute epsilon, and computed
+rounding are specified in CONTRACT.md for the independent tests session. No
+Unicode normalization occurs.
+
+The following three prototype differences are **Open for Luna, not guessed**,
+with no value picked. Current behaviour is an **interim interpretation**, not
+a settled technical encoding contract:
+
+- Name-length counting: the current loader counts Unicode scalar values; the
+  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
+  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
+  the prototype's limit. The counting choice remains open.
+- Label trimming and fallback: the current loader preserves empty and
+  whitespace-only labels without trimming or a fallback; the prototype's
+  `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
+  open.
+- Migration-note overflow: the current loader preserves existing notes and
+  leaves extra changes in the report with a warning; the prototype keeps the
+  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
+  remains open.
+
+None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
+interpretations.

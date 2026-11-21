@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gobha.me/schemas/apsis-ship-definition-v4.schema.json", "title": "Apsis v4 definition",
+  "type": "object",
+  "properties": {
+    "schema": {"const": "apsis-ship-definition-v4"}, "blueprint": {"$ref": "apsis-shipyard-v4.schema.json"},
+    "derived": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "cost": {"type": ["number", "null"]}, "mass": {"type": ["number", "null"]},
+            "dryMass": {"type": ["number", "null"]}, "currentMass": {"type": ["number", "null"]},
+            "structureMass": {"type": ["number", "null"]}, "componentMass": {"type": ["number", "null"]},
+            "space": {"type": ["number", "null"]}, "occupiedCells": {"type": ["number", "null"]},
+            "freeCells": {"type": ["number", "null"]}, "floorCount": {"type": ["number", "null"]},
+            "widthM": {"type": ["number", "null"]}, "lengthM": {"type": ["number", "null"]},
+            "areaM2": {"type": ["number", "null"]}, "deckCount": {"type": ["number", "null"]},
+            "range": {"type": ["number", "null"]}, "rating": {"type": ["number", "null"]},
+            "fuel": {"type": ["number", "null"]}, "cargo": {"type": ["number", "null"]},
+            "hidden": {"type": ["number", "null"]}, "shield": {"type": ["number", "null"]},
+            "weapon": {"type": ["number", "null"]}, "powerUse": {"type": ["number", "null"]},
+            "powerSupply": {"type": ["number", "null"]}, "endurance": {"type": ["number", "null"]},
+            "role": {"type": ["string", "null"]}, "capabilities": {"type": ["array", "null"]},
+            "berthCount": {"type": ["number", "null"]}, "shuttleCount": {"type": ["number", "null"]},
+            "carriedMass": {"type": ["number", "null"]}, "carriedCurrentMass": {"type": ["number", "null"]},
+            "carriedDryMass": {"type": ["number", "null"]}, "carriedCost": {"type": ["number", "null"]},
+            "passengers": {"type": ["number", "null"]}, "crewCapacity": {"type": ["number", "null"]},
+            "carriedCraft": {"type": ["array", "null"]}, "performance": {"type": ["object", "null"]},
+            "combat": {"type": ["object", "null"]}, "airlocks": {"type": ["array", "null"]},
+            "dockingTargets": {"type": ["array", "null"]}, "sublightFuel": {"type": ["number", "null"]},
+            "service": {"type": ["number", "null"]}, "lifeReserve": {"type": ["number", "null"]},
+            "moduleCount": {"type": ["number", "null"]}, "capacity": {"type": ["number", "null"]}
+          },
+          "required": [], "additionalProperties": false,
+          "description": "Informational cache only. Nested cache objects are opaque, discarded on import, and never used as rule or calculation inputs."
+        },
+        {"type": "null"}
+      ]
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ready": {"type": ["boolean", "null"]}, "jumpReady": {"type": ["boolean", "null"]},
+            "issues": {"type": "array", "items": {"type": "object"}}
+          },
+          "required": [], "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "rules": {"$ref": "apsis-ship-rules-v4.schema.json"}, "rulesVersion": {"const": 4},
+    "rulesSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": ["schema", "blueprint", "derived", "validation", "rules", "rulesVersion", "rulesSha256"],
+  "additionalProperties": false
+}
