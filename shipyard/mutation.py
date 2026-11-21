@@ -150,7 +150,11 @@ def main():
         # Python CTest adapters execute the instrumented public-API driver.
         # Discover mutations from that ELF while retaining the full CTest command.
         command = test["command"]
-        target = command[command.index("--driver") + 1] if "--driver" in command else command[0]
+        target = (
+            command[command.index("--driver") + 1]
+            if "--driver" in command
+            else command[0]
+        )
         run(
             "mull-runner",
             "--workers",
