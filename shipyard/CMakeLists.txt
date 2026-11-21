@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
-add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp)
+add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
+  src/structure.cpp src/validate.cpp src/dock.cpp)
 add_library(apsis::shipyard ALIAS apsis-shipyard)
 target_include_directories(apsis-shipyard PUBLIC include)
 target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)
@@ -14,10 +15,12 @@ target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto)
 target_compile_features(apsis-shipyard PUBLIC cxx_std_23)
 target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
 
-option(BUILD_TESTING "Build shipyard loader tests" OFF)
+option(BUILD_TESTING "Build shipyard tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
-  foreach(suite IN ITEMS rules migration input json_numeric issue_cap loader_regression schema_boundary loader_r2)
+  foreach(suite IN ITEMS rules migration input json_numeric validator dock pending
+      issue_cap loader_regression schema_boundary structure_regression
+      dock_regression validator_cap loader_r2 structure_r2 hangar_r2 validator_r2_cap)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
     target_compile_definitions(shipyard-${suite}-tests PRIVATE

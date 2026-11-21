@@ -34,6 +34,10 @@ One core library owns loading, normalization, rules evaluation, validation,
 performance, docking, and the definition model. CLI and HTTP adapters call the
 same operations and serialize the same results. The renderer consumes that
 model; it does not recalculate legality or maintain a second part catalogue.
+CLI and HTTP always call validation and docking with default `ValidationOptions`
+and `DockOptions`. They never map request fields onto check switches. The public
+types remain available for existing independent real-library tests; adapters
+must not expose that test seam as a way to skip structural or docking checks.
 The generator produces ordinary definitions and calls the same validator.
 There is no browser, JavaScript runtime, or network dependency in the core.
 

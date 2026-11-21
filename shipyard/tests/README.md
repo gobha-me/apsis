@@ -1,9 +1,9 @@
-# Independent loader tests
+# Independent shipyard tests
 
-These tests exercise the public API in `loader.hpp`, with no mocks. Expectations
+These tests exercise the public APIs in `loader.hpp` and `validator.hpp`, with no mocks. Expectations
 come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
-fixtures. They cover loading and direct totals only. Structural rejection
-(including Rustbucket), performance evaluation, and docking remain #50/#51 work;
+fixtures. Loader tests cover loading, migration, and direct totals; validator,
+dock, and pending suites cover #50. Performance evaluation remains #51 work;
 no open game decision is assigned a value here.
 
 Run with g++-13, C++23, CMake, and OpenSSL 3.x development files:
@@ -31,6 +31,65 @@ must load; 65 levels must fail with a readable `invalid_formula` issue at
 The ordinary suites still check parser depth boundaries, import resource guards,
 carried-craft depth, formula operand bounds, and malformed formula rejection.
 
+## Validation and pending decisions
+
+`shipyard-validator` imports all five canonical definitions normally, then calls
+`validate` with deliberately misleading caches. Wren, Skiff, Kestrel Tender,
+and Wayfarer Anchorage must structurally pass. Rustbucket must fail with
+`missing_airlock` and `unreachable_component` for module IDs 1, 5, and 6;
+normalization must preserve its geometry. Structural success leaves complete
+readiness and jump readiness unset, as required by F23.
+
+`shipyard-pending` checks requested holds through `validate` and `dock`, including
+nested carried craft: F11–F17 must be structured blocking issues with null data,
+without guessed hold totals or ordinary missing-floor errors. Blank ship and
+station imports succeed with `pending_F20`; structural validation may still
+report missing required systems. Wayfarer structurally passes with that warning.
+Excluded performance values are absent rather than numeric substitutes.
+
+Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
+visitor wider than the former v3 cap without a size-envelope failure. Multiple
+compatible exterior airlocks are counted without selecting one. These cases
+remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
+overall FAIL: alignment has not been certified. Hangar tests distinguish a
+definite unrotated fit, a definite oversize error, and a fit possible only after
+rotation (`pending_F19`), while retaining active dimensions and deck limits.
+
+## Per-check fault coverage
+
+These public API tests author concrete faults in real blueprints and assert the
+responsible issue or measured check. The table maps the review mutants to those
+faults; no mutation-run score is claimed. Positive controls establish that the
+baseline reaches the intended check. Each fixture uses the installed schemas,
+rules, catalogue footprints, and library implementation.
+
+| Reviewed fault | Authored input | Required public result | Suite |
+| --- | --- | --- | --- |
+| S07: command access removed | Bridge enclosed by nonwalkable parts | `command_access` | `structure_regression` |
+| S10 / S12: airlock reach / clearance ignored | Sole airlock unreachable or approach obstructed | `missing_airlock` in each case | `structure_regression` |
+| S14: station propulsion removed | Station carrying an engine | `station_propulsion` | `structure_regression` |
+| S17 / S18: carried dimensions / decks ignored | Craft exceeds one berth dimension or its deck count | `carried_fit` | `structure_regression` |
+| S21: module footprint ignored | Another module occupies the approach corridor | `blocked_approach` on the approached module | `structure_regression` |
+| S23 / K05: exterior always true | Floor directly in front of matching visitor airlock | No exterior candidate; `dock_no_matching_airlock` | `structure_regression`, `dock_regression` |
+| S27: negative-dy approach reversed | Rotation-2 module obstructed on its outward side | `blocked_approach` | `structure_regression` |
+| K08 / K09: type early return removed | Nonstation host / nonship visitor | Typed rejection with `data: null` | `dock_regression` |
+| K10: nondocking target accepted | Ordinary station system selected as target | `invalid_docking_target`; no escaping exception | `dock_regression` |
+| K12: inclusive hangar deck boundary rejected | Visitor with exactly two decks | `deckCountFits: true`, no deck-limit issue | `dock_regression` |
+| K14: failed check ignored at warning severity | Docking rule severity is warning and a check fails | Overall FAIL despite absence of error issues | `dock_regression` |
+| K18: target kinds ignored | Station airlock selected as a target | `invalid_docking_target` | `dock_regression` |
+| Cross-deck hull / bridge shortcut differences | Unlinked floored deck / separated bridge-side crew paths | `disconnected_hull` / `unreachable_component` | `structure_regression` |
+| M1: unbounded diagnostic amplification | Grid-capacity overlapping modules / large malformed holds body | At most 128 issues including exactly one structured truncation error | `validator_cap` |
+
+`shipyard-dock` also retains paired `DockOptions` enable/disable cases for F18(a)
+through (d). Those are wiring checks: they show that each public switch controls
+its check and the selected target duplicate suppression. They do not establish
+that the check logic rejects every fault. The fault-specific regressions above
+exercise that logic with defaults (apart from an explicit isolated warning-rule
+case). No validator implementation is replaced.
+
+The existing CTest step runs every suite without workflow changes. The v3
+goldens remain byte-identical.
+
 `shipyard-schema_boundary` exercises embedded informational formulas in a v4
 wrapper with the parser bound raised. The bundled schema reaches recursion step
 512 with 127 nested `floor` arrays; that input must import, while 128 arrays
@@ -50,3 +109,19 @@ measured durations. The object/array ratio check applies in every build; the
 1-second parse and 5-second import absolute limits apply only in Release builds
 (`NDEBUG`). The existing 30-second watchdog and 120-second CTest timeout are
 unchanged.
+
+The r2 public-API suites extend the reviewed fault coverage:
+
+- `shipyard-structure_r2`: command-origin hull flood (N02), bottom-first
+  bridge service selection (N03), missing-command reachability (N06), and
+  local hull connectivity with crew routes disabled (N07).
+- `shipyard-hangar_r2`: rotation-proof minimum-span and diagonal rejection,
+  inclusive boundaries, Skiff 6x10 in 8x8 and a 2x10 visitor in 9x9 remaining
+  pending F19, plus Wren in 10x40 to distinguish the N14 orientation fault.
+- `shipyard-validator_r2_cap`: carried-craft terminal truncation (N10),
+  combined below-cap designs (N16), and marker retention with structural
+  reporting disabled (N15). The public combined result has 124 overlaps,
+  three prior import warnings, and one marker inside the shared 128 slots.
+
+The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
+the inherited linear SAX parser keeps those calls below existing watchdogs.

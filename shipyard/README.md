@@ -1,8 +1,9 @@
 # Shipyard core
 
 C++23 authoring library, independent of simulation and galaxy internals.
-This issue implements loading, schema checks, direct totals, and explicit v3
-migration. It does not provide the public CLI/HTTP adapters.
+The library implements loading, schema checks, direct totals, explicit v3
+migration, structural validation, and docking checks. It does not provide the
+public CLI/HTTP adapters or performance evaluation.
 
 Build (CMake 3.20+, g++-13, OpenSSL 3.x development files):
 
@@ -32,6 +33,24 @@ clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 The shipyard does not enforce player affordability. Ports have no size envelope;
 hangars retain their rule-defined dimensions and deck count. No docking
 rotation or F03 distance convention is implemented.
+
+Include `<apsis/shipyard/validator.hpp>` for the public operations:
+
+~~~cpp
+auto report = apsis::shipyard::validate(definitionBytes, rules, schemas);
+auto docking = apsis::shipyard::dock(stationBytes, deckIndex, moduleId,
+                                    visitorBytes, rules, schemas);
+~~~
+
+Both return the `apsis-shipyard-result-v1` JSON envelope. Validation includes a
+recomputed definition when normalization succeeds, even on structural failure.
+Docking reports each F18 check separately; `DockOptions` independently controls
+`structural` (a), `portReachability` (b), `matchingAirlock` (c), and
+`approachClearance` (d). CLI and HTTP always use defaults and never map request
+fields to these switches; the public types remain for independent tests of the
+real checks. Pending F21 prevents certifying a port dock; hangar rotations remain
+pending F19. No visitor airlock is selected. See the precise pending and switch
+semantics in CONTRACT.md.
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.
