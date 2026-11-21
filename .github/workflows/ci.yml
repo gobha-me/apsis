@@ -47,9 +47,15 @@ jobs:
           sudo apt-get install --yes --no-install-recommends cmake make g++-13 libssl-dev
       - name: Build and test shipyard
         run: |
-          cmake -S shipyard -B build/shipyard -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake -S shipyard -B build/shipyard -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cmake --build build/shipyard --parallel 2
           ctest --test-dir build/shipyard --output-on-failure
+      - name: Lint shipyard C++
+        run: |
+          sudo apt-get install --yes --no-install-recommends clang-tidy-20
+          git ls-files -z 'shipyard/src/*.cpp' 'shipyard/tests/*.cpp' | \
+            xargs -0 -r clang-tidy-20 -p build/shipyard --warnings-as-errors='*' \
+              --header-filter='(^|/)shipyard/(src|include|tests)/'
       - name: Mutation test shipyard (Mull 0.37.0)
         run: |
           sudo apt-get update
@@ -68,7 +74,7 @@ jobs:
           python -m ruff format --check shipyard/mutation.py
           export MULL_CONFIG="$GITHUB_WORKSPACE/shipyard/mull.yml"
           cmake -S shipyard -B "$RUNNER_TEMP/shipyard-mull-build" \
-            -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
           cmake --build "$RUNNER_TEMP/shipyard-mull-build" --parallel 2

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -91,7 +92,33 @@ def check_baseline(measured, baseline):
         )
 
 
+def prior_kills(database):
+    if not database.exists():
+        return []
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute("SELECT mutant_id, execution_status FROM mutant")
+        killed = set()
+        for key, status in rows:
+            if status not in KILLED | {2}:
+                raise RuntimeError(f"Unexpected Mull execution status {status}: {key}")
+            if status in KILLED:
+                killed.add(key)
+    return sorted(killed)
+
+
+def run_test(snapshot, command):
+    # Only earlier actual kills from this fresh run may bypass execution.
+    # A bypass returns success; the earlier failure remains in the OR summary.
+    killed = json.loads(snapshot.read_text())
+    if any(os.environ.get(key) == "1" for key in killed):
+        return
+    os.execv(command[0], command)
+
+
 def main():
+    if sys.argv[1:2] == ["--run-test"]:
+        run_test(Path(sys.argv[2]), sys.argv[3:])
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build_dir", type=Path)
     parser.add_argument("--record-baseline", action="store_true")
@@ -108,14 +135,24 @@ def main():
         raise RuntimeError("CTest discovered no tests")
     database = build / "shipyard-mull.sqlite"
     database.unlink(missing_ok=True)
+    snapshot = build / "shipyard-mull-prior-kills.json"
     for test in tests:
         print(f"Mutation testing CTest entry: {test['name']}", flush=True)
+        killed = prior_kills(database)
+        snapshot.write_text(json.dumps(killed) + "\n")
+        print(f"Reusing {len(killed)} earlier actual kills", flush=True)
+        timeout = next(
+            (p["value"] for p in test["properties"] if p["name"] == "TIMEOUT"),
+            120,
+        )
+        if not 0 < timeout <= 120:
+            raise RuntimeError(f"Invalid CTest timeout for {test['name']}: {timeout}")
         run(
             "mull-runner",
             "--workers",
             "2",
             "--timeout",
-            "3000",
+            str(int(timeout * 1000)),
             "--include-not-covered",
             "--allow-surviving",
             "--reporters",
@@ -124,6 +161,13 @@ def main():
             str(build),
             "--report-name",
             "shipyard-mull",
+            "--test-program",
+            sys.executable,
+            test["command"][0],
+            "--",
+            str(Path(__file__).resolve()),
+            "--run-test",
+            str(snapshot),
             *test["command"],
             cwd=build,
         )
@@ -137,6 +181,13 @@ def main():
     for survivor in measured["survivors"]:
         print(json.dumps(survivor, sort_keys=True), flush=True)
     if args.record_baseline:
+        previous = json.loads(BASELINE.read_text())
+        if (
+            total < previous["total"]
+            or killed * previous["total"] < previous["killed"] * total
+            or len(measured["survivors"]) > len(previous["survivors"])
+        ):
+            raise RuntimeError("Refusing to record a worse mutation baseline")
         BASELINE.write_text(json.dumps(measured, indent=2) + "\n")
         run("mull-reporter", "--allow-surviving", str(database), cwd=build)
         return

@@ -115,22 +115,25 @@ the unchanged ordinary g++-13 Release build and CTest step. CI installs the
 Ubuntu LLVM compiler/runtime packages and checksum-verified, versioned Mull
 release `.deb` packages; CMake, make, and OpenSSL are reused from earlier setup.
 
-The measured baseline at #63 head
-`f476383d6c25ba485c07935b14dc17a2080fb1d6` is **336 killed / 446 distinct
-mutations = 75.33632286995515%, with 110 survivors**. It was measured using
-Clang 20.1.8 and Mull 0.37.0 (LLVM 20 plugin), with all eight existing CTest
-entries, including the `--formula-nesting` invocation. CI uses Ubuntu's Clang
-20 package. The complete measured survivor identities, source spans, operators,
-and replacements are recorded in [`../mull-baseline.json`](../mull-baseline.json).
-Survivors are follow-up test work; no existing tests or assertions were changed.
+The historical baseline at #63 head
+`f476383d6c25ba485c07935b14dc17a2080fb1d6`, committed in original #66
+`27b1e3b45af598e6ddde9f70ffc6e1b1db86c39f`, was **336 killed / 446 distinct
+mutations = 75.33632286995515%, with 110 survivors**. It used Clang20.1.8,
+Mull0.37.0 and the LLVM20 plugin over all eight then-existing CTest commands,
+including `--formula-nesting`. Its complete survivor list remains in the
+[historical baseline](https://github.com/gobha-me/apsis/blob/27b1e3b45af598e6ddde9f70ffc6e1b1db86c39f/shipyard/mull-baseline.json).
+Prior required CI [run44846858065](https://github.com/gobha-me/apsis/actions/runs/44846858065)
+measured **338/446 = 75.784753363%, with 108 survivors**, all a subset of that
+110-survivor list. The original documented minimum remained the earlier exact
+local **336/446** ratio, rather than the higher CI observation.
 
-The chosen minimum is the **exact measured ratio, 336/446**, rather than a
-rounded percentage. Mull's own integer threshold is 75%; `mutation.py` also
-requires `killed * 446 >= 336 * total`, at least 446 distinct mutations, no more
-than 110 survivors, and every current survivor identity to be in the measured
-list. Thus neither percentage rounding nor additional killed mutations can
-conceal an additional or replacement survivor. The existing survivors are
-explicitly retained, without lowering the measured minimum.
+The gate uses the exact committed ratio, not a rounded percentage. Mull's own
+integer threshold is supplemented by `measured_killed * baseline_total >=
+baseline_killed * measured_total`, a total floor, a survivor-count ceiling, and
+membership of every survivor's operator and begin/end source span in the
+committed list. Added kills or rounding cannot conceal an extra or replacement
+survivor. An explicitly requested rebaseline also refuses a lower total, worse
+exact ratio, or larger survivor count than the preceding baseline.
 
 [`../mull.yml`](../mull.yml) fixes Mull's standard `cxx_default` operators
 (increment, arithmetic, comparison, and boundary) and includes shipyard sources
@@ -142,18 +145,32 @@ combined by mutant identity: a failure in any suite kills the mutant. Individual
 runs allow survivors so that every suite completes; the final reporter and
 exact baseline checks enforce the gate. A fresh database is used each time.
 
-Both build and mutation workers are limited to two. Mull's `--timeout 3000`
-limits its original test runs; mutant timeouts use Mull 0.37.0's default of
-ten times the baseline duration, with a 30 ms minimum. Crashes and timeouts
-are detected mutations under Mull's scoring rules; unexpected or unexecuted
-result statuses fail the helper.
+Both build and mutation workers are limited to two. The helper uses each
+CTest command's existing `TIMEOUT` (120 seconds here) for Mull's unmutated
+warmup and baseline, bounded at 120 seconds; every original command must pass.
+The former 3000 ms original-run limit cannot accommodate the expanded cap
+suites. Mutant timeouts retain Mull0.37.0's policy of ten times the measured
+baseline duration, with a 30 ms minimum. Crashes and timeouts remain detected
+mutations; unexpected or unexecuted statuses fail the helper.
+
+For each command, a wrapper snapshots only actual killed IDs from completed
+earlier commands in the same fresh SQLite measurement. It returns exit0 for
+an active ID already killed there; otherwise it execs the exact original CTest
+command and arguments, retaining the mutant environment. Warmup and baseline
+have no active mutant and always execute the original command. A bypass adds
+only a survived row, while the earlier observed kill remains in the unchanged
+OR summary. No committed baseline, previous run, or guessed kill is reused;
+all commands and all discovered identities remain in the combined report.
+The wrapper's startup time is included in Mull's measured baseline. This uses
+Mull0.37.0's pinned
+[`--test-program` integration](https://github.com/mull-project/mull/blob/0.37.0/docs/tutorials/NonStandardTestSuite.rst).
 
 After installing the pinned packages shown in `.github/workflows/ci.yml`, run:
 
 ```sh
 export MULL_CONFIG="$PWD/shipyard/mull.yml"
 cmake -S shipyard -B build/shipyard-mull \
-  -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
   "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
 cmake --build build/shipyard-mull --parallel 2
@@ -179,3 +196,128 @@ schema, import, formula-loading, and rules-loading paths. A saturated list keeps
 127 ordinary issues and exactly one root `issues_truncated` error with the
 documented limit and suppression details. `shipyard-loader_regression` checks
 engine-equipped canonical ships, grid capacity, and embedded-rule identity.
+
+## Phase2 test setup while final review is pending
+
+The current #63 integration adds six CTest commands to the historical eight:
+`shipyard-issue_cap`, `shipyard-loader_regression`, `shipyard-schema_boundary`,
+`shipyard-structure_regression`, `shipyard-dock_regression`, and
+`shipyard-validator_cap`. Every command remains discovered automatically.
+The authorized rebaseline is on hold until the final reviewed #63 is plainly
+merged into #66. The committed minimum remains **336/446**, with the original
+**110-survivor** list; no new mutation score or survivor list is accepted here.
+
+The instrumented configuration uses Release with full `-g`, recorded compiler
+arguments, and the same LLVM20 plugin. Debug at `-O0`, `-O1`, `-O2`, and Release
+at the integrated `1cf4ea7` source all discovered the same **497** identities
+and replacements, including uncovered mutations; this is discovery evidence,
+not a mutation score. Mull0.37.0 registers its
+[instrumentation before LLVM optimization](https://github.com/mull-project/mull/blob/0.37.0/tools/mull-ir-frontend/mull-cxx-ir-frontend.cpp#L40).
+Release sets `-O3 -DNDEBUG`; all shipyard expectations use `require()` and do
+not depend on `assert` or `NDEBUG`, as checked in tests, sources, public headers,
+and CMake. This mode changes vendor/internal debug assertions in the same way
+as the ordinary Release build. The existing 30-second test checks and
+120-second CTest limits remain active. Optimization alone did not make the
+old malformed-hold parser path pass its 30-second check, so a valid full
+measurement remains pending the reviewed production remedy.
+
+The final source tree must pass its original suites, lint, and complete Mull
+measurement before any new exact minimum can be accepted.
+
+## C++ static analysis
+
+CI installs the Ubuntu `clang-tidy-20` package through apt. The versioned major
+matches the existing LLVM 20 tooling; local validation used Ubuntu LLVM 20.1.8.
+Clang-tidy uses its default compiler diagnostics and static-analyzer checks,
+with every emitted warning promoted to an error by `--warnings-as-errors='*'`.
+This checks C++ semantics without imposing an unrelated formatting rewrite.
+
+The compilation database comes from the ordinary g++-13 Release C++23 build,
+with its existing `-Werror`, includes, and test definitions. Exporting the
+database does not change compilation flags. Every tracked `shipyard/src/*.cpp`
+and `shipyard/tests/*.cpp` is checked (20 translation units at this integration).
+The header filter also includes owned source, public, and test headers; vendor
+code remains a system include. No NOLINT, disabled checks, or weaker flags are
+used. The lint step runs before the existing mutation gate and has no condition
+that could mask a failure in either check.
+
+To reproduce from the repository root after installing `clang-tidy-20`:
+
+```sh
+cmake -S shipyard -B build/shipyard \
+  -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=ON -DCMAKE_CXX_FLAGS=-Werror \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build/shipyard --parallel 2
+ctest --test-dir build/shipyard --output-on-failure
+git ls-files -z 'shipyard/src/*.cpp' 'shipyard/tests/*.cpp' | \
+  xargs -0 -r clang-tidy-20 -p build/shipyard --warnings-as-errors='*' \
+    --header-filter='(^|/)shipyard/(src|include|tests)/'
+```
+
+No test assertions, time bounds, or survivor-killing cases were changed for
+this lint setup. The historical mutation minimum and survivor list remain
+unchanged while final #63 review and the authorized remeasurement are pending.
+
+## Superseded F18 toggle evidence and F19 context
+
+The following verbatim excerpt from original #66 (`27b1e3b`) is historical.
+The reviewed per-check fault coverage and current pending-decision description
+above supersede its former mutation-evidence and hangar-fit claims. The required
+Mull gate supersedes its Mull deferral. No F finding was renumbered.
+
+<details>
+<summary>Historical F19 context and F18 disable-toggle evidence</summary>
+
+Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
+visitor wider than the former v3 cap without a size-envelope failure. Multiple
+compatible exterior airlocks are counted without selecting one. These cases
+remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
+overall FAIL: alignment has not been certified. Hangar width/length fit remains
+null with `pending_F19`; tests retain rule-defined dimensions and enforce the
+settled deck cap without deciding permitted rotations.
+
+## F18 disable-toggle mutation evidence
+
+`shipyard-dock` has a separate case for each check and asserts both sides of
+each toggle. A valid baseline controls the authored fault. Only the named
+option changes between calls; all other options retain their true defaults.
+Disabling (b) or (d) must also suppress the selected target's duplicate finding
+inside (a), as CONTRACT.md specifies. Visitor-airlock access/clearance remain
+under (a), at active rule severities, without duplicate failures under (c).
+
+| Check | Option | Fault | Enabled-only assertion | Same assertion with only that option disabled | Invocation on `shipyard-dock-tests` |
+| --- | --- | --- | --- | --- | --- |
+| (a) Structural | `structural` | Reactor footprint lacks a floor | Green (exit 0): `missing_floor` caught, (a) FAIL | Red (exit 1): finding missing, (a) DISABLED | `--enabled-only a`, then append `--disable a` |
+| (b) Station crew access | `portReachability` | Nonwalkable seats surround the selected port | Green (exit 0): `dock_port_unreachable` caught, (b) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (b) DISABLED | `--enabled-only b`, then append `--disable b` |
+| (c) Matching airlock | `matchingAirlock` | Visitor airlock has an incompatible interface | Green (exit 0): `dock_no_matching_airlock` caught, (c) FAIL | Red (exit 1): finding missing, (c) DISABLED | `--enabled-only c`, then append `--disable c` |
+| (d) Approach | `approachClearance` | Connected hull obstructs the selected port's approach | Green (exit 0): `dock_blocked_approach` caught, (d) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (d) DISABLED | `--enabled-only d`, then append `--disable d` |
+
+The table concerns the fault-specific assertion, not overall dock status:
+F21 still blocks compatible candidates when other checks are disabled. The
+ordinary CTest suite stays green by explicitly asserting that enabled catches
+the fault and disabled misses it. No validator implementation is replaced.
+
+After the build above, a reviewer can run the identical enabled-only assertions
+and see each go red by flipping its own option:
+
+```sh
+for check in a b c d; do
+  build/shipyard/shipyard-dock-tests --enabled-only "$check"
+  build/shipyard/shipyard-dock-tests --enabled-only "$check" --disable "$check"
+done
+```
+
+For each check the first invocation exits 0 and the second exits 1 with a
+`FAIL` diagnostic. The normal executable without arguments asserts both sides
+and exits 0. These eight invocations are the session's mutation evidence.
+
+Mull is deferred as a follow-up. This session uses the prescribed g++-13 build
+and public option toggles; a separate LLVM-instrumented build and mutation run
+would add toolchain/build work within the bounded scratch and session budget.
+Mull is not added to CI. The existing CTest step runs every suite, including
+`shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
+byte-identical.
+
+
+</details>
