@@ -194,6 +194,59 @@ int main() {
   suite.run("the same diagonal excess rejects beyond a smaller active epsilon",
             [&] { check_diagonal(7.9999999, 1e-8, true); });
 
+  suite.run("E03 diagonal excess equal to epsilon remains pending", [&] {
+    const double diagonal = std::hypot(6.0, 7.9999999);
+    const double boundary_epsilon = 10.0 - diagonal;
+    require(boundary_epsilon > 0.0 && diagonal + boundary_epsilon == 10.0,
+            "the diagonal plus epsilon must exactly equal the visitor length");
+    check_diagonal(7.9999999, boundary_epsilon, false);
+  });
+
+  suite.run("E04 diagonal excess between one and two epsilons rejects", [&] {
+    const double boundary_epsilon = 5e-8;
+    const double excess = 10.0 - std::hypot(6.0, 7.9999999);
+    require(excess > boundary_epsilon && excess < 2.0 * boundary_epsilon,
+            "the diagonal excess must distinguish one epsilon from two");
+    check_diagonal(7.9999999, boundary_epsilon, true);
+  });
+
+  suite.run("E06 E07 Skiff width within epsilon still exceeds the exact limit",
+            [&] {
+    const double width = 5.9999995;
+    require(6.0 > width && 6.0 - width <= epsilon,
+            "the canonical Skiff must exceed the width by less than epsilon");
+    auto changed = with_hangar_limits(active, schema, 6, 10).data();
+    for (auto &part : changed["parts"])
+      if (part.at("id") == "stationHangar")
+        part["docking"]["maxWidthM"] = width;
+    const auto configured = load_rules(changed.dump(), schema);
+    require(configured.ok(), "the fractional hangar width must load");
+    const auto report = dock(anchorage.dump(), 1, 15, skiff.dump(),
+                             *configured.value, schema, options);
+    const auto &data = report.at("data");
+    const auto &hangar = data.at("hangar");
+    require(report.at("operation") == "dock" &&
+                report.at("status") == "FAIL" && report.at("pass") == false,
+            "the exact minimum-side excess must block public docking");
+    require(hangar.at("visitorWidthM") == 6 &&
+                hangar.at("visitorLengthM") == 10 &&
+                hangar.at("maxWidthM") == width &&
+                hangar.at("maxLengthM") == 10 &&
+                hangar.at("visitorDeckCount") == 1 &&
+                hangar.at("deckCountFits") == true,
+            "the exact-bound check must use canonical Skiff and fractional rules");
+    require(hangar.at("widthLengthFit") == false &&
+                data.at("pending") == false &&
+                !has_issue(report, "pending_F19") &&
+                !has_issue(report, "dock_hangar_deck_limit"),
+            "epsilon must not allow an unrotated fit or defer minimum-side excess");
+    const auto &item = find_issue(report, "dock_hangar_size_limit");
+    require(item.at("severity") == "error" &&
+                item.at("path") == "/visitor/blueprint/decks" &&
+                !item.at("message").get<std::string>().empty(),
+            "minimum-side excess must expose a readable structured size error");
+  });
+
   suite.run("N14 Wren minimum side exceeds a long narrow hangar", [&] {
     // The historical swapped comparisons are false / true (34 <= 10,
     // 20 <= 40); the current unrotated comparisons are also false / true.
