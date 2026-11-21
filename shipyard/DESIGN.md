@@ -34,6 +34,10 @@ One core library owns loading, normalization, rules evaluation, validation,
 performance, docking, and the definition model. CLI and HTTP adapters call the
 same operations and serialize the same results. The renderer consumes that
 model; it does not recalculate legality or maintain a second part catalogue.
+CLI and HTTP always call validation and docking with default `ValidationOptions`
+and `DockOptions`. They never map request fields onto check switches. The public
+types remain available for existing independent real-library tests; adapters
+must not expose that test seam as a way to skip structural or docking checks.
 The generator produces ordinary definitions and calls the same validator.
 There is no browser, JavaScript runtime, or network dependency in the core.
 
@@ -131,6 +135,9 @@ JSON nesting, render-pixel, and execution-time limits, with finite default
 request-size and execution-time limits. Use the same input limits
 in both adapters. Game limits and technical input sanity limits come from the
 rules file, with distinct labels; operational caps are separate service settings.
+The library itself has no wall-clock budget; the HTTP layer must enforce the
+request time limit (#52). HTTP request threads need at least 1 MB of stack for
+the loader's bounded recursive checks (#52).
 Use the technical input caps as interpreted below from F09's owner picks;
 the shipyard does not enforce player affordability. Reject work exceeding a cap
 with a structured resource error. Defaults must be measured and documented with #52/#53 and reviewed

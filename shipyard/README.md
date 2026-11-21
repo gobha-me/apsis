@@ -46,9 +46,11 @@ Both return the `apsis-shipyard-result-v1` JSON envelope. Validation includes a
 recomputed definition when normalization succeeds, even on structural failure.
 Docking reports each F18 check separately; `DockOptions` independently controls
 `structural` (a), `portReachability` (b), `matchingAirlock` (c), and
-`approachClearance` (d). Keep the defaults for ordinary use. Pending F21 prevents
-certifying a port dock; hangar rotations remain pending F19. No visitor airlock
-is selected. See the precise pending and switch semantics in CONTRACT.md.
+`approachClearance` (d). CLI and HTTP always use defaults and never map request
+fields to these switches; the public types remain for independent tests of the
+real checks. Pending F21 prevents certifying a port dock; hangar rotations remain
+pending F19. No visitor airlock is selected. See the precise pending and switch
+semantics in CONTRACT.md.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:
 

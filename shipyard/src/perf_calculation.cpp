@@ -71,7 +71,7 @@ struct Calculator {
     void advisory(const std::string& code, std::string message,
                   std::string path, Json details = Json::object()) {
         details["rule"] = "/validation/checks/" + code;
-        issues.push_back({code, severity(code), std::move(message), std::move(path), std::move(details)});
+        add_issue(issues, {code, severity(code), std::move(message), std::move(path), std::move(details)});
     }
 
     bool near_less(double left, double right) const {
@@ -103,7 +103,9 @@ struct Calculator {
         if (result.ok()) return *result.value;
         Json evaluations = Json::array();
         bool rejected = false;
+        const Issue* truncated = nullptr;
         for (auto& issue : result.issues) {
+            if (issue.code == "issues_truncated") { truncated = &issue; continue; }
             if (allow_pending && allowed_f20(issue, name)) {
                 Json evaluation = {{"formula", name}, {"formulaPath", issue.path}};
                 if (issue.details.contains("operator")) evaluation["operator"] = issue.details.at("operator");
@@ -113,12 +115,16 @@ struct Calculator {
                 evaluations.push_back(std::move(evaluation));
             } else {
                 issue.details["outputPath"] = output_path;
-                issues.push_back(std::move(issue));
+                add_issue(issues, std::move(issue));
                 rejected = true;
             }
         }
+        if (truncated) {
+            add_issue(issues, *truncated);
+            throw IssueLimitReached{};
+        }
         if (rejected || evaluations.empty()) throw FormulaFailure{};
-        issues.push_back({"pending_F20", "warning", "pending F20: formula output is omitted until Luna defines this case.",
+        add_issue(issues, {"pending_F20", "warning", "pending F20: formula output is omitted until Luna defines this case.",
             output_path, {{"finding", "F20"}, {"evaluations", std::move(evaluations)}}});
         return std::nullopt;
     }
@@ -157,7 +163,7 @@ struct Calculator {
 
     void check_finite(const Json& value, const std::string& path) {
         if (value.is_number() && !std::isfinite(value.get<double>())) {
-            issues.push_back(error("nonfinite_performance", "A performance result is not finite.", path));
+            add_issue(issues, error("nonfinite_performance", "A performance result is not finite.", path));
             throw FormulaFailure{};
         }
         if (value.is_object()) {
@@ -262,7 +268,9 @@ Result<Json> calculate_performance(const Json& definition, const RulesSnapshot& 
                 const auto output_path = "/performance/carriedCraft/" + std::to_string(carried.size()) + "/performance";
                 auto imported = import_definition(canonical_json(module.at("craft")), rules, schemas, limits);
                 const auto append = [&](std::vector<Issue> child_issues) {
+                    const Issue* truncated = nullptr;
                     for (auto& issue : child_issues) {
+                        if (issue.code == "issues_truncated") { truncated = &issue; continue; }
                         if (issue.code == "pending_validation" || issue.code == "pending_performance" ||
                             issue.code == "pending_docking") continue;
                         if (issue.path.starts_with("/performance")) {
@@ -278,7 +286,11 @@ Result<Json> calculate_performance(const Json& definition, const RulesSnapshot& 
                             const auto nested = issue.details.at("childBlueprintPath").get<std::string>();
                             issue.details["childBlueprintPath"] = child_path + nested.substr(std::string("/blueprint").size());
                         } else issue.details["childBlueprintPath"] = child_path;
-                        calculator.issues.push_back(std::move(issue));
+                        add_issue(calculator.issues, std::move(issue));
+                    }
+                    if (truncated) {
+                        add_issue(calculator.issues, *truncated);
+                        throw IssueLimitReached{};
                     }
                 };
                 append(std::move(imported.issues));
@@ -298,10 +310,16 @@ Result<Json> calculate_performance(const Json& definition, const RulesSnapshot& 
     } catch (const FormulaFailure&) {
         sort_issues(calculator.issues);
         return {std::nullopt, std::move(calculator.issues)};
+    } catch (const IssueLimitReached&) {
+        // Stop scenarios and carried-craft traversal, including warning-only paths.
     } catch (const std::invalid_argument&) {
-        calculator.issues.push_back(error("nonfinite_performance", "A performance mass cannot be rounded to a finite value.", "/performance"));
+        try {
+            add_issue(calculator.issues, error("nonfinite_performance", "A performance mass cannot be rounded to a finite value.", "/performance"));
+        } catch (const IssueLimitReached&) {}
     } catch (const std::overflow_error&) {
-        calculator.issues.push_back(error("nonfinite_performance", "A performance mass exceeds the numeric rounding range.", "/performance"));
+        try {
+            add_issue(calculator.issues, error("nonfinite_performance", "A performance mass exceeds the numeric rounding range.", "/performance"));
+        } catch (const IssueLimitReached&) {}
     }
     sort_issues(calculator.issues);
     return {std::nullopt, std::move(calculator.issues)};

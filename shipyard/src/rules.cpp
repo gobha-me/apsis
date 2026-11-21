@@ -30,7 +30,7 @@ const std::map<std::string, std::pair<std::size_t, std::size_t>, std::less<>> ar
 };
 void check_formula(const Json& node, const Signature& variables, const std::string& path,
                    std::vector<Issue>& issues, std::size_t depth = 0) {
-    auto fail = [&](std::string message) { issues.push_back(detail::error("invalid_formula", std::move(message), path)); };
+    auto fail = [&](std::string message) { detail::add_issue(issues, detail::error("invalid_formula", std::move(message), path)); };
     if (depth > 64) { fail("Formula exceeds the operational nesting limit."); return; }
     if (node.is_number()) {
         if (!std::isfinite(node.get<double>())) fail("Formula constant must be finite.");
@@ -57,7 +57,7 @@ std::optional<double> evaluate(const Json& node, const Json& vars, const std::st
     auto fail = [&](std::string message, Json details = Json::object()) -> std::optional<double> {
         auto issue = detail::error("formula_error", std::move(message), path);
         issue.details = std::move(details);
-        issues.push_back(std::move(issue));
+        detail::add_issue(issues, std::move(issue));
         return std::nullopt;
     };
     if (node.is_number()) return node.get<double>();
@@ -115,7 +115,7 @@ std::string sha256(std::string_view bytes) {
 }
 void check_semantics(const Json& r, std::vector<Issue>& issues) {
     auto fail = [&](const std::string& path, std::string message) {
-        issues.push_back(detail::error("invalid_rules", std::move(message), path));
+        detail::add_issue(issues, detail::error("invalid_rules", std::move(message), path));
     };
     constexpr double safeInteger = 9007199254740991.0;
     // Bounds on integer storage are representation limits, not game limits.
@@ -238,27 +238,32 @@ Result<RulesSnapshot> load_rules(std::string_view bytes, const SchemaSet& schema
     auto parsed = parse_json(bytes, limits);
     if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
     std::vector<Issue> issues;
-    const auto& r = *parsed.value;
-    // Enforce formula bounds before schema traversal, regardless of the parser's
-    // nesting allowance. Missing names and invalid container shapes stay with
-    // the schema; check_formula safely validates each present expression.
-    if (r.is_object() && r.contains("formulas") && r["formulas"].is_object())
-        for (const auto& [name, vars] : signatures)
-            if (r["formulas"].contains(name))
-                check_formula(r["formulas"][name], vars, "/formulas/" + name, issues);
-    sort_issues(issues);
-    if (!issues.empty()) return {std::nullopt, std::move(issues)};
-    issues = schemas.validate(r, "apsis-ship-rules-v4");
-    if (!issues.empty()) return {std::nullopt, std::move(issues)};
-    check_semantics(*parsed.value, issues);
-    sort_issues(issues);
-    if (!issues.empty()) return {std::nullopt, std::move(issues)};
     try {
-        RulesSnapshot snapshot;
-        snapshot.sha256_ = sha256(bytes);
-        snapshot.data_ = std::make_shared<const Json>(std::move(*parsed.value));
-        return {std::move(snapshot), {}};
-    } catch (const Issue& issue) { return {std::nullopt, {issue}}; }
+        const auto& r = *parsed.value;
+        // Enforce formula bounds before schema traversal, regardless of the parser's
+        // nesting allowance. Missing names and invalid container shapes stay with
+        // the schema; check_formula safely validates each present expression.
+        if (r.is_object() && r.contains("formulas") && r["formulas"].is_object())
+            for (const auto& [name, vars] : signatures)
+                if (r["formulas"].contains(name))
+                    check_formula(r["formulas"][name], vars, "/formulas/" + name, issues);
+        sort_issues(issues);
+        if (!issues.empty()) return {std::nullopt, std::move(issues)};
+        issues = schemas.validate(r, "apsis-ship-rules-v4");
+        if (!issues.empty()) return {std::nullopt, std::move(issues)};
+        check_semantics(*parsed.value, issues);
+        sort_issues(issues);
+        if (!issues.empty()) return {std::nullopt, std::move(issues)};
+        try {
+            RulesSnapshot snapshot;
+            snapshot.sha256_ = sha256(bytes);
+            snapshot.data_ = std::make_shared<const Json>(std::move(*parsed.value));
+            return {std::move(snapshot), {}};
+        } catch (const Issue& issue) { return {std::nullopt, {issue}}; }
+    } catch (const detail::IssueLimitReached&) {
+        sort_issues(issues);
+        return {std::nullopt, std::move(issues)};
+    }
 }
 namespace detail {
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name, const Json& variables) {
@@ -266,7 +271,12 @@ Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view nam
     if (!rules.data().at("formulas").contains(name))
         return {std::nullopt, {error("invalid_formula", "Undefined formula.", path)}};
     std::vector<Issue> issues;
-    auto value = evaluate(rules.data().at("formulas").at(std::string(name)), variables, path, issues);
+    std::optional<double> value;
+    try {
+        value = evaluate(rules.data().at("formulas").at(std::string(name)), variables, path, issues);
+    } catch (const IssueLimitReached&) {
+        // The shared marker already records the omitted formula diagnostics.
+    }
     sort_issues(issues);
     return {value, std::move(issues)};
 }

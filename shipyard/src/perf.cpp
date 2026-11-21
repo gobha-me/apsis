@@ -46,7 +46,7 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     const auto override_load = [&](const char* key, const std::optional<double>& value) {
         if (!value) return;
         if (!std::isfinite(*value) || *value < 0 || *value > 1) {
-            issues.push_back(detail::error("invalid_load", "Load fractions must be finite and between zero and one.",
+            detail::add_issue(issues, detail::error("invalid_load", "Load fractions must be finite and between zero and one.",
                                            std::string("/loads/") + key));
         } else overrides[key] = *value;
     };
@@ -55,11 +55,7 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     override_load("sublightFuel", loads.sublightFuel);
     if (has_errors(issues)) return envelope(rules, std::move(issues), nullptr);
 
-    auto parsed = parse_json(bytes, limits);
-    if (!parsed.ok()) return envelope(rules, std::move(parsed.issues), nullptr);
-    auto pending = detail::pending_holds(*parsed.value);
-    if (!pending.empty()) return envelope(rules, std::move(pending), nullptr);
-    auto imported = import_definition(bytes, rules, schemas, limits);
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits);
     if (!imported.ok()) return envelope(rules, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     issues = std::move(imported.issues);
@@ -76,10 +72,26 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     });
     auto structure = detail::inspect_structure(definition.at("blueprint"), rules);
     const bool structural_pass = !has_errors(structure.issues);
-    issues.insert(issues.end(), structure.issues.begin(), structure.issues.end());
-    auto calculated = detail::calculate_performance(definition, rules, schemas,
-        definition.at("blueprint").at("loads"), limits);
-    issues.insert(issues.end(), calculated.issues.begin(), calculated.issues.end());
+    const auto append = [&](const std::vector<Issue>& additions) {
+        const Issue* truncated = nullptr;
+        for (const auto& issue : additions) {
+            if (issue.code == "issues_truncated") truncated = &issue;
+            else detail::add_issue(issues, issue);
+        }
+        if (truncated) {
+            detail::add_issue(issues, *truncated);
+            throw detail::IssueLimitReached{};
+        }
+    };
+    Result<Json> calculated;
+    try {
+        append(structure.issues);
+        calculated = detail::calculate_performance(definition, rules, schemas,
+            definition.at("blueprint").at("loads"), limits);
+        append(calculated.issues);
+    } catch (const detail::IssueLimitReached&) {
+        return envelope(rules, std::move(issues), nullptr);
+    }
     if (!calculated.ok()) return envelope(rules, std::move(issues), nullptr);
     auto performance = std::move(*calculated.value);
     const bool ready = !has_errors(issues);

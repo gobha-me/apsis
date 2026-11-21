@@ -6,32 +6,39 @@
 
 namespace apsis::shipyard {
 namespace {
-// Hold-specific rules and even the final accepted input shape await Luna.
-// Recognize the requested feature without fabricating a hold schema, totals,
-// floor repairs, or traversal through its required opening.
-void find_holds(const Json& blueprint, const std::string& path,
-                std::vector<Issue>& issues) {
-    if (!blueprint.is_object()) return;
+// The original input has already been schema-checked. Do not walk an invalid
+// oversized module list merely to look for an unsupported feature. Only remove
+// the field from a disposable copy; never repair geometry or inspect hold data.
+bool strip_holds(Json& blueprint, const Json& rules, std::size_t depth,
+                 const std::string& path, std::optional<std::string>& first) {
+    if (blueprint.is_null()) return true;
+    if (!blueprint.is_object() || !blueprint.contains("decks") ||
+        !blueprint.at("decks").is_array() ||
+        depth > rules.at("limits").at("maxCarryDepth").get<std::size_t>()) return false;
+    auto& decks = blueprint.at("decks");
+    if (decks.size() > rules.at("limits").at("maxDecks").get<std::size_t>()) return false;
+    const auto capacity = rules.at("grid").at("w").get<std::uint64_t>() *
+                          rules.at("grid").at("h").get<std::uint64_t>();
     if (blueprint.contains("holds")) {
-        for (const auto* finding : {"F11", "F12", "F13", "F14", "F15", "F16", "F17"}) {
-            issues.push_back({"pending_" + std::string(finding), "error",
-                "Multi-deck hold validation awaits Luna; no hold behavior or totals were assigned.",
-                path + "/holds", {{"finding", finding}, {"issue", 60}}});
-        }
+        if (!first) first = path + "/holds";
+        blueprint.erase("holds");
     }
-    if (!blueprint.contains("decks") || !blueprint.at("decks").is_array()) return;
-    const auto& decks = blueprint.at("decks");
     for (std::size_t d = 0; d < decks.size(); ++d) {
-        const auto& deck = decks[d];
-        if (!deck.is_object() || !deck.contains("modules") || !deck.at("modules").is_array()) continue;
-        for (std::size_t m = 0; m < deck.at("modules").size(); ++m) {
-            const auto& module = deck.at("modules")[m];
+        auto& deck = decks[d];
+        if (!deck.is_object() || !deck.contains("modules") || !deck.at("modules").is_array() ||
+            deck.at("modules").size() > capacity || !deck.contains("floors") ||
+            !deck.at("floors").is_object() || deck.at("floors").size() > capacity) return false;
+        auto& modules = deck.at("modules");
+        for (std::size_t m = 0; m < modules.size(); ++m) {
+            auto& module = modules[m];
             if (module.is_object() && module.contains("craft")) {
-                find_holds(module.at("craft"), path + "/decks/" + std::to_string(d) +
-                           "/modules/" + std::to_string(m) + "/craft", issues);
+                if (!strip_holds(module.at("craft"), rules, depth + 1,
+                    path + "/decks/" + std::to_string(d) + "/modules/" +
+                    std::to_string(m) + "/craft", first)) return false;
             }
         }
     }
+    return true;
 }
 
 Json envelope(const RulesSnapshot& rules, bool pass, std::vector<Issue> issues, Json data) {
@@ -44,26 +51,42 @@ Json envelope(const RulesSnapshot& rules, bool pass, std::vector<Issue> issues, 
 } // namespace
 
 namespace detail {
-std::vector<Issue> pending_holds(const Json& input, const std::string& path) {
-    std::vector<Issue> issues;
+Result<ImportedDefinition> import_for_validation(std::string_view bytes,
+                                               const RulesSnapshot& rules,
+                                               const SchemaSet& schemas,
+                                               InputLimits limits) {
+    auto imported = import_definition(bytes, rules, schemas, limits);
+    if (imported.ok() || std::any_of(imported.issues.begin(), imported.issues.end(),
+        [](const Issue& issue) { return issue.code == "issues_truncated"; }) ||
+        std::none_of(imported.issues.begin(), imported.issues.end(),
+        [](const Issue& issue) { return issue.code == "schema_error"; })) return imported;
+
+    auto parsed = parse_json(bytes, limits);
+    if (!parsed.ok()) return imported;
+    auto& input = *parsed.value;
     const bool wrapped = input.is_object() && input.contains("blueprint");
-    find_holds(wrapped ? input.at("blueprint") : input,
-               wrapped ? path + "/blueprint" : path, issues);
+    std::optional<std::string> first;
+    if (!strip_holds(wrapped ? input.at("blueprint") : input, rules.data(), 0,
+                     wrapped ? "/blueprint" : "", first) || !first) return imported;
+    // Only a fully importable shape with holds removed earns pending feature
+    // findings. Schema/scalar/grid faults take precedence, without assigning
+    // any hold representation, totals, or traversal behavior.
+    auto checked = import_definition(input.dump(), rules, schemas, limits);
+    if (!checked.ok()) return checked;
+    std::vector<Issue> issues;
+    for (const auto* finding : {"F11", "F12", "F13", "F14", "F15", "F16", "F17"}) {
+        add_issue(issues, {"pending_" + std::string(finding), "error",
+            "Multi-deck hold validation awaits Luna; no hold behavior or totals were assigned.",
+            *first, {{"finding", finding}, {"issue", 60}}});
+    }
     sort_issues(issues);
-    return issues;
+    return {std::nullopt, std::move(issues)};
 }
 } // namespace detail
 
 Json validate(std::string_view bytes, const RulesSnapshot& rules,
               const SchemaSet& schemas, ValidationOptions options, InputLimits limits) {
-    // Parse before probing unimplemented features so the same resource and JSON
-    // guards apply to every path, including requests that contain hold records.
-    auto parsed = parse_json(bytes, limits);
-    if (!parsed.ok()) return envelope(rules, false, std::move(parsed.issues), nullptr);
-    auto pending = detail::pending_holds(*parsed.value);
-    if (!pending.empty()) return envelope(rules, false, std::move(pending), nullptr);
-
-    auto imported = import_definition(bytes, rules, schemas, limits);
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits);
     if (!imported.ok()) return envelope(rules, false, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     auto issues = std::move(imported.issues);
@@ -71,7 +94,18 @@ Json validate(std::string_view bytes, const RulesSnapshot& rules,
         return issue.code == "pending_validation" || issue.code == "pending_docking";
     });
     auto structure = detail::inspect_structure(definition.at("blueprint"), rules, "/blueprint", options);
-    issues.insert(issues.end(), structure.issues.begin(), structure.issues.end());
+    try {
+        // Defer an existing terminal marker until its bounded diagnostics have
+        // been appended; the shared helper also bounds loader + structure.
+        const Issue* truncated = nullptr;
+        for (const auto& issue : structure.issues) {
+            if (issue.code == "issues_truncated") truncated = &issue;
+            else detail::add_issue(issues, issue);
+        }
+        if (truncated) detail::add_issue(issues, *truncated);
+    } catch (const detail::IssueLimitReached&) {
+        return envelope(rules, false, std::move(issues), nullptr);
+    }
     sort_issues(issues);
     const bool pass = std::none_of(issues.begin(), issues.end(), [](const Issue& issue) {
         return issue.severity == "error";
