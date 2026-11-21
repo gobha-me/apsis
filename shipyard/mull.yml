@@ -1,0 +1,9 @@
+# Keep the baseline reproducible: Mull 0.37.0 standard operator group.
+mutators:
+  - cxx_default
+includePaths:
+  - '/shipyard/src/.*'
+  - '/shipyard/include/.*'
+parallelization:
+  workers: 2
+  executionWorkers: 2
