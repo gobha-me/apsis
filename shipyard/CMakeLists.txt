@@ -66,4 +66,9 @@ if(BUILD_TESTING)
       --driver $<TARGET_FILE:shipyard-render-argus-driver>
       --source ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(shipyard-render-Argus PROPERTIES TIMEOUT 120)
+  add_test(NAME shipyard-render-MullBoundaries
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/render_mull_tests.py
+      --driver $<TARGET_FILE:shipyard-render-argus-driver>
+      --source ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(shipyard-render-MullBoundaries PROPERTIES TIMEOUT 120)
 endif()
