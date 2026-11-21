@@ -287,6 +287,10 @@ tests can assert permitted orientations. Do not infer quarter-turn permission
 or prohibition from the prototype; F02's port size decision does not settle
 hangar rotations.
 
+The v4 rules deliberately omit v3 `docking.allowQuarterTurn: true`
+(`fixtures/v3/apsis-rules-v3.json:85`) pending Luna. The omission encodes
+neither permission nor prohibition; F19 remains **Open for Luna, not guessed**.
+
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
 **Open for Luna, not guessed.** How should v4 handle these evaluations?
@@ -323,10 +327,10 @@ deck mapping, distance measure, or reference point. An inclusive 1-cell limit
 is an interpretation pending this answer, not a settled rule. Keep F03's other
 requirements and F18's port checks; do not guess the missing convention.
 
-## F22 — Loader boundary and encoding contract (#49)
+## F22 — Loader boundary and open prototype differences (#49)
 
-Implementation note, not a new game rule or an answer to any open finding.
-The #49 loader validates input shape and active-rule scalar/reference limits,
+The #49 loader boundary does not answer any open finding. The loader
+validates input shape and active-rule scalar/reference limits,
 then recomputes direct costs, capacities, and masses. It discards imported
 derived/validation caches and embedded rules as authority. Structural legality,
 carried-fit/empty-berth legality, readiness, performance, and docking remain
@@ -336,13 +340,28 @@ evaluation path or excluded numeric value is exposed. In
 particular, migration preserves Rustbucket's geometry without repairing it.
 
 Stable serialization, exact input comparisons, absolute epsilon, and computed
-rounding are specified in CONTRACT.md for the independent tests session. Character
-limits count Unicode scalar values, matching JSON Schema length semantics;
-the prototype used JavaScript UTF-16 units. This is the technical encoding
-contract, with no label trimming, truncation, or Unicode normalization.
-Existing migration notes are preserved; when a generated note cannot fit the
-rules limit, changes remain in the migration report with a warning. None of
-F11–F17 or F19–F21 is answered by this scope boundary.
+rounding are specified in CONTRACT.md for the independent tests session. No
+Unicode normalization occurs.
+
+The following three prototype differences are **Open for Luna, not guessed**,
+with no value picked. Current behaviour is an **interim interpretation**, not
+a settled technical encoding contract:
+
+- Name-length counting: the current loader counts Unicode scalar values; the
+  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
+  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
+  the prototype's limit. The counting choice remains open.
+- Label trimming and fallback: the current loader preserves empty and
+  whitespace-only labels without trimming or a fallback; the prototype's
+  `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
+  open.
+- Migration-note overflow: the current loader preserves existing notes and
+  leaves extra changes in the report with a warning; the prototype keeps the
+  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
+  remains open.
+
+None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
+interpretations.
 
 ## F23 — Validator implementation boundary and canonical comparison (#50)
 
@@ -354,6 +373,16 @@ FAIL with `missing_airlock` and three `unreachable_component` findings. Its
 geometry is preserved. No canonical structural outcome changed under v4.
 The original passing self-test report does not include Rustbucket (F07).
 
+Argus M2 exposed two additional layouts where the initial v4 implementation
+accepted what v3 rejected. The implementation now matches v3 with production
+defaults: hull connectivity floods from the first command module across paired
+ladder links, so an isolated floored deck without a ladder produces
+`disconnected_hull`. Crew reach starts from the single v3 `bridgeStart` service
+cell (bottom edge first), rather than every walkable cell beside every bridge.
+The cockpit at x=4 in a single floor row no longer joins the reactor at x=1 to
+life support at x=7; the component on the other side remains unreachable.
+The former per-deck-only hull and multiple-start crew rules are superseded.
+
 Performance advisories from the prototype, including Skiff's `no_cargo` and
 Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
 jump readiness remain unset on structural success; structural failure sets
@@ -361,20 +390,32 @@ ready false. Wayfarer's three excluded burn-rate formula evaluations remain
 nonblocking `pending_F20`, with no excluded values or numeric substitutes.
 The #49 blank-design F20 exclusions remain unchanged.
 
-Unlike the prototype's interface-only docking success, a compatible port
-candidate returns FAIL with `pending_F21` until Luna defines same-deck mapping
-and the distance/reference/inclusivity convention. Hangar width/length fit also
-remains uncertified with `pending_F19`; the rule-defined deck cap is enforced.
-These pending results preserve F03/F18 without inventing F19/F21 answers.
+The prototype required structural validity, a reachable and clear visitor
+airlock, a clear approach, the size envelope, deck limits, and station crew
+reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
+until Luna defines same-deck mapping and the distance/reference/inclusivity
+convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
+visitor fits unrotated. A visitor exceeding the envelope in both orientations
+reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+docking severity (v3: error), including measured dimensions and limits, without
+`pending_F19`. Only a fit requiring rotation remains uncertified with
+`pending_F19`; the rule-defined deck cap is enforced.
+Argus S2's definite-envelope behavior is implemented without an F19 owner pick.
+The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
 structural faults. Visitor-airlock access and clearance remain structural
 findings at their active rule severities (v3 error).
+CLI and HTTP always use default options and never map request fields onto these
+switches. The public option types remain solely because existing independent
+tests exercise the real library through them; moving them would require changes
+to those test callers.
 
-Multi-deck holds remain unavailable: a requested `holds` field returns
-structured pending F11–F17 issues before any guessed hold totals, access,
-traversal, or ordinary missing-floor finding. No hold schema or geometry is
-invented, and no opening is filled. The independent tests session must cover
+Multi-deck holds remain unavailable: after schema-checking a bounded probe with
+only unsupported `holds` fields removed, a requested `holds` field returns
+structured pending F11–F17 issues once per finding kind before any guessed hold
+totals, access, traversal, or ordinary missing-floor finding. No hold schema or
+geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.

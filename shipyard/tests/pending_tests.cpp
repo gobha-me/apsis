@@ -134,6 +134,22 @@ Json module(std::uint64_t id, std::string_view type, int x, int y,
             int rotation) {
   return {{"id", id}, {"type", type}, {"x", x}, {"y", y}, {"r", rotation}};
 }
+
+RulesSnapshot rotation_only_hangar(const RulesSnapshot &active,
+                                   const SchemaSet &schema) {
+  auto changed = active.data();
+  // Wren is 20x34 m. A real rules snapshot with a 34x20 m hangar isolates
+  // the unresolved rotation case; default 10x18 m definite oversize is covered
+  // separately in dock_regression_tests.cpp with a required size error.
+  for (auto &part : changed["parts"])
+    if (part.at("id") == "stationHangar") {
+      part["docking"]["maxWidthM"] = 34;
+      part["docking"]["maxLengthM"] = 20;
+    }
+  auto loaded = load_rules(changed.dump(), schema);
+  require(loaded.ok(), "Rotation-only hangar rules must load publicly");
+  return std::move(*loaded.value);
+}
 } // namespace
 
 int main() {
@@ -278,13 +294,13 @@ int main() {
       });
 
   suite.run(
-      "hangar width and length remain uncertified even with matching check "
-      "disabled",
+      "rotation-only hangar fit remains uncertified with matching check disabled",
       [&] {
+        const auto rotation_rules = rotation_only_hangar(active, schema);
         DockOptions options;
         options.matchingAirlock = false;
         const auto report =
-            dock(host.dump(), 1, 15, wren.dump(), active, schema, options);
+            dock(host.dump(), 1, 15, wren.dump(), rotation_rules, schema, options);
         require(report.at("pass") == false &&
                     report.at("data").at("pending") == true,
                 "Disabling F21 must not bypass the unresolved hangar fit");
@@ -298,7 +314,7 @@ int main() {
                     hangar.at("deckCountFits") == true,
                 "F19 leaves width/length fit null, rather than guessing "
                 "allowed rotations");
-        for (const auto &part : active.data().at("parts"))
+        for (const auto &part : rotation_rules.data().at("parts"))
           if (part.at("id") == "stationHangar") {
             for (const auto *key : {"maxWidthM", "maxLengthM", "maxDecks"})
               require(hangar.at(key) == part.at("docking").at(key),
@@ -312,6 +328,7 @@ int main() {
   suite.run(
       "hangar enforces the settled deck cap while F19 and F21 stay pending",
       [&] {
+        const auto rotation_rules = rotation_only_hangar(active, schema);
         auto visitor = wren.at("blueprint");
         visitor["decks"][0]["modules"].push_back(
             module(13, "ladder", 13, 10, 0));
@@ -325,7 +342,7 @@ int main() {
                 "The over-cap visitor must have valid paired ladders and crew "
                 "routes");
         const auto report =
-            dock(host.dump(), 1, 15, visitor.dump(), active, schema);
+            dock(host.dump(), 1, 15, visitor.dump(), rotation_rules, schema);
         const auto &issue = find_issue(report, "dock_hangar_deck_limit");
         const auto &hangar = report.at("data").at("hangar");
         require(

@@ -59,10 +59,10 @@ struct Importer {
     void check_text(const Json& value, const Json& maximum, const std::string& path) {
         const auto& text = value.get_ref<const std::string&>();
         if (detail::character_count(text) > maximum.get<std::size_t>()) {
-            issues.push_back(error("field_limit", "Text exceeds the active rules character limit.", path));
+            detail::add_issue(issues, error("field_limit", "Text exceeds the active rules character limit.", path));
         }
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; })) {
-            issues.push_back(error("invalid_text", "Control characters are not allowed in labels or notes.", path));
+            detail::add_issue(issues, error("invalid_text", "Control characters are not allowed in labels or notes.", path));
         }
     }
 
@@ -74,7 +74,7 @@ struct Importer {
             notes.push_back(note);
             return;
         }
-        issues.push_back({"migration_note_limit", "warning",
+        detail::add_issue(issues, {"migration_note_limit", "warning",
                           "Existing migration notes were preserved; additional changes are in the migration report.",
                           at(path, "migrationNotes"), Json::object()});
     }
@@ -82,7 +82,7 @@ struct Importer {
     // Normalize only schema/default metadata, never geometry, labels or IDs.
     void normalize(Json& blueprint, std::size_t depth, const std::string& path, int version) {
         if (depth > rules.at("limits").at("maxCarryDepth").get<std::size_t>()) {
-            issues.push_back(error("carry_depth", "Carried craft nesting exceeds the active rules limit.", path));
+            detail::add_issue(issues, error("carry_depth", "Carried craft nesting exceeds the active rules limit.", path));
             return;
         }
         if (version == 3) {
@@ -112,20 +112,20 @@ struct Importer {
         check_text(blueprint.at("name"), rules.at("technicalLimits").at("maxBlueprintNameCharacters"),
                    at(path, "name"));
         if (blueprint.at("budget").get<double>() > rules.at("technicalLimits").at("maxBudgetInputCr").get<double>()) {
-            issues.push_back(error("field_limit", "Budget input exceeds the active technical sanity limit.", at(path, "budget")));
+            detail::add_issue(issues, error("field_limit", "Budget input exceeds the active technical sanity limit.", at(path, "budget")));
         }
         if (!includes(rules.at("buildTypes"), blueprint.at("buildType"))) {
-            issues.push_back(error("invalid_build_type", "Build type is not defined by the active rules.", at(path, "buildType")));
+            detail::add_issue(issues, error("invalid_build_type", "Build type is not defined by the active rules.", at(path, "buildType")));
         }
         for (auto it = blueprint.at("loads").begin(); it != blueprint.at("loads").end(); ++it) {
             if (!rules.at("defaults").at("loads").contains(it.key()) || it.value().get<double>() < 0 ||
                 it.value().get<double>() > 1) {
-                issues.push_back(error("invalid_load", "Load fractions must be between zero and one.", at(at(path, "loads"), it.key())));
+                detail::add_issue(issues, error("invalid_load", "Load fractions must be between zero and one.", at(at(path, "loads"), it.key())));
             }
         }
         auto& notes = blueprint.at("migrationNotes");
         if (notes.size() > limits.at("maxMigrationNotes").get<std::size_t>()) {
-            issues.push_back(error("field_limit", "Migration note count exceeds the active rules limit.", at(path, "migrationNotes")));
+            detail::add_issue(issues, error("field_limit", "Migration note count exceeds the active rules limit.", at(path, "migrationNotes")));
         }
         for (std::size_t i = 0; i < notes.size(); ++i) {
             check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
@@ -133,7 +133,7 @@ struct Importer {
         const auto deck_count = blueprint.at("decks").size();
         if (deck_count < limits.at("minDecks").get<std::size_t>() ||
             deck_count > limits.at("maxDecks").get<std::size_t>()) {
-            issues.push_back(error("deck_limit", "Deck count exceeds the active rules limits.", at(path, "decks")));
+            detail::add_issue(issues, error("deck_limit", "Deck count exceeds the active rules limits.", at(path, "decks")));
         }
         const auto width = rules.at("grid").at("w").get<std::uint64_t>();
         const auto height = rules.at("grid").at("h").get<std::uint64_t>();
@@ -145,7 +145,7 @@ struct Importer {
             const auto deck_path = at(at(path, "decks"), std::to_string(d));
             check_text(deck.at("name"), limits.at("maxDeckName"), at(deck_path, "name"));
             if (deck.at("floors").size() > width * height || deck.at("modules").size() > width * height) {
-                issues.push_back(error("grid_capacity", "Floor or module count exceeds the active grid capacity.", deck_path));
+                detail::add_issue(issues, error("grid_capacity", "Floor or module count exceeds the active grid capacity.", deck_path));
             }
             for (auto it = deck.at("floors").begin(); it != deck.at("floors").end(); ++it) {
                 const auto comma = it.key().find(',');
@@ -156,7 +156,7 @@ struct Importer {
                 const auto ry = std::from_chars(first + comma + 1, last, y);
                 if (rx.ec != std::errc{} || ry.ec != std::errc{} || rx.ptr != first + comma ||
                     ry.ptr != last || x >= width || y >= height) {
-                    issues.push_back(error("invalid_coordinate", "Floor coordinate is outside the active build grid.",
+                    detail::add_issue(issues, error("invalid_coordinate", "Floor coordinate is outside the active build grid.",
                                            at(at(deck_path, "floors"), it.key())));
                 }
             }
@@ -166,39 +166,39 @@ struct Importer {
                 const bool id_in_range = module.at("id").get<double>() <= static_cast<double>(max_id);
                 const auto id = id_in_range ? module.at("id").get<std::uint64_t>() : 0;
                 if (!id_in_range || !ids.insert(id).second) {
-                    issues.push_back(error("invalid_id", "Module ID is duplicate or exceeds the active rules limit.", at(module_path, "id")));
+                    detail::add_issue(issues, error("invalid_id", "Module ID is duplicate or exceeds the active rules limit.", at(module_path, "id")));
                 }
                 greatest_id = std::max(greatest_id, id);
                 for (const auto* axis : {"x", "y"}) {
                     if (module.at(axis).get<double>() >= static_cast<double>(axis[0] == 'x' ? width : height)) {
-                        issues.push_back(error("invalid_coordinate", "Module coordinate is outside the active build grid.", at(module_path, axis)));
+                        detail::add_issue(issues, error("invalid_coordinate", "Module coordinate is outside the active build grid.", at(module_path, axis)));
                     }
                 }
                 if (module.at("r").get<double>() >= static_cast<double>(rules.at("rotations").size())) {
-                    issues.push_back(error("invalid_rotation", "Module rotation is not defined by the active rules.", at(module_path, "r")));
+                    detail::add_issue(issues, error("invalid_rotation", "Module rotation is not defined by the active rules.", at(module_path, "r")));
                 }
                 const auto part = parts.find(module.at("type").get<std::string>());
                 if (part == parts.end()) {
-                    issues.push_back(error("invalid_part_type", "Module type is not defined by the active rules.", at(module_path, "type")));
+                    detail::add_issue(issues, error("invalid_part_type", "Module type is not defined by the active rules.", at(module_path, "type")));
                     continue;
                 }
                 if (module.contains("interface")) {
                     if (!part->second->contains("docking") ||
                         !includes(rules.at("docking").at("interfaces"), module.at("interface"))) {
-                        issues.push_back(error("invalid_interface", "Module has no compatible interface in the active rules.", at(module_path, "interface")));
+                        detail::add_issue(issues, error("invalid_interface", "Module has no compatible interface in the active rules.", at(module_path, "interface")));
                     }
                 }
                 if (module.contains("craft")) {
                     if (!part->second->contains("carrier")) {
-                        issues.push_back(error("invalid_carrier", "Only a carrier part can contain a craft field.", at(module_path, "craft")));
+                        detail::add_issue(issues, error("invalid_carrier", "Only a carrier part can contain a craft field.", at(module_path, "craft")));
                     } else if (!module.at("craft").is_null()) {
                         if (depth >= limits.at("maxCarryDepth").get<std::size_t>()) {
-                            issues.push_back(error("carry_depth", "Carried craft nesting exceeds the active rules limit.", at(module_path, "craft")));
+                            detail::add_issue(issues, error("carry_depth", "Carried craft nesting exceeds the active rules limit.", at(module_path, "craft")));
                             continue;
                         }
                         normalize(module["craft"], depth + 1, at(module_path, "craft"), version);
                         if (!includes(rules.at("carrier").at("allowedBuildTypes"), module.at("craft").at("buildType"))) {
-                            issues.push_back(error("invalid_carried_build_type", "Carried build type is not allowed by the active rules.", at(at(module_path, "craft"), "buildType")));
+                            detail::add_issue(issues, error("invalid_carried_build_type", "Carried build type is not allowed by the active rules.", at(at(module_path, "craft"), "buildType")));
                         }
                     }
                 }
@@ -206,7 +206,7 @@ struct Importer {
         }
         const auto next_id = blueprint.at("nextId").get<double>();
         if (next_id > static_cast<double>(max_id + 1) || next_id <= static_cast<double>(greatest_id)) {
-            issues.push_back(error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
+            detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
             add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.", path);
@@ -215,7 +215,7 @@ struct Importer {
 
     double formula(std::string_view name, const Json& variables) {
         auto result = detail::evaluate_formula(snapshot, name, variables);
-        issues.insert(issues.end(), result.issues.begin(), result.issues.end());
+        for (auto& issue : result.issues) detail::add_issue(issues, std::move(issue));
         if (!result.value) throw FormulaFailure{};
         return *result.value;
     }
@@ -301,7 +301,7 @@ struct Importer {
         }
         for (auto it = values.begin(); it != values.end(); ++it) {
             if (it.value().is_number() && !std::isfinite(it.value().get<double>())) {
-                issues.push_back(error("nonfinite_total", "A direct total is not finite.", at("/derived", it.key())));
+                detail::add_issue(issues, error("nonfinite_total", "A direct total is not finite.", at("/derived", it.key())));
             }
         }
         Json pending = Json::array();
@@ -320,7 +320,7 @@ struct Importer {
             pending.push_back({{"formula", "exhaustVelocity"}, {"operand", "burnRate"}});
         }
         if (!pending.empty()) {
-            issues.push_back({"pending_F20", "warning", "pending F20: excluded formula results await Luna and remain unset.",
+            detail::add_issue(issues, {"pending_F20", "warning", "pending F20: excluded formula results await Luna and remain unset.",
                               path, {{"finding", "F20"}, {"issue", 51}, {"evaluations", std::move(pending)}}});
         }
         return values;
@@ -346,53 +346,58 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
     if (!shape_issues.empty()) return {std::nullopt, std::move(shape_issues)};
     const bool wrapped = schema == "apsis-ship-definition-v3" || schema == "apsis-ship-definition-v4";
     Importer importer(rules);
-    importer.report.sourceVersion = version;
-    Json blueprint = wrapped ? input.at("blueprint") : input;
-    const auto blueprint_path = wrapped ? std::string("/blueprint") : std::string();
-    importer.normalize(blueprint, 0, blueprint_path, version);
-    importer.report.rulesIdentityChanged = version == 3 || (wrapped &&
-        (input.at("rulesVersion") != rules.version() || input.at("rulesSha256") != rules.sha256() || input.at("rules") != rules.data()));
-    if (importer.report.rulesIdentityChanged) {
-        importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
-        if (!has_errors(importer.issues)) {
-            importer.add_note(blueprint, "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.", blueprint_path);
-        }
-    }
-    if (has_errors(importer.issues)) {
-        sort_issues(importer.issues);
-        return {std::nullopt, std::move(importer.issues)};
-    }
-    // Validate the normalized target before any rule-dependent arithmetic.
-    auto target_issues = schemas.validate(blueprint, "apsis-shipyard-v4");
-    if (!target_issues.empty()) return {std::nullopt, std::move(target_issues)};
-    Json derived;
     try {
-        derived = importer.totals(blueprint);
-    } catch (const FormulaFailure&) {
+        importer.report.sourceVersion = version;
+        Json blueprint = wrapped ? input.at("blueprint") : input;
+        const auto blueprint_path = wrapped ? std::string("/blueprint") : std::string();
+        importer.normalize(blueprint, 0, blueprint_path, version);
+        importer.report.rulesIdentityChanged = version == 3 || (wrapped &&
+            (input.at("rulesVersion") != rules.version() || input.at("rulesSha256") != rules.sha256() || input.at("rules") != rules.data()));
+        if (importer.report.rulesIdentityChanged) {
+            importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
+            if (!has_errors(importer.issues)) {
+                importer.add_note(blueprint, "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.", blueprint_path);
+            }
+        }
+        if (has_errors(importer.issues)) {
+            sort_issues(importer.issues);
+            return {std::nullopt, std::move(importer.issues)};
+        }
+        // Validate the normalized target before any rule-dependent arithmetic.
+        auto target_issues = schemas.validate(blueprint, "apsis-shipyard-v4");
+        if (!target_issues.empty()) return {std::nullopt, std::move(target_issues)};
+        Json derived;
+        try {
+            derived = importer.totals(blueprint);
+        } catch (const FormulaFailure&) {
+            sort_issues(importer.issues);
+            return {std::nullopt, std::move(importer.issues)};
+        } catch (const std::invalid_argument&) {
+            detail::add_issue(importer.issues, error("nonfinite_total", "A direct total cannot be rounded to a finite value.", "/derived"));
+            sort_issues(importer.issues);
+            return {std::nullopt, std::move(importer.issues)};
+        } catch (const std::overflow_error&) {
+            detail::add_issue(importer.issues, error("nonfinite_total", "A direct total exceeds the numeric rounding range.", "/derived"));
+            sort_issues(importer.issues);
+            return {std::nullopt, std::move(importer.issues)};
+        }
+        if (has_errors(importer.issues)) {
+            sort_issues(importer.issues);
+            return {std::nullopt, std::move(importer.issues)};
+        }
+        detail::add_issue(importer.issues, {"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
+        detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance evaluation awaits issue #51; F20 outcomes remain unimplemented.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
+        detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
         sort_issues(importer.issues);
-        return {std::nullopt, std::move(importer.issues)};
-    } catch (const std::invalid_argument&) {
-        importer.issues.push_back(error("nonfinite_total", "A direct total cannot be rounded to a finite value.", "/derived"));
-        sort_issues(importer.issues);
-        return {std::nullopt, std::move(importer.issues)};
-    } catch (const std::overflow_error&) {
-        importer.issues.push_back(error("nonfinite_total", "A direct total exceeds the numeric rounding range.", "/derived"));
+        Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
+            {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", importer.issues}}},
+            {"rulesVersion", rules.version()}, {"rulesSha256", rules.sha256()}, {"rules", rules.data()}};
+        auto output_issues = schemas.validate(definition, "apsis-ship-definition-v4");
+        if (!output_issues.empty()) return {std::nullopt, std::move(output_issues)};
+        return {ImportedDefinition{std::move(definition), std::move(importer.report)}, std::move(importer.issues)};
+    } catch (const detail::IssueLimitReached&) {
         sort_issues(importer.issues);
         return {std::nullopt, std::move(importer.issues)};
     }
-    if (has_errors(importer.issues)) {
-        sort_issues(importer.issues);
-        return {std::nullopt, std::move(importer.issues)};
-    }
-    importer.issues.push_back({"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
-    importer.issues.push_back({"pending_performance", "warning", "Performance evaluation awaits issue #51; F20 outcomes remain unimplemented.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
-    importer.issues.push_back({"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
-    sort_issues(importer.issues);
-    Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
-        {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", importer.issues}}},
-        {"rulesVersion", rules.version()}, {"rulesSha256", rules.sha256()}, {"rules", rules.data()}};
-    auto output_issues = schemas.validate(definition, "apsis-ship-definition-v4");
-    if (!output_issues.empty()) return {std::nullopt, std::move(output_issues)};
-    return {ImportedDefinition{std::move(definition), std::move(importer.report)}, std::move(importer.issues)};
 }
 } // namespace apsis::shipyard
