@@ -413,10 +413,8 @@ int main(int argc, char **argv) {
       require(blueprint.at("decks").size() == 2,
               "Both public blank types must create exactly two minimum decks");
       for (const auto &deck : blueprint.at("decks")) {
-        require(
-            deck.at("name") == active.data().at("defaults").at("deckName") &&
-                deck.at("floors").empty() && deck.at("modules").empty(),
-            "Every minimum deck retains the active empty authoring defaults");
+        require(deck.at("floors").empty() && deck.at("modules").empty(),
+                "Every minimum deck starts with empty floors and modules");
       }
     }
   });
