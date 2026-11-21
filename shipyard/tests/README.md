@@ -15,10 +15,8 @@ cmake --build build/shipyard --parallel 2
 ctest --test-dir build/shipyard --output-on-failure
 ```
 
-## Known implementation gap: formula nesting boundary
-
-`shipyard-formula-nesting` is explicitly disabled in CTest pending a loader
-follow-up to #49. Its assertions remain intact and can be run directly:
+`shipyard-formula-nesting` covers the formula nesting boundary. It can also be
+run directly:
 
 ```sh
 build/shipyard/shipyard-rules-tests --formula-nesting
@@ -27,12 +25,8 @@ build/shipyard/shipyard-rules-tests --formula-nesting
 CONTRACT.md specifies a 64-level formula guard independently of the configurable
 JSON parser nesting guard. The test raises `InputLimits.maxNesting` to 128 and
 supplies 64 nested `floor` operators over a constant. That documented boundary
-must load; 65 levels must fail with a readable `invalid_formula` issue. Currently
-the schema traversal limit rejects the valid 64-level formula before the formula
-guard runs. The 65-level check likewise cannot reach its formula diagnostic.
-The direct command returns failure; the disabled CTest is not passing coverage.
-Production code, schema bounds, and expectations have not been changed to hide
-the defect. Re-enable this entry when the implementation satisfies both checks.
+must load; 65 levels must fail with a readable `invalid_formula` issue at
+`/formulas/structureMass`.
 
 The ordinary suites still check parser depth boundaries, import resource guards,
 carried-craft depth, formula operand bounds, and malformed formula rejection.

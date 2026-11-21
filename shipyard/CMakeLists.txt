@@ -27,9 +27,7 @@ if(BUILD_TESTING)
     set_tests_properties(shipyard-${suite} PROPERTIES TIMEOUT 120)
   endforeach()
   target_link_libraries(shipyard-migration-tests PRIVATE OpenSSL::Crypto)
-  # Known schema recursion defect; expectations and reproduction are retained
-  # in tests/rules_tests.cpp and documented in tests/README.md.
   add_test(NAME shipyard-formula-nesting
     COMMAND shipyard-rules-tests --formula-nesting)
-  set_tests_properties(shipyard-formula-nesting PROPERTIES DISABLED TRUE TIMEOUT 120)
+  set_tests_properties(shipyard-formula-nesting PROPERTIES TIMEOUT 120)
 endif()
