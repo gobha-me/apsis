@@ -52,32 +52,62 @@ std::size_t character_count(std::string_view utf8) {
 }
 } // namespace detail
 
+namespace {
+// The callback DOM parser rescans an object's parent after every object end.
+// The plain SAX DOM builder appends directly, keeping arrays of objects linear.
+class CheckedDomParser : public nlohmann::detail::json_sax_dom_parser<Json> {
+    using Base = nlohmann::detail::json_sax_dom_parser<Json>;
+public:
+    CheckedDomParser(Json& result, InputLimits limits) : Base(result), limits_(limits) {}
+
+    bool start_object(std::size_t elements) {
+        start_container();
+        keys_.emplace_back();
+        return Base::start_object(elements);
+    }
+    bool end_object() {
+        keys_.pop_back();
+        --nesting_;
+        return Base::end_object();
+    }
+    bool start_array(std::size_t elements) {
+        start_container();
+        return Base::start_array(elements);
+    }
+    bool end_array() {
+        --nesting_;
+        return Base::end_array();
+    }
+    bool key(string_t& value) {
+        if (!keys_.back().insert(value).second)
+            throw detail::error("duplicate_key", "Duplicate JSON object key.");
+        return Base::key(value);
+    }
+    bool number_float(number_float_t value, const string_t& token) {
+        if (!std::isfinite(value))
+            throw detail::error("invalid_number", "JSON numbers must be finite.");
+        return Base::number_float(value, token);
+    }
+private:
+    void start_container() {
+        if (++nesting_ > limits_.maxNesting)
+            throw detail::error("resource_limit", "JSON exceeds the operational nesting limit.");
+    }
+    InputLimits limits_;
+    std::size_t nesting_ = 0;
+    std::vector<std::set<std::string>> keys_;
+};
+} // namespace
+
 Result<Json> parse_json(std::string_view bytes, InputLimits limits) {
     if (bytes.size() > limits.maxBytes)
         return {std::nullopt, {detail::error("resource_limit", "JSON exceeds the operational byte limit.")}};
-    std::vector<std::set<std::string>> keys;
-    std::size_t nesting = 0;
     try {
-        auto callback = [&](int, Json::parse_event_t event, Json& value) {
-            if (event == Json::parse_event_t::object_start || event == Json::parse_event_t::array_start) {
-                if (++nesting > limits.maxNesting)
-                    throw detail::error("resource_limit", "JSON exceeds the operational nesting limit.");
-                if (event == Json::parse_event_t::object_start) keys.emplace_back();
-            } else if (event == Json::parse_event_t::object_end) {
-                keys.pop_back();
-                --nesting;
-            } else if (event == Json::parse_event_t::array_end) {
-                --nesting;
-            } else if (event == Json::parse_event_t::key) {
-                if (!keys.back().insert(value.get<std::string>()).second)
-                    throw detail::error("duplicate_key", "Duplicate JSON object key.");
-            } else if (event == Json::parse_event_t::value && value.is_number_float() &&
-                       !std::isfinite(value.get<double>())) {
-                throw detail::error("invalid_number", "JSON numbers must be finite.");
-            }
-            return true;
-        };
-        return {Json::parse(bytes.begin(), bytes.end(), callback, true, false), {}};
+        Json result;
+        CheckedDomParser parser(result, limits);
+        if (!Json::sax_parse(bytes.begin(), bytes.end(), &parser))
+            return {std::nullopt, {detail::error("invalid_json", "Expected strict UTF-8 JSON.")}};
+        return {std::move(result), {}};
     } catch (const Issue& issue) {
         return {std::nullopt, {issue}};
     } catch (const Json::out_of_range&) {

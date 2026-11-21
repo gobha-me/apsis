@@ -6,7 +6,9 @@ Strict UTF-8 JSON rejects duplicate keys after escape decoding, nonfinite
 numbers, unknown versions/authoritative fields, invalid shapes, and excessive
 nesting before totals. Defaults are operational parser bounds of 8 MiB per
 document and 64 nested containers; callers can set `InputLimits`. These are
-library resource guards, not game limits or deployment sizing. Schema checking
+library resource guards, not game limits or deployment sizing. A checked SAX
+DOM builder avoids rescanning arrays after each object while retaining the
+duplicate-key, nesting, finite-number, and strict JSON checks. Schema checking
 has a recursion-depth cap of 512 (`maxSchemaSteps`), not a total-work budget.
 HTTP request threads need at least 1 MB of stack for these bounded recursive
 checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
