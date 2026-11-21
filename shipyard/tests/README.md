@@ -156,8 +156,10 @@ remain active; no fixture or golden is changed.
 `shipyard-loader_r2` compares public parsing of 400,000 object and array
 entries, times the 6.6 MB malformed-holds import, and rejects truncated craft
 schema alternatives and floor-only grid overflow. Timing output records the
-measured Release durations; the parser regression guards stay below the
-existing 30-second watchdog and 120-second CTest timeout.
+measured durations. The object/array ratio check applies in every build; the
+1-second parse and 5-second import absolute limits apply only in Release builds
+(`NDEBUG`). The existing 30-second watchdog and 120-second CTest timeout are
+unchanged.
 
 The r2 public-API suites extend the reviewed fault coverage:
 
@@ -354,6 +356,30 @@ entries, times the 6.6 MB malformed-holds import, and rejects truncated craft
 schema alternatives and floor-only grid overflow. Timing output records the
 measured Release durations; the parser regression guards stay below the
 existing 30-second watchdog and 120-second CTest timeout.
+~~~
+
+</details>
+
+<details>
+<summary>Main efe5fd82 integration: preserved source text</summary>
+
+These literal merge-source excerpts preserve both sides of the squash-history
+merge. The current integrated contract and findings above govern this branch;
+performance and authoring are already implemented. Superseded implementation
+status is historical, and no open owner decision is resolved here.
+
+~~~text
+`shipyard-loader_r2` compares public parsing of 400,000 object and array
+entries, times the 6.6 MB malformed-holds import, and rejects truncated craft
+schema alternatives and floor-only grid overflow. Timing output records the
+measured Release durations; the parser regression guards stay below the
+existing 30-second watchdog and 120-second CTest timeout.
+
+These tests exercise the public APIs in `loader.hpp` and `validator.hpp`, with no mocks. Expectations
+come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
+fixtures. Loader tests cover loading, migration, and direct totals; validator,
+dock, and pending suites cover #50. Performance evaluation remains #51 work;
+no open game decision is assigned a value here.
 ~~~
 
 </details>

@@ -99,3 +99,20 @@ preservation guarantees. Concealed-cargo tooltip work remains deferred to a UI
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.
+
+<details>
+<summary>Main efe5fd82 integration: preserved source text</summary>
+
+These literal merge-source excerpts preserve both sides of the squash-history
+merge. The current integrated contract and findings above govern this branch;
+performance and authoring are already implemented. Superseded implementation
+status is historical, and no open owner decision is resolved here.
+
+~~~text
+C++23 authoring library, independent of simulation and galaxy internals.
+The library implements loading, schema checks, direct totals, explicit v3
+migration, structural validation, and docking checks. It does not provide the
+public CLI/HTTP adapters or performance evaluation.
+~~~
+
+</details>

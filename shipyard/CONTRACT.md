@@ -152,11 +152,15 @@ than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the deck limit. A visitor that fits without
-rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
-error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
-`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
-limits. Such a visitor reports `widthLengthFit: false` and
+length, and deck limits and enforce the exact deck limit. Unrotated fit uses
+exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
+without `pending_F19`. A definite size error requires a rotation-proof bound:
+the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
+comparison `max(w,l) > hypot(W,L) + numeric.epsilon`, where `w,l` are visitor
+dimensions and `W,L` are hangar limits. The diagonal uses the same absolute
+epsilon convention as `carried_fit`; equality or excess within epsilon does not
+establish a diagonal rejection. A visitor exceeding either bound reports
+`widthLengthFit: false` and
 `dock_hangar_size_limit` at the active docking severity (v3: error), with measured
 dimensions and limits, without `pending_F19`. Failure in both axis-aligned
 orientations alone is insufficient. Every other case that does not fit unrotated
@@ -240,8 +244,11 @@ goldens and compare only their rules-defined values; F24 records v4 differences.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
-tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
-epsilon never admits an over-limit input. Computed masses are rounded at the
+tolerance. The `carried_fit` width/length checks and hangar's computed diagonal
+reject only when `actual > maximum + numeric.epsilon`. Hangar unrotated fit,
+minimum-side rejection, and deck limits remain exact input-bound comparisons.
+Input bounds, IDs, coordinates, versions, and counts are exact: epsilon never
+admits an over-limit input. Computed masses are rounded at the
 reference's direct-total boundaries to `numeric.precision` decimal places
 (currently 6), nearest with ties toward positive infinity. Supported precision
 is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
@@ -435,6 +442,78 @@ and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
 canonical form. Later independent tests should lock down the settled contracts;
 the three F22 prototype differences remain open and answer none of F11–F17 or
 F19–F21.
+~~~
+
+</details>
+
+<details>
+<summary>Main efe5fd82 integration: preserved source text</summary>
+
+These literal merge-source excerpts preserve both sides of the squash-history
+merge. The current integrated contract and findings above govern this branch;
+performance and authoring are already implemented. Superseded implementation
+status is historical, and no open owner decision is resolved here.
+
+~~~text
+Check (c) counts compatible, exterior, outward-facing airlocks without choosing
+one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
+than guessing visitor-deck mapping, a distance measure, reference point, or
+inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
+pending (`data.pending=true`), even though the pending issue is a warning.
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
+error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
+`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
+limits. Such a visitor reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+
+Computed comparisons use finite IEEE-754 binary64 values and absolute
+`abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
+tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
+epsilon never admits an over-limit input. Computed masses are rounded at the
+reference's direct-total boundaries to `numeric.precision` decimal places
+(currently 6), nearest with ties toward positive infinity. Supported precision
+is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
+Input numbers are not rounded on import.
+
+`SchemaSet::validate`, `import_definition`, `load_rules`, `validate`, and `dock`
+return at most 128 issues, including the truncation marker. On the 128th
+attempted diagnostic for a returned list, collection stops with 127 ordinary
+issues and one marker:
+`code: "issues_truncated"`, `severity: "error"`, root `path: ""`, and
+`details: {"limit": 128, "suppressedAtLeast": 1}`. Further issues are dropped
+and remaining checks stop, so truncation makes the operation fail even if the
+retained diagnostics were only warnings. `suppressedAtLeast` counts omitted
+diagnostics as a lower bound; it does not count the unevaluated remainder or
+claim a total issue count. Issues, including the marker, are sorted by path,
+code, and severity. Diagnostics are bounded during collection rather
+than accumulated in an unbounded temporary list. Internal schema-alternative
+trials have the same bound; a truncated trial is a nonmatch, so another
+alternative may still accept the input.
+Structural issue collection, carried-craft diagnostics, and docking's structural
+details use this same shared bound; no unbounded issue list is accumulated before
+assembling the public result. A carried-craft failure summarizes its child
+diagnostics without recursively copying their complete issue trees.
+A truncated carried-craft report propagates its retained diagnostics and root
+marker through the same cap. Truncation is terminal for `validate` and `dock`,
+which return FAIL with `data: null`, as for top-level truncation.
+
+`validate(bytes, rules, schemas, ValidationOptions{}, InputLimits{})` accepts the
+same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
+result envelope with active rules identity, sorted structured issues, and
+`data.definition` plus migration details if normalization succeeds. Structural
+errors retain the inspectable definition unless issue collection is truncated.
+`data.structuralPass` and the envelope status describe the enabled structural
+checks. Cached validation is discarded.
+`validation.ready` is false on structural failure and null on structural pass;
+`jumpReady` stays null until #51 evaluates rule-defined performance checks.
+Applicable `pending_F20` remains nonblocking and excluded values remain absent.
+No performance warnings or affordability checks are introduced here.
 ~~~
 
 </details>
