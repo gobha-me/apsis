@@ -102,7 +102,11 @@ Json validate(std::string_view bytes, const RulesSnapshot& rules,
             if (issue.code == "issues_truncated") truncated = &issue;
             else detail::add_issue(issues, issue);
         }
-        if (truncated) detail::add_issue(issues, *truncated);
+        if (truncated) {
+            detail::add_issue(issues, *truncated);
+            // A source marker is terminal even if the combined list has room.
+            return envelope(rules, false, std::move(issues), nullptr);
+        }
     } catch (const detail::IssueLimitReached&) {
         return envelope(rules, false, std::move(issues), nullptr);
     }
