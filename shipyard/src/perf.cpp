@@ -98,7 +98,7 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     const double jump_margin = performance.at("power").at("marginJump");
     const bool jump_ready = ready && performance.at("rating").get<double>() > 0 &&
         performance.at("jump").at("currentJumps").get<double>() >= 1 &&
-        (jump_margin >= 0 || numerically_equal(jump_margin, 0, rules));
+        (jump_margin >= -rules.data().at("numeric").at("epsilon").get<double>());
     sort_issues(issues);
     definition["derived"]["performance"] = performance;
     definition["validation"] = {{"ready", ready}, {"jumpReady", jump_ready}, {"issues", issues}};
