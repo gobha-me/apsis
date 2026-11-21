@@ -6,7 +6,9 @@ Strict UTF-8 JSON rejects duplicate keys after escape decoding, nonfinite
 numbers, unknown versions/authoritative fields, invalid shapes, and excessive
 nesting before totals. Defaults are operational parser bounds of 8 MiB per
 document and 64 nested containers; callers can set `InputLimits`. These are
-library resource guards, not game limits or deployment sizing. Schema checking
+library resource guards, not game limits or deployment sizing. A checked SAX
+DOM builder avoids rescanning arrays after each object while retaining the
+duplicate-key, nesting, finite-number, and strict JSON checks. Schema checking
 has a recursion-depth cap of 512 (`maxSchemaSteps`), not a total-work budget.
 HTTP request threads need at least 1 MB of stack for these bounded recursive
 checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
@@ -41,6 +43,9 @@ Structural issue collection, carried-craft diagnostics, and docking's structural
 details use this same shared bound; no unbounded issue list is accumulated before
 assembling the public result. A carried-craft failure summarizes its child
 diagnostics without recursively copying their complete issue trees.
+A truncated carried-craft report propagates its retained diagnostics and root
+marker through the same cap. Truncation is terminal for `validate` and `dock`,
+which return FAIL with `data: null`, as for top-level truncation.
 
 All fifteen named formulas must exist. Numbers, per-formula variables, and
 operator arrays form the entire expression format. Operators: add/mul take
@@ -93,8 +98,9 @@ Rustbucket or other structural faults.
 same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
 result envelope with active rules identity, sorted structured issues, and
 `data.definition` plus migration details if normalization succeeds. Structural
-errors retain the inspectable definition. `data.structuralPass` and the envelope
-status describe the enabled structural checks. Cached validation is discarded.
+errors retain the inspectable definition unless issue collection is truncated.
+`data.structuralPass` and the envelope status describe the enabled structural
+checks. Cached validation is discarded.
 `validation.ready` is false on structural failure and null on structural pass;
 `jumpReady` stays null until #51 evaluates rule-defined performance checks.
 Applicable `pending_F20` remains nonblocking and excluded values remain absent.
@@ -145,12 +151,15 @@ inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
 length, and deck limits and enforce the deck limit. A visitor that fits without
-rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
-exceeds the envelope in both orientations reports `widthLengthFit: false` and
+rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
+error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
+`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
+limits. Such a visitor reports `widthLengthFit: false` and
 `dock_hangar_size_limit` at the active docking severity (v3: error), with measured
-dimensions and limits, without `pending_F19`. Only a fit requiring rotation
-remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
-fit. No visitor rotation or airlock picker exists.
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
 recognize a requested blueprint `holds` field (including nested carried craft).
@@ -341,5 +350,123 @@ RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
 and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
 canonical form. Later independent tests should lock down these contracts.
+
+</details>
+
+
+<details>
+<summary>Historical r1 text retained at the r2 integration</summary>
+
+The following pre-r2 text is preserved verbatim from the Mull branch. It is
+superseded by the current contract and reviewed F19/F23 rotation-proof bounds
+and terminal-truncation behavior above; it assigns no current owner decision.
+No FINDINGS IDs were renumbered.
+
+```md
+## Structural validation and docking (#50)
+
+`validate(bytes, rules, schemas, ValidationOptions{}, InputLimits{})` accepts the
+same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
+result envelope with active rules identity, sorted structured issues, and
+`data.definition` plus migration details if normalization succeeds. Structural
+errors retain the inspectable definition. `data.structuralPass` and the envelope
+status describe the enabled structural checks. Cached validation is discarded.
+`validation.ready` is false on structural failure and null on structural pass;
+`jumpReady` stays null until #51 evaluates rule-defined performance checks.
+Applicable `pending_F20` remains nonblocking and excluded values remain absent.
+No performance warnings or affordability checks are introduced here.
+
+CLI and HTTP always use default `ValidationOptions` and `DockOptions`; adapters
+never map request fields onto these switches. The types remain in the public
+library API because existing independent tests use them to exercise the real
+checks without mocking. They are an explicit test seam, not adapter settings.
+`ValidationOptions.crewRoutes` and `.approachClearance` default to true and are
+reported in `data.checks`. Geometry uses active part footprints and cardinal
+facing directions, four-neighbor floor/walk routes, and paired `verticalLink`
+modules at matching coordinates on adjacent decks. Walkability follows the
+active floor and part records. With production defaults, hull connectivity
+matches v3: a structural flood starts at the first command module's origin,
+crosses paired ladders, and reports any isolated floor cells, including a
+separate floored deck with no ladder. Crew reach starts at one walkable service
+cell beside that first command module, with the bottom edge considered first,
+then left/right edges, then the top edge, matching v3 `bridgeStart`. The command
+module does not connect otherwise separate crew routes. The explicit
+`crewRoutes=false` test seam skips command-rooted cross-deck connectivity while
+retaining local per-deck hull checks; adapters cannot select that seam. Missing floors,
+overlap, out-of-grid footprints, duplicate unique systems, and carried-fit
+violations retain specific issue codes and use the `invalid_blueprint` severity
+family. All structural severities use the active validation checks and their
+default severity; issue details identify the rule. Carried blueprints use these same checks; their
+occupied dimensions and deck counts are checked against carrier limits without
+inventing docking rotations.
+
+`dock(hostBytes, targetDeckIndex, targetModuleId, visitorBytes, rules, schemas,
+DockOptions{}, InputLimits{})` requires a station host, ship visitor, and active
+rule-defined target. `data.checks.a` through `.d` contain enabled flags, statuses,
+and measured details. `DockOptions.structural`, `.portReachability`,
+`.matchingAirlock`, and `.approachClearance` independently disable F18(a), (b),
+(c), and (d). With defaults, (a) includes all host/visitor structural issues.
+Disabling (b) also disables the selected target's crew-access finding inside
+(a); disabling (d) likewise disables that target's approach finding inside (a).
+Other modules retain their checks. Disabling (a) leaves (b) and (d) active.
+Visitor-airlock crew access and clearance are structural findings under (a), at
+the active `unreachable_component` and `blocked_approach` severities (v3: error).
+They are not duplicated under (c). This permits independent mutation evidence
+for each check without mocking. Disabled checks are explicit in the output.
+
+Check (c) counts compatible, exterior, outward-facing airlocks without choosing
+one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
+than guessing visitor-deck mapping, a distance measure, reference point, or
+inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
+pending (`data.pending=true`), even though the pending issue is a warning.
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
+exceeds the envelope in both orientations reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Only a fit requiring rotation
+remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
+fit. No visitor rotation or airlock picker exists.
+
+Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
+recognize a requested blueprint `holds` field (including nested carried craft).
+They schema-check a bounded copy with only those unsupported fields removed
+before emitting blocking `pending_F11` through `pending_F17` issues with null
+data, once per finding kind rather than once per hold occurrence. Schema errors
+take precedence over pending features. The original input is not normalized or
+repaired by this probe.
+They do not assign a hold schema, capacity, mass, access, or floor/traversal rule.
+In particular they never misreport the intended opening as an ordinary missing
+floor. The #49 importer and bundled schemas remain unchanged. Ordinary cargo
+modules and adjacent-deck ladders continue to work normally.
+
+The independent tests session should exercise canonical structural outcomes,
+rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
+switch with mutation evidence, multiple compatible airlocks, ports beyond former
+size caps, hangar limits subject to F19, and all pending gates. No new tests or
+workflow steps are supplied by this implementation session.
+
+Computed comparisons use finite IEEE-754 binary64 values and absolute
+`abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
+tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
+epsilon never admits an over-limit input. Computed masses are rounded at the
+reference's direct-total boundaries to `numeric.precision` decimal places
+(currently 6), nearest with ties toward positive infinity. Supported precision
+is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
+Input numbers are not rounded on import.
+
+`canonical_json` emits compact JSON, lexicographically ordered UTF-8 object
+keys, original array/deck/module order and IDs, unescaped valid UTF-8, standard
+JSON string escapes, and no trailing newline. Numbers use the pinned JSON
+library's locale-independent shortest round-trip encoding; integer and floating
+representations remain distinct (1 versus 1.0), floating negative zero becomes
+0.0, and nonfinite programmatic values are rejected. Canonicalization is not
+RFC 8785. No rounding or Unicode normalization occurs during serialization.
+With the same rules bytes, export/reimport preserves the canonical definition
+and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
+canonical form. Later independent tests should lock down the settled contracts;
+the three F22 prototype differences remain open and answer none of F11–F17 or
+F19–F21.
+```
 
 </details>
