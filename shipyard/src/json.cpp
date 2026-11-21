@@ -17,6 +17,20 @@ void sort_issues(std::vector<Issue>& issues) {
     });
 }
 namespace detail {
+void add_issue(std::vector<Issue>& issues, Issue issue) {
+    if (issues.size() < maxIssues - 1) {
+        issues.push_back(std::move(issue));
+        return;
+    }
+    if (issues.size() < maxIssues) {
+        issues.push_back({"issues_truncated", "error",
+                          "Issue limit reached; further checks and issues were dropped.",
+                          "", {{"limit", maxIssues}, {"suppressedAtLeast", 1}}});
+    }
+    // The replaced diagnostic is suppressed; the unchecked remainder is not
+    // counted. Never traverse the remainder just to calculate an exact total.
+    throw IssueLimitReached{};
+}
 Issue error(std::string code, std::string message, std::string path) {
     return {std::move(code), "error", std::move(message), std::move(path), Json::object()};
 }

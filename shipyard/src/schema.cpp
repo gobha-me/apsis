@@ -8,7 +8,6 @@
 namespace apsis::shipyard {
 namespace {
 using Documents = std::map<std::string, Json, std::less<>>;
-constexpr std::size_t maxIssues = 128;
 // References and alternatives consume several schema steps per formula level.
 // Admit all 64 formula levels; load_rules checks that independent bound first.
 constexpr std::size_t maxSchemaSteps = 512;
@@ -153,9 +152,8 @@ void check_schema(const Json& schema, const Documents& docs, const Json& root,
 void validate_node(const Json& value, const Json& schema, const Json& root,
                    const Documents& docs, const std::string& path,
                    std::vector<Issue>& issues, std::size_t depth = 0) {
-    if (issues.size() >= maxIssues) return;
     auto fail = [&](std::string message) {
-        if (issues.size() < maxIssues) issues.push_back(detail::error("schema_error", std::move(message), path));
+        detail::add_issue(issues, detail::error("schema_error", std::move(message), path));
     };
     if (depth > maxSchemaSteps) { fail("Schema evaluation exceeds the operational recursion limit."); return; }
     if (schema.is_boolean()) {
@@ -168,7 +166,8 @@ void validate_node(const Json& value, const Json& schema, const Json& root,
     }
     auto matches = [&](const Json& candidate) {
         std::vector<Issue> trial;
-        validate_node(value, candidate, root, docs, path, trial, depth + 1);
+        try { validate_node(value, candidate, root, docs, path, trial, depth + 1); }
+        catch (const detail::IssueLimitReached&) { return false; }
         return trial.empty();
     };
     if (schema.contains("type")) {
@@ -221,9 +220,8 @@ void validate_node(const Json& value, const Json& schema, const Json& root,
         bounds(value.size(), "minProperties", "maxProperties");
         if (schema.contains("required"))
             for (const auto& key : schema["required"]) if (!value.contains(key.get<std::string>())) {
-                if (issues.size() < maxIssues)
-                    issues.push_back(detail::error("schema_error", "Required field is missing.",
-                                     path + "/" + detail::pointer_token(key.get<std::string>())));
+                detail::add_issue(issues, detail::error("schema_error", "Required field is missing.",
+                                 path + "/" + detail::pointer_token(key.get<std::string>())));
             }
         for (const auto& [key, child] : value.items()) {
             const auto childPath = path + "/" + detail::pointer_token(key);
@@ -290,8 +288,12 @@ std::vector<Issue> SchemaSet::validate(const Json& value, std::string_view schem
     std::vector<Issue> issues;
     const auto* root = document(documents_, std::string(schema));
     if (!root) return {detail::error("unknown_schema", "The requested schema is not installed.")};
-    try { validate_node(value, *root, *root, documents_, "", issues); }
-    catch (const Issue& issue) { issues.push_back(issue); }
+    try {
+        try { validate_node(value, *root, *root, documents_, "", issues); }
+        catch (const Issue& issue) { detail::add_issue(issues, issue); }
+    } catch (const detail::IssueLimitReached&) {
+        // Keep the bounded list and its marker; validation is incomplete.
+    }
     sort_issues(issues);
     return issues;
 }

@@ -6,13 +6,36 @@ Strict UTF-8 JSON rejects duplicate keys after escape decoding, nonfinite
 numbers, unknown versions/authoritative fields, invalid shapes, and excessive
 nesting before totals. Defaults are operational parser bounds of 8 MiB per
 document and 64 nested containers; callers can set `InputLimits`. These are
-library resource guards, not game limits or deployment sizing. Draft schemas
-describe shape; the loader then checks active catalogue references, grid
-coordinates, module IDs/nextId, rotations, interfaces, carry depth, and limits.
-Text limits count Unicode scalar values, consistent with JSON Schema length
-semantics; no Unicode normalization occurs. C0 and DEL controls are rejected
-in labels/notes. Integers accept mathematical integral JSON numbers, including
+library resource guards, not game limits or deployment sizing. Schema checking
+has a recursion-depth cap of 512 (`maxSchemaSteps`), not a total-work budget.
+HTTP request threads need at least 1 MB of stack for these bounded recursive
+checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
+the request time limit (#52). Draft schemas describe shape; the loader then
+checks active catalogue references, grid coordinates, module IDs/nextId,
+rotations, interfaces, carry depth, and limits.
+C0 and DEL controls are rejected in labels/notes; no Unicode normalization
+occurs. F22's name-length counting and label trimming/fallback choices are
+**Open for Luna, not guessed**, with no value picked. The current loader's
+Unicode scalar-value counting and preservation of empty or whitespace-only
+labels without trimming or fallback are an **interim interpretation**. The
+prototype instead uses JavaScript UTF-16 length units and trims labels with a
+fallback. These differences are not a settled technical encoding contract.
+Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
+
+`SchemaSet::validate`, `import_definition`, and `load_rules` return at most 128
+issues, including the truncation marker. On the 128th attempted diagnostic for
+a returned list, collection stops with 127 ordinary issues and one marker:
+`code: "issues_truncated"`, `severity: "error"`, root `path: ""`, and
+`details: {"limit": 128, "suppressedAtLeast": 1}`. Further issues are dropped
+and remaining checks stop, so truncation makes the operation fail even if the
+retained diagnostics were only warnings. `suppressedAtLeast` counts omitted
+diagnostics as a lower bound; it does not count the unevaluated remainder or
+claim a total issue count. Issues, including the marker, are sorted by path,
+code, and severity. Diagnostics are bounded during collection rather
+than accumulated in an unbounded temporary list. Internal schema-alternative
+trials have the same bound; a truncated trial is a nonmatch, so another
+alternative may still accept the input.
 
 All fifteen named formulas must exist. Numbers, per-formula variables, and
 operator arrays form the entire expression format. Operators: add/mul take
@@ -49,9 +72,14 @@ missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
 versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Existing full note lists are preserved; extra changes remain in
-the report with a warning. Export is always v4. Missing systems, overlaps, hull
-access, and carried-fit legality remain for #50; migration never repairs them.
+on reimport. Migration-note overflow handling (F22) is
+**Open for Luna, not guessed**, with no value picked. As an
+**interim interpretation**, the current loader preserves existing full note
+lists and leaves extra changes in the report with a warning; the prototype
+keeps the newest notes instead. This difference is not a settled technical
+encoding contract. Export is always v4.
+Missing systems, overlaps, hull access, and carried-fit legality remain for
+#50; migration never repairs them.
 Rustbucket remains available for later structural rejection.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
@@ -72,4 +100,6 @@ representations remain distinct (1 versus 1.0), floating negative zero becomes
 RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
 and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
-canonical form. Later independent tests should lock down these contracts.
+canonical form. Later independent tests should lock down the settled contracts;
+the three F22 prototype differences remain open and answer none of F11–F17 or
+F19–F21.
