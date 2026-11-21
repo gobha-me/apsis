@@ -291,6 +291,13 @@ The v4 rules deliberately omit v3 `docking.allowQuarterTurn: true`
 (`fixtures/v3/apsis-rules-v3.json:85`) pending Luna. The omission encodes
 neither permission nor prohibition; F19 remains **Open for Luna, not guessed**.
 
+The implementation certifies an unrotated fit without choosing allowed docking
+rotations. A definite size error requires a rotation-proof bound:
+`min(w,l) > min(W,L)` or `max(w,l) > hypot(W,L)`, where `w,l` are visitor
+dimensions and `W,L` are hangar limits. Failure in both axis-aligned orientations
+is insufficient: a diagonal fit may still be possible. Every other case that
+does not fit unrotated remains `pending_F19`, without choosing any rotation.
+
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
 **Open for Luna, not guessed.** How should v4 handle these evaluations?
@@ -395,18 +402,23 @@ airlock, a clear approach, the size envelope, deck limits, and station crew
 reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
 until Luna defines same-deck mapping and the distance/reference/inclusivity
 convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
-visitor fits unrotated. A visitor exceeding the envelope in both orientations
-reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+visitor fits unrotated. A visitor satisfying either rotation-proof bound from
+F19 reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
 docking severity (v3: error), including measured dimensions and limits, without
-`pending_F19`. Only a fit requiring rotation remains uncertified with
-`pending_F19`; the rule-defined deck cap is enforced.
-Argus S2's definite-envelope behavior is implemented without an F19 owner pick.
+`pending_F19`. Every other case that does not fit unrotated remains uncertified
+with `widthLengthFit: null` and `pending_F19`; the rule-defined deck cap is
+enforced. Failure in both axis-aligned orientations alone does not prove that
+the visitor exceeds the hangar. These bounds do not choose allowed rotations.
 The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
 structural faults. Visitor-airlock access and clearance remain structural
 findings at their active rule severities (v3 error).
+Truncated carried-craft diagnostics retain the bounded collected issues and the
+root `issues_truncated` marker under the shared 128-issue cap. The resource
+failure is terminal: `validate` and `dock` return FAIL with `data: null`, matching
+top-level truncation, rather than an incomplete inspectable definition.
 CLI and HTTP always use default options and never map request fields onto these
 switches. The public option types remain solely because existing independent
 tests exercise the real library through them; moving them would require changes

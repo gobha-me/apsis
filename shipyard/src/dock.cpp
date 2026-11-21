@@ -3,6 +3,7 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace apsis::shipyard {
@@ -210,18 +211,20 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             if (width <= max_width && length <= max_length) {
                 // An unrotated fit does not require an F19 rotation decision.
                 data["hangar"]["widthLengthFit"] = true;
-            } else if (length <= max_width && width <= max_length) {
+            } else if (std::min(width, length) > std::min(max_width, max_length) ||
+                       std::max(width, length) > std::hypot(max_width, max_length)) {
+                // Minimum span and diagonal bounds rule out every rotation.
+                // Failure of both axis-aligned fits alone is inconclusive.
+                data["hangar"]["widthLengthFit"] = false;
+                detail::add_issue(issues, {"dock_hangar_size_limit", severity,
+                    "Visitor exceeds a rotation-proof bound of the hangar's width/length envelope.",
+                    "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
+                                              {"maxWidthM", max_width}, {"maxLengthM", max_length}}});
+            } else {
                 pending = true;
                 detail::add_issue(issues, {"pending_F19", "warning",
                     "pending F19: allowed visitor docking rotations await Luna; hangar width/length fit is not certified.",
                     "/visitor/blueprint/decks", {{"finding", "F19"}}});
-            } else {
-                // Neither orientation fits, regardless of the F19 rotation decision.
-                data["hangar"]["widthLengthFit"] = false;
-                detail::add_issue(issues, {"dock_hangar_size_limit", severity,
-                    "Visitor exceeds the hangar's width/length envelope in both orientations.",
-                    "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
-                                              {"maxWidthM", max_width}, {"maxLengthM", max_length}}});
             }
         }
         data["pending"] = pending;

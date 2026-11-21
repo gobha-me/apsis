@@ -356,7 +356,12 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                 });
                 if (truncated != child.issues.end()) {
                     // Resource failure cannot be downgraded to the carrier's
-                    // configurable carried_not_ready warning severity.
+                    // configurable carried_not_ready warning severity. Retain
+                    // its diagnostics through the same shared cap before the
+                    // root marker, rather than returning a marker-only report.
+                    for (const auto& child_issue : child.issues) {
+                        if (child_issue.code != "issues_truncated") add_issue(result.issues, child_issue);
+                    }
                     add_issue(result.issues, *truncated);
                     throw IssueLimitReached{};
                 }
