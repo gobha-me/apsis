@@ -30,7 +30,7 @@ if(BUILD_TESTING)
   foreach(suite IN ITEMS rules migration input json_numeric validator dock pending
       perf perf_pending perf_scenario perf_issue_cap
       issue_cap loader_regression schema_boundary structure_regression
-      dock_regression validator_cap)
+      dock_regression validator_cap loader_r2 structure_r2 hangar_r2 validator_r2_cap)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
     target_compile_definitions(shipyard-${suite}-tests PRIVATE
