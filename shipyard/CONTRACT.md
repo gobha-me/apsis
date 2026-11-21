@@ -23,9 +23,10 @@ fallback. These differences are not a settled technical encoding contract.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
-`SchemaSet::validate`, `import_definition`, and `load_rules` return at most 128
-issues, including the truncation marker. On the 128th attempted diagnostic for
-a returned list, collection stops with 127 ordinary issues and one marker:
+`SchemaSet::validate`, `import_definition`, `load_rules`, `validate`, and `dock`
+return at most 128 issues, including the truncation marker. On the 128th
+attempted diagnostic for a returned list, collection stops with 127 ordinary
+issues and one marker:
 `code: "issues_truncated"`, `severity: "error"`, root `path: ""`, and
 `details: {"limit": 128, "suppressedAtLeast": 1}`. Further issues are dropped
 and remaining checks stop, so truncation makes the operation fail even if the
@@ -36,6 +37,10 @@ code, and severity. Diagnostics are bounded during collection rather
 than accumulated in an unbounded temporary list. Internal schema-alternative
 trials have the same bound; a truncated trial is a nonmatch, so another
 alternative may still accept the input.
+Structural issue collection, carried-craft diagnostics, and docking's structural
+details use this same shared bound; no unbounded issue list is accumulated before
+assembling the public result. A carried-craft failure summarizes its child
+diagnostics without recursively copying their complete issue trees.
 
 All fifteen named formulas must exist. Numbers, per-formula variables, and
 operator arrays form the entire expression format. Operators: add/mul take
@@ -78,8 +83,9 @@ on reimport. Migration-note overflow handling (F22) is
 lists and leaves extra changes in the report with a warning; the prototype
 keeps the newest notes instead. This difference is not a settled technical
 encoding contract. Export is always v4.
-missing systems, overlaps, hull access, or carried-fit legality; call `validate`
-for these checks. Migration never repairs Rustbucket or other structural faults.
+Import alone does not approve missing systems, overlaps, hull access, or
+carried-fit legality; call `validate` for these checks. Migration never repairs
+Rustbucket or other structural faults.
 
 ## Structural validation and docking (#50)
 
@@ -94,12 +100,23 @@ status describe the enabled structural checks. Cached validation is discarded.
 Applicable `pending_F20` remains nonblocking and excluded values remain absent.
 No performance warnings or affordability checks are introduced here.
 
+CLI and HTTP always use default `ValidationOptions` and `DockOptions`; adapters
+never map request fields onto these switches. The types remain in the public
+library API because existing independent tests use them to exercise the real
+checks without mocking. They are an explicit test seam, not adapter settings.
 `ValidationOptions.crewRoutes` and `.approachClearance` default to true and are
 reported in `data.checks`. Geometry uses active part footprints and cardinal
 facing directions, four-neighbor floor/walk routes, and paired `verticalLink`
 modules at matching coordinates on adjacent decks. Walkability follows the
-active floor and part records. Hull connectivity is checked within each deck;
-crew connectivity between decks requires those ladder pairs. Missing floors,
+active floor and part records. With production defaults, hull connectivity
+matches v3: a structural flood starts at the first command module's origin,
+crosses paired ladders, and reports any isolated floor cells, including a
+separate floored deck with no ladder. Crew reach starts at one walkable service
+cell beside that first command module, with the bottom edge considered first,
+then left/right edges, then the top edge, matching v3 `bridgeStart`. The command
+module does not connect otherwise separate crew routes. The explicit
+`crewRoutes=false` test seam skips command-rooted cross-deck connectivity while
+retaining local per-deck hull checks; adapters cannot select that seam. Missing floors,
 overlap, out-of-grid footprints, duplicate unique systems, and carried-fit
 violations retain specific issue codes and use the `invalid_blueprint` severity
 family. All structural severities use the active validation checks and their
@@ -127,13 +144,23 @@ than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits, enforce the deck limit, and leave width/length fit
-uncertified with `pending_F19` until allowed rotations are settled. No dock can
-pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. Other dimensional
+fits remain uncertified with `pending_F19`; no dock can pass by ignoring that
+pending fit. No visitor rotation or airlock picker exists.
+Definite oversize remains an implementation limitation: an envelope exceeded
+in both orientations needs no F19 owner decision and should return false with
+a size error. Only a fit requiring rotation should retain `pending_F19`.
+That remaining follow-up conflicts with the existing oversized-Wren pending
+assertions in the independent tests session; this code session does not change them.
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
-recognize a requested blueprint `holds` field (including nested carried craft)
-and return blocking `pending_F11` through `pending_F17` issues with null data.
+recognize a requested blueprint `holds` field (including nested carried craft).
+They schema-check a bounded copy with only those unsupported fields removed
+before emitting blocking `pending_F11` through `pending_F17` issues with null
+data, once per finding kind rather than once per hold occurrence. Schema errors
+take precedence over pending features. The original input is not normalized or
+repaired by this probe.
 They do not assign a hold schema, capacity, mass, access, or floor/traversal rule.
 In particular they never misreport the intended opening as an ordinary missing
 floor. The #49 importer and bundled schemas remain unchanged. Ordinary cargo

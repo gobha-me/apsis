@@ -4,9 +4,9 @@
 #include <cstdint>
 
 namespace apsis::shipyard {
-// Disabling checks is explicit and reflected in the result. Production callers
-// should retain the defaults; the switches also support independent mutation
-// evidence without mocking the validator.
+// Disabling checks is explicit and reflected in the result. CLI and HTTP always
+// use defaults and never map request fields onto these switches. These public
+// types remain a seam for existing independent tests of the real validator.
 struct ValidationOptions {
     bool crewRoutes = true;
     bool approachClearance = true;

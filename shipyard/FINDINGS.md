@@ -373,6 +373,16 @@ FAIL with `missing_airlock` and three `unreachable_component` findings. Its
 geometry is preserved. No canonical structural outcome changed under v4.
 The original passing self-test report does not include Rustbucket (F07).
 
+Argus M2 exposed two additional layouts where the initial v4 implementation
+accepted what v3 rejected. The implementation now matches v3 with production
+defaults: hull connectivity floods from the first command module across paired
+ladder links, so an isolated floored deck without a ladder produces
+`disconnected_hull`. Crew reach starts from the single v3 `bridgeStart` service
+cell (bottom edge first), rather than every walkable cell beside every bridge.
+The cockpit at x=4 in a single floor row no longer joins the reactor at x=1 to
+life support at x=7; the component on the other side remains unreachable.
+The former per-deck-only hull and multiple-start crew rules are superseded.
+
 Performance advisories from the prototype, including Skiff's `no_cargo` and
 Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
 jump readiness remain unset on structural success; structural failure sets
@@ -380,20 +390,35 @@ ready false. Wayfarer's three excluded burn-rate formula evaluations remain
 nonblocking `pending_F20`, with no excluded values or numeric substitutes.
 The #49 blank-design F20 exclusions remain unchanged.
 
-Unlike the prototype's interface-only docking success, a compatible port
-candidate returns FAIL with `pending_F21` until Luna defines same-deck mapping
-and the distance/reference/inclusivity convention. Hangar width/length fit also
-remains uncertified with `pending_F19`; the rule-defined deck cap is enforced.
+The prototype required structural validity, a reachable and clear visitor
+airlock, a clear approach, the size envelope, deck limits, and station crew
+reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
+until Luna defines same-deck mapping and the distance/reference/inclusivity
+convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
+visitor fits unrotated. Other width/length outcomes remain uncertified with
+`pending_F19`; the rule-defined deck cap is enforced.
 These pending results preserve F03/F18 without inventing F19/F21 answers.
+Argus S2 is partially implemented: an unrotated fit now returns
+`widthLengthFit: true`. An envelope exceeded in both orientations should return
+false with a size error; this remaining case needs no owner pick. Only a fit
+requiring rotation should remain pending F19. Existing oversized-Wren tests
+explicitly assert null/pending with no size error, so the definite oversize fix
+requires a coordinated independent tests update; those assertions are not
+changed in this code session.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
 structural faults. Visitor-airlock access and clearance remain structural
 findings at their active rule severities (v3 error).
+CLI and HTTP always use default options and never map request fields onto these
+switches. The public option types remain solely because existing independent
+tests exercise the real library through them; moving them would require changes
+to those test callers.
 
-Multi-deck holds remain unavailable: a requested `holds` field returns
-structured pending F11–F17 issues before any guessed hold totals, access,
-traversal, or ordinary missing-floor finding. No hold schema or geometry is
-invented, and no opening is filled. The independent tests session must cover
+Multi-deck holds remain unavailable: after schema-checking a bounded probe with
+only unsupported `holds` fields removed, a requested `holds` field returns
+structured pending F11–F17 issues once per finding kind before any guessed hold
+totals, access, traversal, or ordinary missing-floor finding. No hold schema or
+geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.

@@ -1,9 +1,11 @@
 #include "validator_internal.hpp"
+#include "internal.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <deque>
 #include <map>
+#include <optional>
 #include <set>
 #include <tuple>
 
@@ -115,237 +117,301 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
         const auto level = severity(rules, rule);
         details["rule"] = rules.at("validation").at("checks").contains(rule)
             ? "/validation/checks/" + rule : "/validation/defaultSeverity";
-        result.issues.push_back({std::move(code), level, std::move(message),
-                                 std::move(location), std::move(details)});
+        add_issue(result.issues, {std::move(code), level, std::move(message),
+                                  std::move(location), std::move(details)});
     };
-    std::map<std::string, const Json*, std::less<>> catalogue;
-    for (const auto& part : rules.at("parts")) catalogue.emplace(part.at("id").get<std::string>(), &part);
-    std::vector<Cells> floors(decks.size()), walkable(decks.size());
-    std::vector<std::vector<std::size_t>> deck_modules(decks.size());
-    std::map<std::string, std::size_t, std::less<>> systems;
-    std::map<Node, std::vector<std::size_t>> ladders;
+    try {
+        std::map<std::string, const Json*, std::less<>> catalogue;
+        for (const auto& part : rules.at("parts")) catalogue.emplace(part.at("id").get<std::string>(), &part);
+        std::vector<Cells> floors(decks.size()), walkable(decks.size());
+        std::vector<std::size_t> components(decks.size());
+        std::vector<std::vector<std::size_t>> deck_modules(decks.size());
+        std::map<std::string, std::size_t, std::less<>> systems;
+        std::map<Node, std::vector<std::size_t>> ladders;
 
-    for (std::size_t d = 0; d < decks.size(); ++d) {
-        const auto deck_path = path + "/decks/" + std::to_string(d);
-        for (auto it = decks[d].at("floors").begin(); it != decks[d].at("floors").end(); ++it) {
-            floors[d].insert(parse_cell(it.key()));
-        }
-        const auto& modules = decks[d].at("modules");
-        for (std::size_t m = 0; m < modules.size(); ++m) {
-            const auto& module = modules[m];
-            const auto& part = *catalogue.at(module.at("type").get<std::string>());
-            const auto& direction = rules.at("rotations").at(module.at("r").get<std::size_t>());
-            ModuleState state;
-            state.deck = d;
-            state.index = m;
-            state.id = module.at("id").get<std::uint64_t>();
-            state.module = &module;
-            state.part = &part;
-            state.path = deck_path + "/modules/" + std::to_string(m);
-            state.x = module.at("x").get<Coordinate>();
-            state.y = module.at("y").get<Coordinate>();
-            state.dx = direction.at("dx").get<int>();
-            state.dy = direction.at("dy").get<int>();
-            state.width = part.at(state.dx == 0 ? "w" : "h").get<Coordinate>();
-            state.height = part.at(state.dx == 0 ? "h" : "w").get<Coordinate>();
-            if (part.contains("docking")) {
-                state.interface = module.value("interface", part.at("docking").at("interface").get<std::string>());
+        for (std::size_t d = 0; d < decks.size(); ++d) {
+            const auto deck_path = path + "/decks/" + std::to_string(d);
+            for (auto it = decks[d].at("floors").begin(); it != decks[d].at("floors").end(); ++it) {
+                floors[d].insert(parse_cell(it.key()));
             }
-            if (part.contains("system")) ++systems[part.at("system").get<std::string>()];
-            deck_modules[d].push_back(result.modules.size());
-            if (part.value("verticalLink", false)) ladders[{d, state.x, state.y}].push_back(result.modules.size());
-            result.modules.push_back(std::move(state));
-        }
-
-        // A missing floor is a hull fault, not an invitation to synthesize one.
-        for (const auto index : deck_modules[d]) {
-            const auto& module = result.modules[index];
-            const auto rectangle = footprint(module);
-            if (rectangle.x + rectangle.w > grid_width || rectangle.y + rectangle.h > grid_height) {
-                issue("module_out_of_bounds", "The rotated part footprint extends beyond the active grid.",
-                      module.path, module_details(module));
-            }
-            std::size_t supported = 0;
-            for (const auto& cell : floors[d]) if (rectangle.contains(cell)) ++supported;
-            // Rule grids can exceed 32-bit dimensions. Do not enumerate absent
-            // footprint cells or allocate a dense grid based on their bounds.
-            if (static_cast<Coordinate>(supported) / rectangle.w != rectangle.h ||
-                static_cast<Coordinate>(supported) % rectangle.w != 0) {
-                issue("missing_floor", "Every part footprint cell requires an existing hull floor.",
-                      module.path, module_details(module));
-            }
-        }
-        for (std::size_t i = 0; i < deck_modules[d].size(); ++i) {
-            const auto& a = result.modules[deck_modules[d][i]];
-            for (std::size_t j = i + 1; j < deck_modules[d].size(); ++j) {
-                const auto& b = result.modules[deck_modules[d][j]];
-                if (intersects(footprint(a), footprint(b))) {
-                    auto details = module_details(b);
-                    details["otherModuleId"] = a.id;
-                    issue("module_overlap", "Part footprints overlap.", b.path, std::move(details));
+            const auto& modules = decks[d].at("modules");
+            for (std::size_t m = 0; m < modules.size(); ++m) {
+                const auto& module = modules[m];
+                const auto& part = *catalogue.at(module.at("type").get<std::string>());
+                const auto& direction = rules.at("rotations").at(module.at("r").get<std::size_t>());
+                ModuleState state;
+                state.deck = d;
+                state.index = m;
+                state.id = module.at("id").get<std::uint64_t>();
+                state.module = &module;
+                state.part = &part;
+                state.path = deck_path + "/modules/" + std::to_string(m);
+                state.x = module.at("x").get<Coordinate>();
+                state.y = module.at("y").get<Coordinate>();
+                state.dx = direction.at("dx").get<int>();
+                state.dy = direction.at("dy").get<int>();
+                state.width = part.at(state.dx == 0 ? "w" : "h").get<Coordinate>();
+                state.height = part.at(state.dx == 0 ? "h" : "w").get<Coordinate>();
+                if (part.contains("docking")) {
+                    state.interface = module.value("interface", part.at("docking").at("interface").get<std::string>());
                 }
+                if (part.contains("system")) ++systems[part.at("system").get<std::string>()];
+                deck_modules[d].push_back(result.modules.size());
+                if (part.value("verticalLink", false)) ladders[{d, state.x, state.y}].push_back(result.modules.size());
+                result.modules.push_back(std::move(state));
             }
-        }
 
-        Cells remainder = floors[d];
-        std::size_t components = 0;
-        while (!remainder.empty()) {
-            ++components;
-            std::deque<Cell> queue{*remainder.begin()};
-            remainder.erase(remainder.begin());
-            while (!queue.empty()) {
-                const auto cell = queue.front(); queue.pop_front();
-                for (const auto& [dx, dy] : neighbors) {
-                    const Cell next{cell.first + dx, cell.second + dy};
-                    if (remainder.erase(next) != 0) queue.push_back(next);
-                }
-            }
-        }
-        if (components > 1) {
-            issue("disconnected_hull", "The deck contains disconnected hull floor regions.",
-                  deck_path + "/floors", {{"deck", d}, {"components", components}});
-        }
-        for (const auto& cell : floors[d]) {
-            bool can_walk = rules.at("floor").at("walkable").get<bool>();
+            // A missing floor is a hull fault, not an invitation to synthesize one.
             for (const auto index : deck_modules[d]) {
                 const auto& module = result.modules[index];
-                if (footprint(module).contains(cell) && !module.part->value("walkable", false)) {
-                    can_walk = false;
+                const auto rectangle = footprint(module);
+                if (rectangle.x + rectangle.w > grid_width || rectangle.y + rectangle.h > grid_height) {
+                    issue("module_out_of_bounds", "The rotated part footprint extends beyond the active grid.",
+                          module.path, module_details(module));
+                }
+                std::size_t supported = 0;
+                for (const auto& cell : floors[d]) if (rectangle.contains(cell)) ++supported;
+                // Rule grids can exceed 32-bit dimensions. Do not enumerate absent
+                // footprint cells or allocate a dense grid based on their bounds.
+                if (static_cast<Coordinate>(supported) / rectangle.w != rectangle.h ||
+                    static_cast<Coordinate>(supported) % rectangle.w != 0) {
+                    issue("missing_floor", "Every part footprint cell requires an existing hull floor.",
+                          module.path, module_details(module));
+                }
+            }
+            for (std::size_t i = 0; i < deck_modules[d].size(); ++i) {
+                const auto& a = result.modules[deck_modules[d][i]];
+                for (std::size_t j = i + 1; j < deck_modules[d].size(); ++j) {
+                    const auto& b = result.modules[deck_modules[d][j]];
+                    if (intersects(footprint(a), footprint(b))) {
+                        auto details = module_details(b);
+                        details["otherModuleId"] = a.id;
+                        issue("module_overlap", "Part footprints overlap.", b.path, std::move(details));
+                    }
+                }
+            }
+
+            Cells remainder = floors[d];
+            while (!remainder.empty()) {
+                ++components[d];
+                std::deque<Cell> queue{*remainder.begin()};
+                remainder.erase(remainder.begin());
+                while (!queue.empty()) {
+                    const auto cell = queue.front(); queue.pop_front();
+                    for (const auto& [dx, dy] : neighbors) {
+                        const Cell next{cell.first + dx, cell.second + dy};
+                        if (remainder.erase(next) != 0) queue.push_back(next);
+                    }
+                }
+            }
+            // The explicit crew-route test seam retains local hull checks. The
+            // default path below checks the whole design from its command module.
+            if (!options.crewRoutes && components[d] > 1) {
+                issue("disconnected_hull", "The deck contains disconnected hull floor regions.",
+                      deck_path + "/floors", {{"deck", d}, {"components", components[d]}});
+            }
+            for (const auto& cell : floors[d]) {
+                bool can_walk = rules.at("floor").at("walkable").get<bool>();
+                for (const auto index : deck_modules[d]) {
+                    const auto& module = result.modules[index];
+                    if (footprint(module).contains(cell) && !module.part->value("walkable", false)) {
+                        can_walk = false;
+                        break;
+                    }
+                }
+                if (can_walk) walkable[d].insert(cell);
+            }
+        }
+
+        const auto build_type = blueprint.at("buildType").get<std::string>();
+        for (const auto& required : rules.at("validation").at("requiredSystems").at(build_type)) {
+            const auto system = required.get<std::string>();
+            if (systems[system] == 0) {
+                issue("required_system", "A required system is absent.", path + "/decks", {{"system", system}});
+            }
+        }
+        for (const auto& unique : rules.at("validation").at("uniqueSystems")) {
+            const auto system = unique.get<std::string>();
+            if (systems[system] > 1) {
+                issue("unique_system", "The design has more than one instance of a unique system.",
+                      path + "/decks", {{"system", system}, {"count", systems[system]}});
+            }
+        }
+
+        const auto command = std::find_if(result.modules.begin(), result.modules.end(), [](const ModuleState& module) {
+            return module.part->value("system", std::string()) == "bridge";
+        });
+        const auto flood = [&](const std::vector<Cells>& cells, std::optional<Node> start) {
+            std::set<Node> reached;
+            std::deque<Node> queue;
+            const auto enqueue = [&](Node node) {
+                if (reached.insert(node).second) queue.push_back(node);
+            };
+            if (start) enqueue(*start);
+            while (!queue.empty()) {
+                const auto [deck, x, y] = queue.front(); queue.pop_front();
+                for (const auto& [dx, dy] : neighbors) {
+                    if (cells[deck].contains({x + dx, y + dy})) enqueue({deck, x + dx, y + dy});
+                }
+                if (!ladders.contains({deck, x, y})) continue;
+                for (const int delta : {-1, 1}) {
+                    if ((delta < 0 && deck == 0) || (delta > 0 && deck + 1 == decks.size())) continue;
+                    const auto next_deck = delta < 0 ? deck - 1 : deck + 1;
+                    if (ladders.contains({next_deck, x, y}) && cells[next_deck].contains({x, y})) {
+                        enqueue({next_deck, x, y});
+                    }
+                }
+            }
+            return reached;
+        };
+
+        // Match v3 bridgeStart: use only the first bridge's first walkable service
+        // cell, bottom edge first, then alternating left/right edges, then top.
+        // Occupied command cells and other adjacent regions never become shortcuts.
+        std::optional<Node> crew_start;
+        if (command != result.modules.end()) {
+            const auto rectangle = footprint(*command);
+            std::optional<std::tuple<int, Coordinate, int, Cell>> first;
+            for (const auto& cell : walkable[command->deck]) {
+                std::optional<std::tuple<int, Coordinate, int, Cell>> candidate;
+                if (cell.second == rectangle.y + rectangle.h &&
+                    cell.first >= rectangle.x && cell.first < rectangle.x + rectangle.w) {
+                    candidate = std::tuple{0, cell.first, 0, cell};
+                } else if (cell.second >= rectangle.y && cell.second < rectangle.y + rectangle.h &&
+                           (cell.first == rectangle.x - 1 || cell.first == rectangle.x + rectangle.w)) {
+                    candidate = std::tuple{1, cell.second, cell.first == rectangle.x - 1 ? 0 : 1, cell};
+                } else if (cell.second == rectangle.y - 1 &&
+                           cell.first >= rectangle.x && cell.first < rectangle.x + rectangle.w) {
+                    candidate = std::tuple{2, cell.first, 0, cell};
+                }
+                if (candidate && (!first || *candidate < *first)) first = candidate;
+            }
+            if (first) {
+                const auto& [x, y] = std::get<3>(*first);
+                crew_start = Node{command->deck, x, y};
+            } else if (options.crewRoutes) {
+                issue("command_access", "The command station has no adjacent walkable crew access.",
+                      command->path, module_details(*command));
+            }
+            if (options.crewRoutes) {
+                const auto connected = flood(floors, Node{command->deck, command->x, command->y});
+                for (std::size_t d = 0; d < floors.size(); ++d) {
+                    std::size_t isolated = 0;
+                    for (const auto& [x, y] : floors[d]) {
+                        if (!connected.contains({d, x, y})) ++isolated;
+                    }
+                    if (isolated != 0) {
+                        issue("disconnected_hull", "Hull floor cells are disconnected from the command station; join floors or align deck ladders.",
+                              path + "/decks/" + std::to_string(d) + "/floors",
+                              {{"deck", d}, {"components", components[d]}, {"isolatedCells", isolated}});
+                    }
+                }
+            }
+        }
+        const auto reached = flood(walkable, crew_start);
+
+        bool usable_airlock = false;
+        for (auto& module : result.modules) {
+            for (const auto& cell : walkable[module.deck]) {
+                if ((adjacent(footprint(module), cell) || footprint(module).contains(cell)) &&
+                    reached.contains({module.deck, cell.first, cell.second})) {
+                    module.reachable = true;
                     break;
                 }
             }
-            if (can_walk) walkable[d].insert(cell);
-        }
-    }
-
-    const auto build_type = blueprint.at("buildType").get<std::string>();
-    for (const auto& required : rules.at("validation").at("requiredSystems").at(build_type)) {
-        const auto system = required.get<std::string>();
-        if (systems[system] == 0) {
-            issue("required_system", "A required system is absent.", path + "/decks", {{"system", system}});
-        }
-    }
-    for (const auto& unique : rules.at("validation").at("uniqueSystems")) {
-        const auto system = unique.get<std::string>();
-        if (systems[system] > 1) {
-            issue("unique_system", "The design has more than one instance of a unique system.",
-                  path + "/decks", {{"system", system}, {"count", systems[system]}});
-        }
-    }
-
-    // Crew starts on walkable floor next to a command module. Occupied,
-    // nonwalkable command cells never become shortcuts through machinery.
-    std::set<Node> reached;
-    std::deque<Node> queue;
-    const auto enqueue = [&](Node node) {
-        if (reached.insert(node).second) queue.push_back(node);
-    };
-    for (const auto& module : result.modules) {
-        if (module.part->value("system", std::string()) != "bridge") continue;
-        bool access = false;
-        for (const auto& cell : walkable[module.deck]) {
-            if (adjacent(footprint(module), cell) || footprint(module).contains(cell)) {
-                enqueue({module.deck, cell.first, cell.second});
-                access = true;
+            module.exterior = !any_in(floors[module.deck], outward_face(module));
+            const auto clearance = approach(module, grid_width, grid_height);
+            module.clear = !any_in(floors[module.deck], clearance);
+            for (const auto other_index : deck_modules[module.deck]) {
+                const auto& other = result.modules[other_index];
+                if (other.id != module.id && intersects(clearance, footprint(other))) module.clear = false;
             }
-        }
-        if (!access && options.crewRoutes) {
-            issue("command_access", "The command station has no adjacent walkable crew access.",
-                  module.path, module_details(module));
-        }
-    }
-    while (!queue.empty()) {
-        const auto [deck, x, y] = queue.front(); queue.pop_front();
-        for (const auto& [dx, dy] : neighbors) {
-            if (walkable[deck].contains({x + dx, y + dy})) enqueue({deck, x + dx, y + dy});
-        }
-        if (!ladders.contains({deck, x, y})) continue;
-        for (const int delta : {-1, 1}) {
-            if ((delta < 0 && deck == 0) || (delta > 0 && deck + 1 == decks.size())) continue;
-            const auto next_deck = delta < 0 ? deck - 1 : deck + 1;
-            if (ladders.contains({next_deck, x, y}) && walkable[next_deck].contains({x, y})) {
-                enqueue({next_deck, x, y});
-            }
-        }
-    }
-
-    bool usable_airlock = false;
-    for (auto& module : result.modules) {
-        for (const auto& cell : walkable[module.deck]) {
-            if ((adjacent(footprint(module), cell) || footprint(module).contains(cell)) &&
-                reached.contains({module.deck, cell.first, cell.second})) {
-                module.reachable = true;
-                break;
-            }
-        }
-        module.exterior = !any_in(floors[module.deck], outward_face(module));
-        const auto clearance = approach(module, grid_width, grid_height);
-        module.clear = !any_in(floors[module.deck], clearance);
-        for (const auto other_index : deck_modules[module.deck]) {
-            const auto& other = result.modules[other_index];
-            if (other.id != module.id && intersects(clearance, footprint(other))) module.clear = false;
-        }
-        if (!module.reachable && module.part->value("system", std::string()) != "bridge" && options.crewRoutes) {
-            issue("unreachable_component", "The component has no walkable crew route from a command station.",
-                  module.path, module_details(module));
-        }
-        if (module.part->value("clearApproach", false) && !module.clear && options.approachClearance) {
-            issue("blocked_approach", "The outward approach is obstructed by hull or another component.",
-                  module.path, module_details(module));
-        }
-        if (module.part->contains("docking") && module.part->at("docking").at("kind") == "airlock" &&
-            (!options.crewRoutes || module.reachable) &&
-            (!options.approachClearance || (module.exterior && module.clear))) usable_airlock = true;
-
-        if (module.part->value("verticalLink", false)) {
-            const bool lower = module.deck > 0 && ladders.contains({module.deck - 1, module.x, module.y});
-            const bool upper = module.deck + 1 < decks.size() && ladders.contains({module.deck + 1, module.x, module.y});
-            if (!lower && !upper) {
-                issue("unpaired_ladder", "The ladder has no matching ladder at the same coordinate on an adjacent deck.",
+            if (!module.reachable && module.part->value("system", std::string()) != "bridge" &&
+                command != result.modules.end() && options.crewRoutes) {
+                issue("unreachable_component", "The component has no walkable crew route from a command station.",
                       module.path, module_details(module));
             }
-        }
-        if (module.part->contains("carrier") && module.module->contains("craft") && !module.module->at("craft").is_null()) {
-            const auto& craft = module.module->at("craft");
-            const auto child_path = module.path + "/craft";
-            auto child = inspect_structure(craft, snapshot, child_path, options);
-            if (has_errors(child.issues)) {
-                auto details = module_details(module);
-                details["issues"] = child.issues;
-                issue("carried_not_ready", "The carried craft has structural faults.", child_path, std::move(details));
+            if (module.part->value("clearApproach", false) && !module.clear && options.approachClearance) {
+                issue("blocked_approach", "The outward approach is obstructed by hull or another component.",
+                      module.path, module_details(module));
             }
-            // A child's structural errors use carried_not_ready's rule severity;
-            // its independent warnings still deserve their own precise paths.
-            for (const auto& child_issue : child.issues) {
-                if (child_issue.severity != "error") result.issues.push_back(child_issue);
-            }
-            Coordinate min_x = grid_width, min_y = grid_height, max_x = -1, max_y = -1;
-            for (const auto& deck : craft.at("decks")) {
-                for (auto it = deck.at("floors").begin(); it != deck.at("floors").end(); ++it) {
-                    const auto [x, y] = parse_cell(it.key());
-                    min_x = std::min(min_x, x); min_y = std::min(min_y, y);
-                    max_x = std::max(max_x, x); max_y = std::max(max_y, y);
+            if (module.part->contains("docking") && module.part->at("docking").at("kind") == "airlock" &&
+                (!options.crewRoutes || module.reachable) &&
+                (!options.approachClearance || (module.exterior && module.clear))) usable_airlock = true;
+
+            if (module.part->value("verticalLink", false)) {
+                const bool lower = module.deck > 0 && ladders.contains({module.deck - 1, module.x, module.y});
+                const bool upper = module.deck + 1 < decks.size() && ladders.contains({module.deck + 1, module.x, module.y});
+                if (!lower && !upper) {
+                    issue("unpaired_ladder", "The ladder has no matching ladder at the same coordinate on an adjacent deck.",
+                          module.path, module_details(module));
                 }
             }
-            const auto cell_size = rules.at("cellSizeM").get<double>();
-            const auto width = max_x < 0 ? 0.0 : static_cast<double>(max_x - min_x + 1) * cell_size;
-            const auto length = max_y < 0 ? 0.0 : static_cast<double>(max_y - min_y + 1) * cell_size;
-            const auto& carrier = module.part->at("carrier");
-            const auto epsilon = rules.at("numeric").at("epsilon").get<double>();
-            if (width > carrier.at("maxWidthM").get<double>() + epsilon ||
-                length > carrier.at("maxLengthM").get<double>() + epsilon ||
-                craft.at("decks").size() > carrier.at("maxDecks").get<std::size_t>()) {
-                issue("carried_fit", "The carried craft exceeds the carrier's rule-defined envelope.", child_path,
-                      {{"deck", module.deck}, {"moduleId", module.id}, {"widthM", width}, {"lengthM", length},
-                       {"deckCount", craft.at("decks").size()}, {"limits", carrier}});
+            if (module.part->contains("carrier") && module.module->contains("craft") && !module.module->at("craft").is_null()) {
+                const auto& craft = module.module->at("craft");
+                const auto child_path = module.path + "/craft";
+                auto child = inspect_structure(craft, snapshot, child_path, options);
+                const auto truncated = std::find_if(child.issues.begin(), child.issues.end(), [](const Issue& value) {
+                    return value.code == "issues_truncated";
+                });
+                if (truncated != child.issues.end()) {
+                    // Resource failure cannot be downgraded to the carrier's
+                    // configurable carried_not_ready warning severity.
+                    add_issue(result.issues, *truncated);
+                    throw IssueLimitReached{};
+                }
+                if (has_errors(child.issues)) {
+                    auto details = module_details(module);
+                    details["issues"] = Json::array();
+                    for (const auto& child_issue : child.issues) {
+                        // Every child report is capped. Retain its direct codes
+                        // without recursively copying descendants' issue trees.
+                        Json summary = {{"code", child_issue.code}, {"severity", child_issue.severity},
+                            {"message", child_issue.message}, {"path", child_issue.path},
+                            {"details", Json::object()}};
+                        for (const auto& [key, value] : child_issue.details.items()) {
+                            if (key != "issues") summary["details"][key] = value;
+                        }
+                        details["issues"].push_back(std::move(summary));
+                    }
+                    issue("carried_not_ready", "The carried craft has structural faults.", child_path, std::move(details));
+                }
+                // A child's structural errors use carried_not_ready's rule severity;
+                // its independent warnings still deserve their own precise paths.
+                for (const auto& child_issue : child.issues) {
+                    if (child_issue.severity != "error") add_issue(result.issues, child_issue);
+                }
+                Coordinate min_x = grid_width, min_y = grid_height, max_x = -1, max_y = -1;
+                for (const auto& deck : craft.at("decks")) {
+                    for (auto it = deck.at("floors").begin(); it != deck.at("floors").end(); ++it) {
+                        const auto [x, y] = parse_cell(it.key());
+                        min_x = std::min(min_x, x); min_y = std::min(min_y, y);
+                        max_x = std::max(max_x, x); max_y = std::max(max_y, y);
+                    }
+                }
+                const auto cell_size = rules.at("cellSizeM").get<double>();
+                const auto width = max_x < 0 ? 0.0 : static_cast<double>(max_x - min_x + 1) * cell_size;
+                const auto length = max_y < 0 ? 0.0 : static_cast<double>(max_y - min_y + 1) * cell_size;
+                const auto& carrier = module.part->at("carrier");
+                const auto epsilon = rules.at("numeric").at("epsilon").get<double>();
+                if (width > carrier.at("maxWidthM").get<double>() + epsilon ||
+                    length > carrier.at("maxLengthM").get<double>() + epsilon ||
+                    craft.at("decks").size() > carrier.at("maxDecks").get<std::size_t>()) {
+                    issue("carried_fit", "The carried craft exceeds the carrier's rule-defined envelope.", child_path,
+                          {{"deck", module.deck}, {"moduleId", module.id}, {"widthM", width}, {"lengthM", length},
+                           {"deckCount", craft.at("decks").size()}, {"limits", carrier}});
+                }
             }
         }
-    }
-    if (rules.at("validation").at("requiredAirlock").at(build_type).get<bool>() && !usable_airlock) {
-        issue("missing_airlock", "A reachable airlock facing clear exterior space is required.", path + "/decks");
-    }
-    if (build_type == "station" && (systems["engine"] != 0 || systems["jumpDrive"] != 0)) {
-        issue("station_propulsion", "The station contains propulsion systems.", path + "/decks");
+        if (rules.at("validation").at("requiredAirlock").at(build_type).get<bool>() && !usable_airlock) {
+            issue("missing_airlock", "A reachable airlock facing clear exterior space is required.", path + "/decks");
+        }
+        if (build_type == "station" && (systems["engine"] != 0 || systems["jumpDrive"] != 0)) {
+            issue("station_propulsion", "The station contains propulsion systems.", path + "/decks");
+        }
+    } catch (const IssueLimitReached&) {
+        // add_issue already recorded the shared truncation marker; stop all
+        // remaining geometry and carried-craft traversal immediately.
     }
     sort_issues(result.issues);
     return result;
