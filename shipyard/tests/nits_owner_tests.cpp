@@ -118,15 +118,18 @@ int main() {
       });
 
   suite.run(
-      "F02 hangar exact width and length fit while each narrower bound fails",
+      "F02 hangar inclusive dimensions and rotation-proof overbounds",
       [&] {
         struct Envelope {
           int width;
           int length;
           bool fits;
         };
-        for (const auto bounds : {Envelope{6, 10, true}, Envelope{5, 10, false},
-                                  Envelope{6, 9, false}}) {
+        // The 6 by 7 hangar has a diagonal shorter than the 10 metre visitor.
+        // Narrowing only to 6 by 9 does not prove an oversize under open F19.
+        for (const auto bounds :
+             {Envelope{6, 10, true}, Envelope{6, 11, true}, Envelope{7, 10, true},
+              Envelope{5, 10, false}, Envelope{6, 7, false}}) {
           const auto limited =
               hangar_rules(active, schema, bounds.width, bounds.length);
           const auto report = dock(canonical_json(anchorage), 1, 15,
@@ -137,14 +140,78 @@ int main() {
                       hangar.at("maxWidthM") == bounds.width &&
                       hangar.at("maxLengthM") == bounds.length &&
                       hangar.at("widthLengthFit") == bounds.fits,
-                  "Hangars enforce each active physical dimension with "
-                  "inclusive endpoints");
+                  "Inclusive unrotated fits and rotation-proof failures must "
+                  "retain measured dimensions and active limits");
           require(
               has_issue(report, "dock_hangar_size_limit") == !bounds.fits &&
                   !has_issue(report, "pending_F19"),
               "Definite fits and oversize cases do not guess a rotation rule");
           if (bounds.fits)
             only_alignment_pending(report);
+          else {
+            require(report.at("status") == "FAIL" && report.at("pass") == false,
+                    "A rotation-proof overbound must block docking");
+            require(std::any_of(
+                        report.at("issues").begin(), report.at("issues").end(),
+                        [](const Json &item) {
+                          return item.at("code") == "dock_hangar_size_limit" &&
+                                 item.at("severity") == "error";
+                        }),
+                    "Definite oversize must retain the active docking error");
+          }
+        }
+      });
+
+  suite.run(
+      "F19 failed axis alignments remain uncertified without a rotation-proof "
+      "bound",
+      [&] {
+        // Keep the original 6 by 9 case; 6 by 8 also checks strictness at the
+        // diagonal bound (hypot(6, 8) == 10). Neither chooses a rotation rule.
+        for (const auto length : {9, 8}) {
+          const auto limited = hangar_rules(active, schema, 6, length);
+          for (const bool alignment : {true, false}) {
+            DockOptions options;
+            options.matchingAirlock = alignment;
+            const auto report = dock(canonical_json(anchorage), 1, 15,
+                                     canonical_json(skiff), limited, schema,
+                                     options);
+            const auto &data = report.at("data");
+            const auto &hangar = data.at("hangar");
+            require(hangar.at("visitorWidthM") == 6 &&
+                        hangar.at("visitorLengthM") == 10 &&
+                        hangar.at("maxWidthM") == 6 &&
+                        hangar.at("maxLengthM") == length &&
+                        hangar.at("widthLengthFit").is_null() &&
+                        hangar.at("deckCountFits") == true,
+                    "Two failed axis alignments must not certify or reject an "
+                    "uncertain hangar fit");
+            require(has_issue(report, "pending_F19") &&
+                        !has_issue(report, "dock_hangar_size_limit") &&
+                        report.at("status") == "FAIL" &&
+                        report.at("pass") == false && data.at("pending") == true,
+                    "Unresolved F19 must block certification even when F21 is "
+                    "disabled");
+            for (const auto &item : report.at("issues")) {
+              require(item.at("severity") != "error",
+                      "An uncertain fit must not acquire a guessed size error");
+              if (item.at("code") == "pending_F19")
+                require(item.at("severity") == "warning" &&
+                            item.at("details").at("finding") == "F19",
+                        "The unresolved rotation must have structured F19 "
+                        "details");
+            }
+            for (const auto *check : {"a", "b", "d"})
+              require(data.at("checks").at(check).at("status") == "PASS",
+                      "Other docking checks must pass so F19 is the blocker");
+            if (alignment)
+              only_alignment_pending(report);
+            else
+              require(data.at("checks").at("c").at("enabled") == false &&
+                          data.at("checks").at("c").at("status") == "DISABLED" &&
+                          !has_issue(report, "pending_F21"),
+                      "The public test seam must isolate F19 from alignment");
+          }
         }
       });
 

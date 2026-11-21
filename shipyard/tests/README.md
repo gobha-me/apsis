@@ -273,3 +273,24 @@ updated for the sole rules-file delta, `defaults.deckNamePrefix: "Deck "`. Its
 independent digest and whitespace-sensitive identity assertions remain intact.
 No v3 fixture or manifest was edited. F06's concealed-cargo tooltip remains
 explicitly deferred until a UI exists, as issue #55 and FINDINGS require.
+
+
+## Independent #55 coverage after final Argus r2 integration
+
+The reviewed CONTRACT/F19/F23 rotation-proof bounds supersede the earlier
+two-axis oversize assumption in the original nits coverage above. The original
+6 by 9 hangar with a 6 by 10 Skiff remains covered as an uncertain fit:
+`widthLengthFit` is null, structured `pending_F19` remains nonblocking as an
+issue but blocks certification, and no guessed size error is reported. The
+same checks cover the 6 by 8 diagonal equality boundary. Both requests still
+fail with pending data even when only the F21 matching-airlock check is
+disabled through the public test seam; enabled structure, crew access, and
+approach checks pass. Neither case establishes an allowed rotation or a fit.
+
+Inclusive width/length endpoints and independent definite overbounds remain
+covered: 6 by 10, 6 by 11, and 7 by 10 certify unrotated dimensions; 5 by 10
+fails the minimum-span bound, while 6 by 7 fails the diagonal bound because
+its diagonal is shorter than the visitor's 10 metre length. Both overbounds
+require the active docking error and a failed envelope. The original price,
+port, connected-deck-cap, and authoring assertions are preserved. F19/F21 stay
+open; no fixture, v3 golden, production rule, or allowed rotation is changed.
