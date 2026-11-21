@@ -43,4 +43,17 @@ if(BUILD_TESTING)
   add_test(NAME shipyard-formula-nesting
     COMMAND shipyard-rules-tests --formula-nesting)
   set_tests_properties(shipyard-formula-nesting PROPERTIES TIMEOUT 120)
+  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+  add_executable(shipyard-render-driver tests/render_driver.cpp)
+  target_link_libraries(shipyard-render-driver PRIVATE apsis::shipyard)
+  target_compile_definitions(shipyard-render-driver PRIVATE
+    SHIPYARD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  target_compile_options(shipyard-render-driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  foreach(suite IN ITEMS Artifacts Geometry Bounds)
+    add_test(NAME shipyard-render-${suite}
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/render_tests.py
+        --driver $<TARGET_FILE:shipyard-render-driver>
+        --source ${CMAKE_CURRENT_SOURCE_DIR} --suite ${suite})
+    set_tests_properties(shipyard-render-${suite} PROPERTIES TIMEOUT 120)
+  endforeach()
 endif()

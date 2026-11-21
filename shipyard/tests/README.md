@@ -153,6 +153,57 @@ Saturated performance must fail with null data and at most 128 issues including
 exactly one marker. Default parser, grid, deck, carrier and formula-arity limits
 remain active; no fixture or golden is changed.
 
+## Headless rendering
+
+`shipyard-render-Artifacts`, `shipyard-render-Geometry`, and
+`shipyard-render-Bounds` run a public-header C++ driver linked to the real
+library. Python 3's standard `zlib`, `struct`, `hashlib`, and `zipfile` provide
+independent decoding and hashing. Neither the driver nor the assertions include
+private renderer headers or use miniz to read its own output. CTest discovers
+these suites in the existing build/test step; no workflow changes are needed.
+
+Canonical Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage must produce one
+opaque RGBA8 PNG per deck and an exact vertical stack. PNG signature, chunk
+order and CRCs, complete zlib stream, all five scanline filters, decoded length,
+dimensions, and opacity are checked. ZIP central and local records must agree
+with independent CRCs and exact returned payloads, ordered safe entry names,
+stored compression, fixed 1980-01-01 timestamps, and no comments or extra files.
+The manifest's schema, renderer/rules/definition/font identities, effective
+options, integer camera, fixed time, original deck names/indices, dimensions,
+byte counts, and hashes are checked against independent hashes and public
+validation/canonicalization. Its canonical JSON ends in one LF. Outer metadata
+must include the manifest and ZIP hashes without recursive self-hashes.
+
+Repeated calls, intervening calls with another design/options, and fresh driver
+processes must return identical bytes. Duplicated, path-like, long, and Unicode
+names exercise safe slugs; reversing a valid station's deck array must reverse
+the decoded unlabeled panels. Misleading imported caches and embedded rules may
+not change pixels. Documented uppercase text and Unicode question-mark fallback
+are compared through separate authored inputs, without importing font internals.
+
+Geometry assertions derive the camera, every grid cell's semantic owner, exact
+module perimeters and interior colors from the public rules and blueprint.
+They check all four cardinal rotations of a nonsquare module, arrow direction,
+floor insets, backgrounds and grid extent, active grid/footprint/color changes,
+rotation-index remapping, neutral color fallback, labels off, and cell sizes
+one through four. These are documented pixel expectations from RENDERING.md,
+not an invented prototype oracle. Allowed pixel variance is **zero** in the
+supported g++-13/C++23 runtime. Compressed-byte parity across toolchain or
+dependency changes is outside that contract; semantic geometry remains exact.
+The font hash is checked for valid SHA-256 form and stable identity across
+options, without claiming an independently approved glyph-byte golden.
+
+Rustbucket must retain its missing-airlock and three unreachable-module errors
+and return no artifacts. Requested holds retain blocking structured F11–F17;
+Wayfarer's structured `pending_F20` survives rendering without performance
+stand-ins. F19/F21 remain pending in the existing docking suites. No pending
+game decision is resolved here. Bounds cover invalid dimensions, resolution,
+raised hard caps, lowered deck/dimension/pixel/output limits, exact and one-below
+byte/pixel/input boundaries, parser failures, maximum panel dimensions, and a
+three-deck render at 99.98% of the hard pixel cap. Every failed render must
+return null data and no partial artifacts. The seven historical v3 JSON files
+and their hash manifest remain unchanged.
+
 ## Historical archive: superseded F18 evidence
 
 The following excerpt is preserved verbatim from the pre-merge documentation to
