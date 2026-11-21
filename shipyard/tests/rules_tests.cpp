@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
   const auto active = rules(schema_set);
   const auto original = active.data();
 
-  // Kept runnable with its original expectations. See tests/README.md for
-  // the implementation defect that disables this one CTest entry.
+  // This enabled CTest entry preserves the original formula-depth regression
+  // expectations. See tests/README.md for the independent nesting guards.
   if (argc == 2 && std::string_view(argv[1]) == "--formula-nesting") {
     for (const std::size_t depth : {64, 65}) {
       suite.run("formula nesting depth " + std::to_string(depth), [&] {

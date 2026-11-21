@@ -1,6 +1,10 @@
 #pragma once
 #include <apsis/shipyard/loader.hpp>
 namespace apsis::shipyard::detail {
+inline constexpr std::size_t maxIssues = 128;
+// Stop traversal as soon as the cap is reached, including on warning-only paths.
+struct IssueLimitReached {};
+void add_issue(std::vector<Issue>& issues, Issue issue);
 Issue error(std::string code, std::string message, std::string path = "");
 std::string pointer_token(std::string_view token);
 // Only direct totals call this internal evaluator in #49. Performance and

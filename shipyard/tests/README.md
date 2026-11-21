@@ -96,3 +96,15 @@ would add toolchain/build work within the bounded scratch and session budget.
 Mull is not added to CI. The existing CTest step runs every suite, including
 `shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
 byte-identical.
+
+`shipyard-schema_boundary` exercises embedded informational formulas in a v4
+wrapper with the parser bound raised. The bundled schema reaches recursion step
+512 with 127 nested `floor` arrays; that input must import, while 128 arrays
+must return a structured `schema_error`. These two cases distinguish a 384-step
+cap and an unbounded checker from the documented 512-step cap.
+
+`shipyard-issue_cap` checks the shared 128-slot diagnostic limit through public
+schema, import, formula-loading, and rules-loading paths. A saturated list keeps
+127 ordinary issues and exactly one root `issues_truncated` error with the
+documented limit and suppression details. `shipyard-loader_regression` checks
+engine-equipped canonical ships, grid capacity, and embedded-rule identity.

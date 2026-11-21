@@ -131,6 +131,9 @@ JSON nesting, render-pixel, and execution-time limits, with finite default
 request-size and execution-time limits. Use the same input limits
 in both adapters. Game limits and technical input sanity limits come from the
 rules file, with distinct labels; operational caps are separate service settings.
+The library itself has no wall-clock budget; the HTTP layer must enforce the
+request time limit (#52). HTTP request threads need at least 1 MB of stack for
+the loader's bounded recursive checks (#52).
 Use the technical input caps as interpreted below from F09's owner picks;
 the shipyard does not enforce player affordability. Reject work exceeding a cap
 with a structured resource error. Defaults must be measured and documented with #52/#53 and reviewed
