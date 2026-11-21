@@ -383,3 +383,21 @@ no open game decision is assigned a value here.
 ~~~
 
 </details>
+
+<details>
+<summary>Integrated performance 61ed6a0: preserved historical merge text</summary>
+
+These literal source excerpts retain the complete historical text of both
+branches. Current integrated behavior is specified above, including implemented
+performance and deck authoring. No owner finding is resolved or renumbered.
+
+````text
+<details>
+<summary>Loader-stage snapshot at the main #62 squash</summary>
+
+This snapshot is retained verbatim as historical merge evidence.
+The current integrated contract and reviewed findings above govern.
+No owner decisions are added and no FINDINGS IDs are renumbered.
+````
+
+</details>

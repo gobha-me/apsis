@@ -517,3 +517,52 @@ No performance warnings or affordability checks are introduced here.
 ~~~
 
 </details>
+
+<details>
+<summary>Integrated performance 61ed6a0: preserved historical merge text</summary>
+
+These literal source excerpts retain the complete historical text of both
+branches. Current integrated behavior is specified above, including implemented
+performance and deck authoring. No owner finding is resolved or renumbered.
+
+````text
+<details>
+<summary>Loader-stage snapshot at the main #62 squash</summary>
+
+This snapshot is retained verbatim as historical merge evidence.
+The current integrated contract and reviewed findings above govern.
+No owner decisions are added and no FINDINGS IDs are renumbered.
+
+## Historical numeric wording before Argus round 4
+
+The following prior hangar and numeric-comparison paragraphs are preserved
+verbatim as superseded merge evidence. The current docking and numeric sections
+above govern: input dimensions/deck counts remain exact, while the computed
+hangar diagonal uses active absolute numeric.epsilon. This records the reviewed
+comparison correction and assigns no allowed docking rotation or owner rule.
+
+~~~text
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
+error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
+`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
+limits. Such a visitor reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+
+Computed comparisons use finite IEEE-754 binary64 values and absolute
+`abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
+tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
+epsilon never admits an over-limit input. Computed masses are rounded at the
+reference's direct-total boundaries to `numeric.precision` decimal places
+(currently 6), nearest with ties toward positive infinity. Supported precision
+is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
+Input numbers are not rounded on import.
+~~~
+````
+
+</details>
