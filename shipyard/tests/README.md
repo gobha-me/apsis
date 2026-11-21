@@ -172,7 +172,8 @@ export MULL_CONFIG="$PWD/shipyard/mull.yml"
 cmake -S shipyard -B build/shipyard-mull \
   -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-  "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
+  "-DCMAKE_CXX_FLAGS=-g -gz=zlib -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20" \
+  "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--compress-debug-sections=zlib"
 cmake --build build/shipyard-mull --parallel 2
 ctest --test-dir build/shipyard-mull --output-on-failure --parallel 2
 python3 shipyard/mutation.py build/shipyard-mull
@@ -220,6 +221,20 @@ as the ordinary Release build. The existing 30-second test checks and
 120-second CTest limits remain active. Optimization alone did not make the
 old malformed-hold parser path pass its 30-second check, so a valid full
 measurement remains pending the reviewed production remedy.
+
+Full DWARF is retained with `-g -gz=zlib`, and executable linking explicitly
+uses `-Wl,--compress-debug-sections=zlib` so the linker preserves compressed
+output. This is lossless debug-section compression, with no omitted types,
+line tables, source files, or mutation filters. A bounded proof on one parked
+prototype dock executable reduced its size from 78,839,384 to 31,475,424 bytes.
+All allocated sections (including code) and the raw `.mull_mutants` section
+remained byte-identical; each compressed DWARF section decompressed to the
+original bytes. Separate Mull 0.37.0 `--dry-run --include-not-covered` SQLite
+reports had identical 490 identity/source-span/replacement records, all status
+6 (not executed). That count describes only the prototype compression probe;
+it is neither a current-tree measurement nor an accepted score or baseline.
+The probe's original warmups passed. Full-tree validation and remeasurement
+after the final reviewed #63 integration remain required.
 
 The final source tree must pass its original suites, lint, and complete Mull
 measurement before any new exact minimum can be accepted.

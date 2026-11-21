@@ -76,7 +76,8 @@ jobs:
           cmake -S shipyard -B "$RUNNER_TEMP/shipyard-mull-build" \
             -DCMAKE_CXX_COMPILER=clang++-20 -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            "-DCMAKE_CXX_FLAGS=-g -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20"
+            "-DCMAKE_CXX_FLAGS=-g -gz=zlib -grecord-command-line -fpass-plugin=/usr/lib/mull-ir-frontend-20" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--compress-debug-sections=zlib"
           cmake --build "$RUNNER_TEMP/shipyard-mull-build" --parallel 2
           ctest --test-dir "$RUNNER_TEMP/shipyard-mull-build" --output-on-failure --parallel 2
           python shipyard/mutation.py "$RUNNER_TEMP/shipyard-mull-build"
