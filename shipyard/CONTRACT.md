@@ -150,11 +150,15 @@ than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the deck limit. A visitor that fits without
-rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
-error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
-`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
-limits. Such a visitor reports `widthLengthFit: false` and
+length, and deck limits and enforce the exact deck limit. Unrotated fit uses
+exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
+without `pending_F19`. A definite size error requires a rotation-proof bound:
+the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
+comparison `max(w,l) > hypot(W,L) + numeric.epsilon`, where `w,l` are visitor
+dimensions and `W,L` are hangar limits. The diagonal uses the same absolute
+epsilon convention as `carried_fit`; equality or excess within epsilon does not
+establish a diagonal rejection. A visitor exceeding either bound reports
+`widthLengthFit: false` and
 `dock_hangar_size_limit` at the active docking severity (v3: error), with measured
 dimensions and limits, without `pending_F19`. Failure in both axis-aligned
 orientations alone is insufficient. Every other case that does not fit unrotated
@@ -181,8 +185,11 @@ workflow steps are supplied by this implementation session.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
-tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
-epsilon never admits an over-limit input. Computed masses are rounded at the
+tolerance. The `carried_fit` width/length checks and hangar's computed diagonal
+reject only when `actual > maximum + numeric.epsilon`. Hangar unrotated fit,
+minimum-side rejection, and deck limits remain exact input-bound comparisons.
+Input bounds, IDs, coordinates, versions, and counts are exact: epsilon never
+admits an over-limit input. Computed masses are rounded at the
 reference's direct-total boundaries to `numeric.precision` decimal places
 (currently 6), nearest with ties toward positive infinity. Supported precision
 is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
@@ -587,6 +594,40 @@ and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
 canonical form. Later independent tests should lock down the settled contracts;
 the three F22 prototype differences remain open and answer none of F11–F17 or
 F19–F21.
+~~~
+
+</details>
+
+
+<details>
+<summary>Historical r2 hangar and numeric wording before r4</summary>
+
+This text is retained verbatim as merge evidence. The current r4 contract
+above governs the active epsilon on the computed diagonal; exact unrotated
+input bounds, minimum-span rejection, and deck limits remain exact. No owner
+rotation decision is assigned and no FINDINGS ID is renumbered.
+
+~~~text
+Ports have no size fields or envelope checks. Hangars report active width,
+length, and deck limits and enforce the deck limit. A visitor that fits without
+rotation reports `widthLengthFit: true` without `pending_F19`. A definite size
+error requires a rotation-proof bound: `min(w,l) > min(W,L)` or
+`max(w,l) > hypot(W,L)`, where `w,l` are visitor dimensions and `W,L` are hangar
+limits. Such a visitor reports `widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+
+Computed comparisons use finite IEEE-754 binary64 values and absolute
+`abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
+tolerance. Input bounds, IDs, coordinates, versions, and counts are exact:
+epsilon never admits an over-limit input. Computed masses are rounded at the
+reference's direct-total boundaries to `numeric.precision` decimal places
+(currently 6), nearest with ties toward positive infinity. Supported precision
+is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
+Input numbers are not rounded on import.
 ~~~
 
 </details>
