@@ -378,3 +378,56 @@ traversal, or ordinary missing-floor finding. No hold schema or geometry is
 invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
+
+## F24 — Performance implementation boundary and canonical comparison (#51)
+
+Implementation note, not a new game rule or a resolution of an open finding.
+The public `perf` operation recomputes performance from normalized blueprints
+and active rules, with current/empty/half/full scenarios, propellant/endurance,
+jump charges, and idle/cruise/jump power. Its default performance severities are
+warnings; active rule severities determine whether a finding fails the result.
+Structural validation and docking behavior remain as recorded in F23.
+
+The comparison baseline is the prototype's preserved `derived.performance`
+output in all five canonical v3 definitions. Read-only recomputation from their
+blueprints with v4 formula trees matches every defined scenario, jump, sublight,
+and power metric within `numeric.epsilon`. No v3 golden is edited. Current
+mass, acceleration, and range are:
+
+| Example | Current mass | Acceleration | Range | v4 cost (cr) |
+| --- | ---: | ---: | ---: | ---: |
+| Wren | 66.3 | 3.619909502 | 1.508295626 | 29,080 |
+| Skiff | 8.75 | 2.057142857 | 0 | 5,470 |
+| Kestrel Tender | 134.45 | 1.785050205 | 1.115656378 | 64,330 |
+| Wayfarer Anchorage | 152.45 | 0 | 0 | 72,310 |
+| Rustbucket | 62.6 | 0.287539936 | 4.792332268 | 13,530 |
+
+F01's five explicit v4 prices are 0.5 J = 1,500, 1.0 J = 2,500,
+1.5 J = 3,750, 2.0 J = 5,000, and 3.0 J = 7,500 cr. Only Kestrel Tender's
+canonical cost changes: 65,580 to 64,330 cr, from its 1.5 J drive. The other four
+costs are unchanged. Prices come directly from the active catalogue.
+
+Rustbucket retains its historical v3 jump `power_shortfall` warning: supply 12,
+jump demand 16.2, margin −4.2. It also lacks jump fuel despite a theoretical range
+of about 4.7923. This evidence remains intact; v4 severities come from the active
+rules. Its structural `missing_airlock` and three `unreachable_component` findings
+remain errors under the shipped rules. Migration does not repair its geometry.
+Skiff retains its `no_cargo` advisory and has no jump drive.
+The recursive performance report also exposes that advisory on Kestrel Tender's
+carried Skiff; the prototype's parent issue list omitted it. This extra nested
+diagnostic uses the active severity and changes no canonical numeric result.
+Child formula failures reject the containing design under F10.
+
+Wayfarer Anchorage's historical full/current burnSeconds and exhaustVelocity
+fallback zeros become structured `pending_F20` issues with those values omitted.
+Its deltaV also remains omitted because exhaustVelocity is pending, rather than
+acquiring a fabricated zero. Blank ship/station sources likewise omit all F20
+zero-mass divisions and ln(0) results; pending issues identify each evaluation.
+Other formula failures still reject, including invalid independent operands
+beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
+range are separate outputs. The blank source defaults to a ship; station
+creation is explicit, without editor history.
+
+Independent performance tests remain for the later tests session. F11–F17,
+F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
+rotation, or same-deck distance convention is assigned here.

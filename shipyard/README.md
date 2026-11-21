@@ -2,8 +2,8 @@
 
 C++23 authoring library, independent of simulation and galaxy internals.
 The library implements loading, schema checks, direct totals, explicit v3
-migration, structural validation, and docking checks. It does not provide the
-public CLI/HTTP adapters or performance evaluation.
+migration, structural validation, docking checks, and performance evaluation.
+Public CLI/HTTP adapters remain separate work.
 
 Build (CMake 3.20+, g++-13, OpenSSL 3.x development files):
 
@@ -49,6 +49,28 @@ Docking reports each F18 check separately; `DockOptions` independently controls
 `approachClearance` (d). Keep the defaults for ordinary use. Pending F21 prevents
 certifying a port dock; hangar rotations remain pending F19. No visitor airlock
 is selected. See the precise pending and switch semantics in CONTRACT.md.
+
+Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:
+
+~~~cpp
+using namespace apsis::shipyard;
+auto performance = perf(definitionBytes, rules, schemas);
+auto loaded = perf(definitionBytes, rules, schemas, LoadFractions{.cargo = 0.5});
+auto blankShip = perf(canonical_json(blank_blueprint(rules)), rules, schemas);
+auto blankStation = perf(canonical_json(blank_blueprint(rules, BlankType::station)),
+                        rules, schemas);
+~~~
+
+`perf` returns the same result envelope with `data.performance`, a recomputed
+`data.definition`, and distinct `ready` and `jumpReady` flags. It reports current,
+empty, half, and full scenarios, propellant and jump charges, endurance, and power
+at idle, cruise, and jump. Optional fractions override current loads for the
+requested design; carried craft retain their own current loads. Performance
+findings use active rule severities, defaulting to `warning`; an active `error`
+fails the result. Formula failures reject with structured errors, except the
+exact pending-F20 evaluations in DESIGN.md: those emit `pending_F20` and omit
+the values, including dependent values, without numeric substitutes. Blank
+sources use active defaults and retain their structural validation report.
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.
