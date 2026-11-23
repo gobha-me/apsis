@@ -54,6 +54,26 @@ inline Json visitor() {
   return blueprint;
 }
 
+// Luna, under owner delegation 2026-11-23: translate the complete real
+// visitor (+4,+5) to the Manhattan-one boundary, keeping its material,
+// systems, clear approaches and internal crew routes unchanged.
+inline Json aligned_visitor(Json blueprint = visitor()) {
+  for (auto &deck : blueprint["decks"]) {
+    Json floors = Json::object();
+    for (const auto &[key, value] : deck["floors"].items()) {
+      const auto comma = key.find(',');
+      floors[std::to_string(std::stoi(key.substr(0, comma)) + 4) + "," +
+             std::to_string(std::stoi(key.substr(comma + 1)) + 5)] = value;
+    }
+    deck["floors"] = std::move(floors);
+    for (auto &module : deck["modules"]) {
+      module["x"] = module.at("x").get<int>() + 4;
+      module["y"] = module.at("y").get<int>() + 5;
+    }
+  }
+  return blueprint;
+}
+
 inline bool has_issue(const Json &report, std::string_view code,
                       std::string_view path = "") {
   return std::any_of(report.at("issues").begin(), report.at("issues").end(),

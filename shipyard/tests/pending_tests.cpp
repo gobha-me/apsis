@@ -104,27 +104,32 @@ void pending_f20(const Json &report, bool zero_mass) {
             "Pending F20 must not become a formula rejection");
 }
 
-void port_pending(const Json &report) {
+void port_alignment_rejected(const Json &report) {
   require(report.at("status") == "FAIL" && report.at("pass") == false &&
-              report.at("data").at("pending") == true,
-          "A compatible port remains uncertified until F21 is answered");
+              report.at("data").at("pending") == false,
+          "Canonical visitor deck0 cannot align with the selected host deck1");
   const auto &checks = report.at("data").at("checks");
   for (const auto *check : {"a", "b", "d"})
     require(checks.at(check).at("enabled") == true &&
                 checks.at(check).at("status") == "PASS",
-            "Settled structural, reachability and approach checks must pass: " +
+            "Structural, reachability and approach checks still pass: " +
                 std::string(check));
   require(checks.at("c").at("enabled") == true &&
-              checks.at("c").at("status") == "PENDING",
-          "A compatible candidate does not certify an F21 alignment");
-  const auto &issue = find_issue(report, "pending_F21");
-  require(issue.at("severity") == "warning" &&
-              issue.at("details").at("finding") == "F21" &&
-              issue.at("details").at("check") == "c",
-          "Alignment needs a structured pending F21 report");
+              checks.at("c").at("status") == "FAIL" &&
+              checks.at("c").at("details").at("sameDeckExteriorCount") == 0 &&
+              checks.at("c").at("details").at("alignedAirlockCount") == 0,
+          "Wrong-deck compatible candidates fail decided alignment");
+  const auto &issue = find_issue(report, "dock_no_matching_airlock");
+  require(issue.at("severity") == "error" &&
+              issue.at("path") == "/visitor/blueprint/decks" &&
+              issue.at("details").at("check") == "c" &&
+              issue.at("details").at("distanceMetric") == "manhattan" &&
+              !has_issue(report, "pending_F21"),
+          "Alignment failure retains a precise resolved diagnostic");
   for (const auto &item : report.at("issues"))
-    require(item.at("severity") != "error",
-            "Port candidate has no settled fault");
+    require(item.at("severity") != "error" ||
+                item.at("code") == "dock_no_matching_airlock",
+            "The wrong-deck alignment is the only settled fault");
   require(!report.at("data").contains("hangar") &&
               report.at("data").at("target").size() == 4,
           "Port data must not acquire hangar size limits");
@@ -234,16 +239,16 @@ int main() {
       });
 
   suite.run(
-      "20 by 34 metre Wren has no port size envelope and awaits F21", [&] {
+      "20 by 34 metre Wren has no port envelope and fails wrong-deck alignment", [&] {
         require(
             wren.at("derived").at("widthM") == 20 &&
                 wren.at("derived").at("lengthM") == 34,
             "The owner-specified visitor must really measure 20 by 34 metres");
-        port_pending(dock(host.dump(), 1, 14, wren.dump(), active, schema));
+        port_alignment_rejected(dock(host.dump(), 1, 14, wren.dump(), active, schema));
       });
 
   suite.run(
-      "visitor wider than the former port cap still only awaits F21", [&] {
+      "visitor wider than the former port cap fails only wrong-deck alignment", [&] {
         auto wide = wren.at("blueprint");
         for (int x = 0; x < 26; ++x)
           wide["decks"][0]["floors"][std::to_string(x) + ",10"] = true;
@@ -262,7 +267,7 @@ int main() {
                 52 > part.at("docking").at("maxWidthM").get<double>();
         require(beyond_old_cap,
                 "This visitor must exceed the actual historical port cap");
-        port_pending(dock(host.dump(), 1, 14, wide.dump(), active, schema));
+        port_alignment_rejected(dock(host.dump(), 1, 14, wide.dump(), active, schema));
       });
 
   suite.run(
@@ -275,10 +280,15 @@ int main() {
         visitor["nextId"] = 14;
         const auto report =
             dock(host.dump(), 1, 14, visitor.dump(), active, schema);
-        port_pending(report);
+        port_alignment_rejected(report);
         const Json counts = {{"airlockCount", 2},
                              {"compatibleInterfaceCount", 2},
-                             {"exteriorOutwardCount", 2}};
+                             {"exteriorOutwardCount", 2},
+                             {"sameDeckExteriorCount", 0},
+                             {"alignedAirlockCount", 0},
+                             {"distanceMetric", "manhattan"},
+                             {"referencePoint", "centres"},
+                             {"maximumDistanceCells", 1}};
         require(report.at("data").at("checks").at("c").at("details") == counts,
                 "The airlock check reports all candidates, with no chosen ID "
                 "or guessed alignment");
@@ -326,7 +336,7 @@ int main() {
       });
 
   suite.run(
-      "hangar enforces the settled deck cap while F19 and F21 stay pending",
+      "hangar enforces deck cap and alignment while F19 stays pending",
       [&] {
         const auto rotation_rules = rotation_only_hangar(active, schema);
         auto visitor = wren.at("blueprint");
@@ -352,8 +362,9 @@ int main() {
                 hangar.at("deckCountFits") == false &&
                 hangar.at("widthLengthFit").is_null() &&
                 has_issue(report, "pending_F19") &&
-                has_issue(report, "pending_F21"),
-            "The known deck limit must be enforced without settling F19/F21");
+                !has_issue(report, "pending_F21") &&
+                has_issue(report, "dock_no_matching_airlock"),
+            "The deck limit and decided alignment both fail; F19 stays pending");
       });
 
   return suite.finish();

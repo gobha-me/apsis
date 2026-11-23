@@ -50,6 +50,7 @@ Fault fault(char check) {
   default:
     throw std::runtime_error("Unknown F18 check");
   }
+  result.ship = aligned_visitor(std::move(result.ship));
   return result;
 }
 
@@ -104,7 +105,7 @@ void paired_mutation(char check, const RulesSnapshot &active,
       require(entry.at("status") == "DISABLED",
               "The disabled check must report DISABLED");
     else
-      require(entry.at("status") == (letter == 'c' ? "PENDING" : "PASS"),
+      require(entry.at("status") == "PASS",
               "Other checks must have no fault in the mutation fixture");
   }
   if (check == 'b' || check == 'd') {
@@ -119,14 +120,10 @@ void paired_mutation(char check, const RulesSnapshot &active,
                   input.path),
         "Default (a) must retain the selected target's structural finding");
   }
-  if (check == 'c')
-    require(disabled.at("pass") == true &&
-                disabled.at("data").at("pending") == false,
-            "The interface fault is the only reason this noncandidate fails");
-  else
-    require(disabled.at("pass") == false && has_issue(disabled, "pending_F21"),
-            "A missed fault must not guess a certified alignment while F21 is "
-            "open");
+  require(disabled.at("pass") == true &&
+              disabled.at("data").at("pending") == false &&
+              !has_issue(disabled, "pending_F21"),
+          "Disabling the sole fault certifies the independently aligned control");
 }
 
 void structural_airlock_fault(bool blocked, const RulesSnapshot &active,
@@ -145,6 +142,7 @@ void structural_airlock_fault(bool blocked, const RulesSnapshot &active,
          std::array<std::pair<int, int>, 3>{{{2, 4}, {2, 6}, {3, 5}}})
       add_module(ship, "shuttleSeats", x, y);
   }
+  ship = aligned_visitor(std::move(ship));
   const std::string_view code =
       blocked ? "blocked_approach" : "unreachable_component";
   const std::string_view path = "/visitor/blueprint/decks/0/modules/3";
@@ -152,9 +150,8 @@ void structural_airlock_fault(bool blocked, const RulesSnapshot &active,
   require(has_issue(report, code, path),
           "Visitor airlock access and clearance must be structural findings");
   require(report.at("data").at("checks").at("a").at("status") == "FAIL" &&
-              report.at("data").at("checks").at("c").at("status") == "PENDING",
-          "Visitor airlock faults belong to (a), with compatible candidates "
-          "pending in (c)");
+              report.at("data").at("checks").at("c").at("status") == "PASS",
+          "Visitor airlock faults belong to (a), with aligned candidates in (c)");
   for (const auto &item : report.at("issues"))
     if (item.at("code") == code && item.at("path") == path)
       require(
@@ -167,7 +164,7 @@ void structural_airlock_fault(bool blocked, const RulesSnapshot &active,
   const auto disabled = dock_at_port(station(), ship, active, schema, options);
   require(
       !has_issue(disabled, code) &&
-          disabled.at("data").at("checks").at("c").at("status") == "PENDING",
+          disabled.at("data").at("checks").at("c").at("status") == "PASS",
       "(c) must not duplicate visitor access/clearance when (a) is disabled");
   options = {};
   if (blocked)
@@ -189,7 +186,7 @@ void structural_airlock_fault(bool blocked, const RulesSnapshot &active,
   const auto warning =
       dock_at_port(station(), ship, *warning_rules.value, schema);
   require(warning.at("data").at("checks").at("a").at("status") == "PASS" &&
-              warning.at("data").at("checks").at("c").at("status") == "PENDING",
+              warning.at("data").at("checks").at("c").at("status") == "PASS",
           "Rule-defined visitor warnings must not become errors or c failures");
   require(has_issue(warning, code, path),
           "Warning must preserve the precise finding");
@@ -232,14 +229,14 @@ int main(int argc, char **argv) {
             "Independent host fixture must pass structural validation");
     require(validate(visitor().dump(), active, schema).at("pass") == true,
             "Independent visitor fixture must pass structural validation");
-    const auto report = dock_at_port(station(), visitor(), active, schema);
+    const auto report = dock_at_port(station(), aligned_visitor(), active, schema);
     require(
         report.at("data").at("checks").at("a").at("status") == "PASS" &&
             report.at("data").at("checks").at("b").at("status") == "PASS" &&
             report.at("data").at("checks").at("d").at("status") == "PASS" &&
-            report.at("data").at("checks").at("c").at("status") == "PENDING" &&
-            report.at("pass") == false && has_issue(report, "pending_F21"),
-        "Only unresolved F21 prevents certification of the baseline port dock");
+            report.at("data").at("checks").at("c").at("status") == "PASS" &&
+            report.at("pass") == true && !has_issue(report, "pending_F21"),
+        "The same-deck Manhattan-one control certifies all four docking checks");
   });
   for (const char check : {'a', 'b', 'c', 'd'})
     suite.run("F18(" + std::string(1, check) + ") independent disable mutation",
@@ -248,7 +245,7 @@ int main(int argc, char **argv) {
   suite.run("structural check covers host faults too", [&] {
     auto host = station();
     host["decks"][0]["floors"].erase("5,3");
-    const auto report = dock_at_port(host, visitor(), active, schema);
+    const auto report = dock_at_port(host, aligned_visitor(), active, schema);
     require(has_issue(report, "missing_floor",
                       "/host/blueprint/decks/0/modules/1") &&
                 report.at("data").at("checks").at("a").at("status") == "FAIL",
@@ -256,7 +253,7 @@ int main(int argc, char **argv) {
     DockOptions options;
     options.structural = false;
     const auto disabled =
-        dock_at_port(host, visitor(), active, schema, options);
+        dock_at_port(host, aligned_visitor(), active, schema, options);
     require(!has_issue(disabled, "missing_floor"),
             "Disabled (a) must miss host faults");
   });

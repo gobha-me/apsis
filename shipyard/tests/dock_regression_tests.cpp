@@ -50,9 +50,9 @@ int main() {
   Suite suite;
 
   suite.run("K05 matching airlock must face exterior rather than floor", [&] {
-    const auto baseline = dock_at_port(station(), visitor(), active, schema);
+    const auto baseline = dock_at_port(station(), aligned_visitor(), active, schema);
     require(baseline.at("data").at("checks").at("c").at("status") ==
-                "PENDING" &&
+                "PASS" &&
                 baseline.at("data")
                         .at("checks")
                         .at("c")
@@ -61,7 +61,7 @@ int main() {
             "baseline visitor must have one compatible exterior airlock");
     auto inward = visitor();
     inward["decks"][0]["floors"]["1,5"] = true;
-    const auto report = dock_at_port(station(), inward, active, schema);
+    const auto report = dock_at_port(station(), aligned_visitor(std::move(inward)), active, schema);
     const auto &check = report.at("data").at("checks").at("c");
     require(check.at("status") == "FAIL" &&
                 check.at("details").at("airlockCount") == 1 &&
@@ -172,8 +172,10 @@ int main() {
             "canonical Skiff must fit the installed envelope without rotation");
     require(hangar.at("widthLengthFit") == true &&
                 !has_issue(report, "pending_F19") &&
-                has_issue(report, "pending_F21"),
-            "definite unrotated fit must leave only alignment uncertified");
+                !has_issue(report, "pending_F21") &&
+                has_issue(report, "dock_no_matching_airlock") &&
+                report.at("data").at("checks").at("c").at("status") == "FAIL",
+            "Definite fit retains the canonical wrong-deck alignment rejection");
   });
 
   suite.run("S2 only a fit requiring rotation remains pending_F19", [&] {
