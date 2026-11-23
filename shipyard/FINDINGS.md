@@ -395,9 +395,10 @@ The former per-deck-only hull and multiple-start crew rules are superseded.
 Performance advisories from the prototype, including Skiff's `no_cargo` and
 Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
 jump readiness remain unset on structural success; structural failure sets
-ready false. Wayfarer's three excluded burn-rate formula evaluations remain
-nonblocking `pending_F20`, with no excluded values or numeric substitutes.
-The #49 blank-design F20 exclusions remain unchanged.
+ready false. F20 is resolved by Luna, under owner delegation 2026-11-23:
+Wayfarer's undefined burn-rate stats and dependent deltaV are n/a in perf(),
+while structural validation retains numeric direct totals and emits no speculative
+pending_F20 report. Blank JSON follows the same accepted-design rule.
 
 The prototype required structural validity, a reachable and clear visitor
 airlock, a clear approach, the size envelope, deck limits, and station crew
@@ -432,7 +433,7 @@ structured pending F11–F17 issues once per finding kind before any guessed hol
 totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
-F11–F17, F19, F20, and F21 remain Open for Luna.
+F11–F17, F19, and F21 remain Open for Luna; F20/N1 are resolved above.
 
 ## F24 — Performance implementation boundary and canonical comparison (#51)
 

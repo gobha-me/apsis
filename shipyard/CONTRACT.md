@@ -58,10 +58,9 @@ performance formulas with the same checked evaluator.
 Missing operands, zero division, invalid logarithms, overflow, and nonfinite
 intermediates fail with a formula path; no zero fallback exists.
 Independent operands are checked even after another operand fails, so an F20
-exclusion cannot hide an unrelated formula failure. Applicable blank and
-engine-less cases return nonblocking `pending_F20` issues naming the excluded
-evaluations. No excluded F20 value or numeric stand-in is emitted; blank imports
-succeed with pending reports. See the performance contract below.
+unavailable stat cannot hide an unrelated formula failure. Resolved F20 accepts
+blank imports without speculative warnings; perf() returns exact n/a metrics
+with resolved structured stat_unavailable details. See the performance contract below.
 
 The local schema checker implements a bounded Draft 2020-12 vocabulary:
 $schema, $id (root only), $ref (bundled documents and JSON Pointers), $defs,
