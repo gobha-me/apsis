@@ -15,7 +15,7 @@ struct ValidationOptions {
 struct DockOptions {
     bool structural = true;         // F18(a): both designs, including visitor access/clearance
     bool portReachability = true;  // F18(b): station crew access to the selected target
-    bool matchingAirlock = true;   // F18(c): any matching airlock, subject to pending F21
+    bool matchingAirlock = true;   // F18(c): any matching same-deck airlock within the centre-distance rule
     bool approachClearance = true; // F18(d): selected target's approach
 };
 // With defaults (a) includes every structural fault. Disabling (b) or (d)

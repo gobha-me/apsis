@@ -189,15 +189,24 @@ deck-count limits. Global definition limits still apply through the validator.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
 
-**Interpretation (F03), pending F21:** The v4 model must expose the information
-needed to check same deck, exterior position, outward facing, and "within 1 cell".
-Which visitor deck is "the same deck", the distance measure, and its reference
-point remain Open for Luna, not guessed (F21). Treating the 1-cell bound as
-inclusive is an interpretation pending that answer, not a settled rule. The
-validator and `dock` require all four owner-picked conditions once clarified;
-interface-label equality alone is insufficient. These conditions are part of
-F18's complete port-dock pass rule below. Hold-specific
-docking/airlock rules remain open in F17.
+**Resolved: Luna, under owner delegation 2026-11-23.** The visitor
+airlock's deck index must equal the selected docking target's deck index.
+Measure from the centre of the rotated airlock footprint to the centre of the
+rotated target footprint in grid cells. The orthogonal distance is Manhattan
+distance, abs(dx) + abs(dy), with an inclusive active limit of 1 cell; there is
+no diagonal shortcut. Doubled integer centres preserve exact half-cell bounds:
+the standard 2x2 port and 1x1 airlock can meet at half-cell plus half-cell distance,
+while a whole-cell diagonal offset (1,1) exceeds the limit.
+
+The active rules record this as docking.alignment with sameDeck, referencePoint
+centres, distanceMetric manhattan and maxDistanceCells 1. Older v4 snapshots
+without the optional policy use this same decided convention. The bound is an
+active nonnegative integer; the bundled decision is 1. All interface-compatible
+exterior outward-facing candidates are counted, with no airlock picker or
+visitor transform. Any candidate satisfying the same-deck centre bound passes
+check(c); no candidate fails with structured dock_no_matching_airlock, never
+pending_F21. Visitor crew access and approach remain structural check(a)
+requirements. Other F18 switches and hangar F19 handling remain unchanged.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 
@@ -352,7 +361,7 @@ Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock reachability and clearance, and
 `:3793` filters for both before `:3800` requires a matching interface; `:3801`
 requires station crew reachability. F03 adds geometric alignment conditions,
-with their unresolved details in F21; F02 removes the prototype's port size envelope. Issue #50 already
+with F03/F21 resolved by Luna, under owner delegation 2026-11-23; F02 removes the prototype's port size envelope. Issue #50 already
 contains these acceptance items and remains open.
 
 ## Multi-deck cargo holds
@@ -520,7 +529,7 @@ independent verification before declaring that capability complete.
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
 | Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
-| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
+| Docking (#50; F02/F03/F18/F19/F21) | Keep independent F18(a)-(d) fault/switch tests. Luna, under owner delegation 2026-11-23 resolves F03/F21: same deck, rotated footprint centres, Manhattan distance <=1cell, half-cell boundary accepted and whole-cell diagonal rejected. Any aligned airlock, no picker; no port size cap; hangar limits/F19 remain independent |
 | Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |

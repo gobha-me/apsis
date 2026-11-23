@@ -146,11 +146,25 @@ the active `unreachable_component` and `blocked_approach` severities (v3: error)
 They are not duplicated under (c). This permits independent mutation evidence
 for each check without mocking. Disabled checks are explicit in the output.
 
-Check (c) counts compatible, exterior, outward-facing airlocks without choosing
-one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
-than guessing visitor-deck mapping, a distance measure, reference point, or
-inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
-pending (`data.pending=true`), even though the pending issue is a warning.
+**Resolved: Luna, under owner delegation 2026-11-23.** The visitor
+airlock's deck index must equal the selected docking target's deck index.
+Measure from the centre of the rotated airlock footprint to the centre of the
+rotated target footprint in grid cells. The orthogonal distance is Manhattan
+distance, abs(dx) + abs(dy), with an inclusive active limit of 1 cell; there is
+no diagonal shortcut. Doubled integer centres preserve exact half-cell bounds:
+the standard 2x2 port and 1x1 airlock can meet at half-cell plus half-cell distance,
+while a whole-cell diagonal offset (1,1) exceeds the limit.
+
+The active rules record this as docking.alignment with sameDeck, referencePoint
+centres, distanceMetric manhattan and maxDistanceCells 1. Older v4 snapshots
+without the optional policy use this same decided convention. The bound is an
+active nonnegative integer; the bundled decision is 1. All interface-compatible
+exterior outward-facing candidates are counted, with no airlock picker or
+visitor transform. Any candidate satisfying the same-deck centre bound passes
+check(c); no candidate fails with structured dock_no_matching_airlock, never
+pending_F21. Visitor crew access and approach remain structural check(a)
+requirements. Other F18 switches and hangar F19 handling remain unchanged.
+
 Ports have no size fields or envelope checks. Hangars report active width,
 length, and deck limits and enforce the exact deck limit. Unrotated fit uses
 exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
@@ -233,7 +247,7 @@ count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
 ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
+F11–F17 before guessed totals. F19 remains independent; F03/F21 use the resolved same-deck centre metric.
 
 The independent tests session should cover all four scenarios, load overrides,
 carried loads and child-specific formula failures, all five explicit drive prices,

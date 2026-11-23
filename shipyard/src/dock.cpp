@@ -66,6 +66,12 @@ Json check(bool enabled, bool pass, Json details = Json::object()) {
     return {{"enabled", enabled}, {"status", enabled ? (pass ? "PASS" : "FAIL") : "DISABLED"},
             {"details", std::move(details)}};
 }
+
+std::int64_t centre_distance_twice(const detail::ModuleState& left,
+                                   const detail::ModuleState& right) {
+    return std::abs(2 * left.x + left.width - 2 * right.x - right.width) +
+        std::abs(2 * left.y + left.height - 2 * right.y - right.height);
+}
 } // namespace
 
 Json dock(std::string_view host_bytes, std::size_t target_deck,
@@ -153,32 +159,36 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                               target->path, {{"check", "b"}, {"deck", target_deck}, {"moduleId", target_module_id}}});
         }
 
+        const auto& alignment_rules = rules.data().at("docking");
+        const auto maximum_distance = alignment_rules.contains("alignment")
+            ? alignment_rules.at("alignment").at("maxDistanceCells").get<double>() : 1.0;
         std::size_t airlock_count = 0, interface_count = 0, exterior_count = 0;
+        std::size_t same_deck_count = 0, aligned_count = 0;
         for (const auto& airlock : visitor_structure.modules) {
             if (!airlock.part->contains("docking") || airlock.part->at("docking").at("kind") != "airlock") continue;
             ++airlock_count;
             if (airlock.interface != target->interface) continue;
             ++interface_count;
             // Reachability and clear approach remain structural (a) requirements.
-            // Here exterior includes the airlock's settled outward-facing condition.
-            if (airlock.exterior) ++exterior_count;
+            if (!airlock.exterior) continue;
+            ++exterior_count;
+            if (airlock.deck != target->deck) continue;
+            ++same_deck_count;
+            if (static_cast<double>(centre_distance_twice(airlock, *target)) <= 2 * maximum_distance)
+                ++aligned_count;
         }
-        checks["c"] = check(options.matchingAirlock, exterior_count > 0,
+        checks["c"] = check(options.matchingAirlock, aligned_count > 0,
                             {{"airlockCount", airlock_count}, {"compatibleInterfaceCount", interface_count},
-                             {"exteriorOutwardCount", exterior_count}});
+                             {"exteriorOutwardCount", exterior_count}, {"sameDeckExteriorCount", same_deck_count},
+                             {"alignedAirlockCount", aligned_count}, {"distanceMetric", "manhattan"},
+                             {"referencePoint", "centres"}, {"maximumDistanceCells", maximum_distance}});
         bool pending = false;
-        if (options.matchingAirlock) {
-            if (exterior_count == 0) {
-                detail::add_issue(issues, {"dock_no_matching_airlock", severity,
-                    "No compatible visitor airlock is on the exterior hull facing outward.",
-                    "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface}}});
-            } else {
-                pending = true;
-                checks["c"]["status"] = "PENDING";
-                detail::add_issue(issues, {"pending_F21", "warning",
-                    "pending F21: same-deck mapping and the 1-cell measurement convention await Luna; alignment is not certified.",
-                    "/visitor/blueprint/decks", {{"finding", "F21"}, {"check", "c"}}});
-            }
+        if (options.matchingAirlock && aligned_count == 0) {
+            detail::add_issue(issues, {"dock_no_matching_airlock", severity,
+                "No compatible exterior outward-facing visitor airlock is on the target deck within the centre-distance limit.",
+                "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface},
+                    {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
+                    {"maximumDistanceCells", maximum_distance}}});
         }
 
         checks["d"] = check(options.approachClearance, target->clear,

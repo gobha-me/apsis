@@ -83,7 +83,13 @@
     "targetKinds": [
       "port",
       "hangar"
-    ]
+    ],
+    "alignment": {
+      "sameDeck": true,
+      "referencePoint": "centres",
+      "distanceMetric": "manhattan",
+      "maxDistanceCells": 1
+    }
   },
   "performance": {
     "massReference": 100,
@@ -927,7 +933,7 @@
       "name": "Station docking port",
       "category": "Station",
       "system": "docking",
-      "description": "External port: structural checks, crew reachability, compatible visitor airlock alignment (F03; F21 conventions pending) and clear approach. No visitor size envelope.",
+      "description": "External port: structural checks, crew reachability, compatible visitor airlock on the same deck within 1 cell by orthogonal centre distance, and clear approach. No visitor size envelope.",
       "w": 2,
       "h": 2,
       "cost": 3200,
