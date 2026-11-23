@@ -854,6 +854,8 @@ The r2 public-API suites extend the reviewed fault coverage:
 The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
 the inherited linear SAX parser keeps those calls below existing watchdogs.
 
+</details>
+
 ## Headless rendering
 
 `shipyard-render-Artifacts`, `shipyard-render-Geometry`, and
@@ -1032,4 +1034,3 @@ existing 30-second watchdog and 120-second CTest timeout.
 
 </details>
 
-</details>

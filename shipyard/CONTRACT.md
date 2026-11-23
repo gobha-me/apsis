@@ -1115,4 +1115,3 @@ Input numbers are not rounded on import.
 
 </details>
 
-</details>

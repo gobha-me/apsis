@@ -675,11 +675,11 @@ totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
-~~~
 
 ```
 
 </details>
+~~~
 
 
 ## Main integration archive and required CI (#66)
