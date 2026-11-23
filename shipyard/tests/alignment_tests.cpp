@@ -264,5 +264,71 @@ int main() {
                 report.at("data").at("checks").at("c").at("status") == "PASS",
             "Large aligned ships certify at a port without an invented size cap");
   });
+  suite.run("large sparse centres preserve a half-cell excess at two to power52", [&] {
+    auto data = active.data();
+    data["grid"] = {{"w", 9000000000000000ULL}, {"h", 1}};
+    data["docking"]["alignment"]["maxDistanceCells"] = 4503599627370496ULL;
+    for (auto &part : data["parts"])
+      part["h"] = 1;
+    dimensions(data, 2, 1, 1, 1);
+    const auto sparse = changed_rules(data, schema);
+    auto station = blank("station");
+    add_module(station, "dockingPort", 1, 0);
+    station["decks"][0]["floors"] = {{"1,0", true}, {"2,0", true}};
+    // Host centre(2,0.5). The two visitor centres are 2^52-0.5 and
+    // 2^52+0.5 cells away. The latter's doubled integer distance2^53+1
+    // rounds down in binary64 and must still FAIL the exact public bound.
+    for (const auto &[origin, fits] :
+         std::array<std::pair<std::uint64_t, bool>, 3>{
+             {{4503599627370497ULL, true}, {4503599627370498ULL, false},
+              {4503599627370499ULL, false}}}) {
+      auto visitor = blank();
+      add_module(visitor, "airlock", 0, 0, 1);
+      visitor["decks"][0]["modules"][0]["x"] = origin;
+      visitor["decks"][0]["floors"][std::to_string(origin) + ",0"] = true;
+      const auto report = run(station, visitor, sparse, schema);
+      const auto &check = report.at("data").at("checks").at("c");
+      require(report.at("pass") == fits &&
+                  check.at("status") == (fits ? "PASS" : "FAIL") &&
+                  check.at("details").at("sameDeckExteriorCount") == 1 &&
+                  check.at("details").at("alignedAirlockCount") == (fits ? 1 : 0) &&
+                  check.at("details").at("maximumDistanceCells") == 4503599627370496ULL &&
+                  has_issue(report, "dock_no_matching_airlock") == !fits &&
+                  !has_issue(report, "pending_F21"),
+              "Exact centres cannot lose a half-cell excess on an accepted sparse grid");
+    }
+    // Equal-parity footprints provide a genuinely exact integer endpoint.
+    dimensions(data, 2, 1, 2, 1);
+    const auto equal = changed_rules(data, schema);
+    auto endpoint = blank();
+    add_module(endpoint, "airlock", 0, 0);
+    endpoint["decks"][0]["modules"][0]["x"] = 4503599627370497ULL;
+    endpoint["decks"][0]["floors"] =
+        {{"4503599627370497,0", true}, {"4503599627370498,0", true}};
+    const auto report = run(station, endpoint, equal, schema);
+    require(report.at("pass") == true &&
+                report.at("data").at("checks").at("c").at("details").at("alignedAirlockCount") == 1,
+            "The inclusive large integer centre endpoint remains accepted");
+  });
+  suite.run("alignment rule bound retains exact interoperability limits before casts", [&] {
+    for (const auto &maximum :
+         std::array<Json, 2>{9007199254740991ULL, 9007199254740991.0}) {
+      auto data = active.data();
+      data["docking"]["alignment"]["maxDistanceCells"] = maximum;
+      const auto loaded = load_rules(data.dump(), schema);
+      require(loaded.ok() &&
+                  loaded.value->data().at("docking").at("alignment").at("maxDistanceCells") == maximum,
+              "The established exact rule representation endpoint remains valid");
+    }
+    for (const auto &maximum : std::array<Json, 3>{
+             9007199254740992ULL, 9007199254740992.0, 1e100}) {
+      auto data = active.data();
+      data["docking"]["alignment"]["maxDistanceCells"] = maximum;
+      const auto loaded = load_rules(data.dump(), schema);
+      require(!loaded.ok() &&
+                  issue(loaded.issues, "schema_error", "/docking/alignment/maxDistanceCells"),
+              "Over-representable integral JSON numbers reject at the rule field before casts");
+    }
+  });
   return suite.finish();
 }
