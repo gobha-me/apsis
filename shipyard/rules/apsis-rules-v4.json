@@ -1,7 +1,7 @@
 {
   "schema": "apsis-ship-rules-v4",
   "version": 4,
-  "notes": "Engineering and economy rules shared by shipyard definitions. Technical limits are input sanity limits only; maxBudgetInputCr is not a game budget or player-affordability rule. The shipyard does not enforce player affordability. F11-F17, F19-F21 remain open for Luna; hold behavior, docking rotations/alignment conventions, and undefined performance results are not specified here.",
+  "notes": "Engineering and economy rules shared by shipyard definitions. Technical limits are input sanity limits only; maxBudgetInputCr is not a game budget or player-affordability rule. The shipyard does not enforce player affordability. Luna, under owner delegation 2026-11-23: F11-F17 holds use existing ladder access across every spanned deck, walkable catwalk edges, no hangar overlap, a full-height open column, and normal deck numbers; cargo-interface doors may open directly into holds. F19 docking uses the four cardinal facings. F20-F21 remain pending.",
   "floorMass": 0.15,
   "floorCost": 40,
   "cellSizeM": 2,
@@ -26,6 +26,7 @@
     "w": 26,
     "h": 24
   },
+  "holds": {"minDecks": 2},
   "limits": {
     "minDecks": 1,
     "maxDecks": 5,

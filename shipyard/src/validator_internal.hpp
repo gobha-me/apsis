@@ -31,8 +31,7 @@ StructureReport inspect_structure(const Json& blueprint,
                                   const RulesSnapshot& rules,
                                   const std::string& path = "/blueprint",
                                   ValidationOptions options = {});
-// Schema-check first; recognize holds only after a bounded copy without those
-// unsupported fields passes import's shape, scalar, and grid checks.
+// Validation and docking share the ordinary schema-checked importer.
 Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,

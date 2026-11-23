@@ -135,6 +135,7 @@ struct Importer {
             deck_count > limits.at("maxDecks").get<std::size_t>()) {
             detail::add_issue(issues, error("deck_limit", "Deck count exceeds the active rules limits.", at(path, "decks")));
         }
+        check_holds(blueprint, path);
         const auto width = rules.at("grid").at("w").get<std::uint64_t>();
         const auto height = rules.at("grid").at("h").get<std::uint64_t>();
         const auto max_id = limits.at("maxModuleId").get<std::uint64_t>();
@@ -324,6 +325,35 @@ struct Importer {
                               path, {{"finding", "F20"}, {"issue", 51}, {"evaluations", std::move(pending)}}});
         }
         return values;
+    }
+
+    void check_holds(const Json& blueprint, const std::string& path) {
+        const auto records = blueprint.find("holds");
+        if (records == blueprint.end()) return;
+        const auto gw = rules.at("grid").at("w").get<std::uint64_t>();
+        const auto gh = rules.at("grid").at("h").get<std::uint64_t>();
+        const auto decks = blueprint.at("decks").size();
+        const auto minimum = rules.at("holds").at("minDecks").get<std::uint64_t>();
+        for (std::size_t i = 0; i < records->size(); ++i) {
+            const auto& hold = records->at(i);
+            const auto location = at(at(path, "holds"), std::to_string(i));
+            const auto x = hold.at("x").get<std::uint64_t>();
+            const auto y = hold.at("y").get<std::uint64_t>();
+            const auto w = hold.at("w").get<std::uint64_t>();
+            const auto h = hold.at("h").get<std::uint64_t>();
+            if (w > gw || x > gw - w || h > gh || y > gh - h) {
+                detail::add_issue(issues, {"hold_bounds", "error",
+                    "Hold rectangle exceeds the active grid.", location,
+                    {{"gridWidth", gw}, {"gridHeight", gh}}});
+            }
+            const auto first = hold.at("firstDeck").get<std::uint64_t>();
+            const auto last = hold.at("lastDeck").get<std::uint64_t>();
+            if (first > last || last - first + 1 < minimum || last >= decks) {
+                detail::add_issue(issues, {"hold_span", "error",
+                    "Hold span must cover at least the rule-defined minimum and remain inside this design.", location,
+                    {{"firstDeck", first}, {"lastDeck", last}, {"minimum", minimum}, {"deckCount", decks}}});
+            }
+        }
     }
 };
 } // namespace

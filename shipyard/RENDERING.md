@@ -18,8 +18,7 @@ uses the ordinary production `validate` operation with its default checks after
 normalization with the active rules; imported derived/validation/rules caches
 cannot govern geometry. A structural, schema, pending-feature, or resource
 failure returns FAIL, null data, and no artifacts. Active validation warnings
-remain in the successful envelope. No performance metric, docking convention,
-or unresolved hold geometry is synthesized.
+remain in the successful envelope. No performance metric or unresolved game rule is synthesized.
 
 Successful artifact order is one PNG per blueprint deck, `stack.png`,
 `manifest.json`, then `stack.zip`. The ZIP contains exactly those deck PNGs,
@@ -62,8 +61,8 @@ A panel that cannot fit at least one pixel per grid cell fails
 `render_resolution`. The manifest records these exact integer camera values.
 The stack concatenates the complete panels vertically, in increasing blueprint
 index, so stack dimensions are `w` by `h * deckCount`; its panel pixels are
-identical to their separate PNGs. Original deck indices are retained without
-assigning a physical deck/level or multi-deck-hold numbering convention.
+identical to their separate PNGs. Original deck indices are retained. Holds keep those normal deck numbers and
+carry their inclusive one-based human span labels.
 
 PNG pixels are opaque RGBA8. Background is (12,22,30), the full-grid rectangle
 is (18,31,40), module borders are (43,64,77), title ink is (230,240,245), and
@@ -107,7 +106,7 @@ rules and do not grant a build any additional decks, parts, or grid area.
 | Any output image dimension, including the stack | 8192 pixels |
 | Total decoded pixels, all deck PNGs plus the stack | 16,777,216 |
 | Sum of all returned artifact bytes, including the ZIP | 67,108,864 |
-| Input module entries across the design and carried craft | 4096 |
+| Input module plus hold entries across the design and carried craft | 4096 |
 | Input floor entries across the design and carried craft | 262,144 |
 | Active grid cells and individual part dimensions | 262,144 |
 
@@ -148,3 +147,15 @@ and a vertical contact sheet to make every panel's geometry exact and
 inspectable. The scene mismatch prevents approving a canonical pixel comparison
 against that five-deck preview. F25 records that boundary; no prototype image,
 archive, or HTML is imported, and no unresolved game decision is inferred.
+
+## Multi-deck holds
+
+Luna, under owner delegation 2026-11-23 resolved F11–F17 and F19. Each accepted
+hold is outlined in the existing border color after floors and before modules
+on each deck it spans. With labels enabled, `HOLD decks 2–4` identifies that
+same volume; normal deck titles and filenames retain their original indices.
+The manifest has one `holds` entry per object, carrying its original rectangle,
+inclusive zero-based deck span and one-based `label`. This array is omitted
+when no hold is present. No-hold PNG pixels, compression and font are unchanged.
+A hold is included in the existing input-object work cap; no new game limit or
+material value follows from rendering.

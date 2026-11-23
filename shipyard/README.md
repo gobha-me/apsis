@@ -32,8 +32,8 @@ Rules are the sole balance authority. Names and budgets are never trimmed or
 clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
 The shipyard does not enforce player affordability. Ports have no size envelope;
-hangars retain their rule-defined dimensions and deck count. No docking
-rotation or F03 distance convention is implemented.
+hangars retain their rule-defined dimensions and deck count. Docking uses the four right-angle facings; F03 distance conventions remain
+pending in this unit.
 
 Include `<apsis/shipyard/validator.hpp>` for the public operations:
 
@@ -49,8 +49,8 @@ Docking reports each F18 check separately; `DockOptions` independently controls
 `structural` (a), `portReachability` (b), `matchingAirlock` (c), and
 `approachClearance` (d). CLI and HTTP always use defaults and never map request
 fields to these switches; the public types remain for independent tests of the
-real checks. Pending F21 prevents certifying a port dock; hangar rotations remain
-pending F19. No visitor airlock is selected. See the precise pending and switch
+real checks. Pending F21 prevents certifying a port dock; hangar width/length fits use
+either cardinal orientation. No visitor airlock is selected. See the precise pending and switch
 semantics in CONTRACT.md.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:
@@ -84,3 +84,8 @@ Include `<apsis/shipyard/render.hpp>` for the headless CPU renderer. Its
 per-deck PNGs, `stack.png`, a hashed manifest, and a deterministic stack ZIP.
 See [RENDERING.md](RENDERING.md) for the public API, exact pixel/manifest contract,
 operational bounds, and independent-test surface. CLI/HTTP adapters remain #52.
+
+Multi-deck holds and orthogonal docking follow the final decisions of
+Luna, under owner delegation 2026-11-23. See [HOLDS.md](HOLDS.md) for the
+optional rectangle/span records, ladder access, catwalk/open-column and
+hangar boundaries, cargo interfaces, span labels and material accounting.

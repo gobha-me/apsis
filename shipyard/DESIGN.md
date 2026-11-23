@@ -363,30 +363,20 @@ contains these acceptance items and remains open.
 
 one hold spans two or more decks, for tall cargo or vehicles. It counts as a single volume for capacity, mass and walkability, with open space (no floor) between the decks it spans.
 
-The v4 blueprint schema represents each hold with one record identifying the
-hold, its footprint, and its deck span covering N >= 2 decks. The span references
-the blueprint's decks; it is not a separate cargo module on every deck. The
-definition wrapper carries that same blueprint representation. Capacity and
-mass are computed once for the entire hold, and walkability treats it as one
-volume. Inside its footprint, there is open space with no floor between the
-decks it spans; normalization and rendering must preserve that opening.
-Validation must distinguish this required opening from an ordinary missing-floor
-error, without inferring access or traversal rules.
+Implemented for the final decisions of
+Luna, under owner delegation 2026-11-23 (F11–F17 and F19).
+[HOLDS.md](HOLDS.md) defines one optional blueprint object per grid rectangle
+and inclusive deck span. It requires a ladder chain reaching every spanned
+deck, permits catwalk edges and partial floors with a common full-height open
+column, prevents hangar overlap while allowing adjacency, preserves normal deck
+numbers, and permits direct cargo-interface doors. Minimum span is two decks;
+maximum is the design's actual deck count. Only four right-angle docking
+facings are permitted. No railing or fall rules are added.
 
-All unresolved game rules remain pending Luna, not guessed: internal ladders
-and access (F11); crossing the opening, edges, railings, and falls (F12); hangar
-interfaces or overlap and deck-count limits (F13); partial openings versus a
-full span (F14); minimum beyond the required two decks and maximum span (F15);
-deck/level numbering, including generated names (F16); and docking/airlock
-interactions (F17). The single
-walkability volume does not settle how traversal across open space works.
-Record any further open point in [FINDINGS.md](FINDINGS.md) as pending Luna
-before assigning it a rule.
-
-The prototype has no multi-deck holds, so there is nothing to match from v3.
-Leave v3 goldens unchanged. Schema/validator implementation and independent
-valid/invalid-span fixtures belong to later sessions for #49/#50/#60, after the
-applicable Luna decisions; this note adds no implementation or fixtures.
+Actual floor and catalogue material, including existing cargo modules, are
+counted once. No new volume-density, cost or mass formula is supplied by the
+decision or invented here. The prototype has no multi-deck holds; v3 fixtures
+remain unchanged. F20/F21 are separate pending decisions in this unit.
 
 ## Headless rendering
 

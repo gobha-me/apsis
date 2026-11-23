@@ -41,6 +41,18 @@
         "required": ["name", "floors", "modules"], "additionalProperties": false
       }
     },
+    "holds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "integer", "minimum": 0}, "y": {"type": "integer", "minimum": 0},
+          "w": {"type": "integer", "minimum": 1}, "h": {"type": "integer", "minimum": 1},
+          "firstDeck": {"type": "integer", "minimum": 0}, "lastDeck": {"type": "integer", "minimum": 0}
+        },
+        "required": ["x", "y", "w", "h", "firstDeck", "lastDeck"], "additionalProperties": false
+      }
+    },
     "nextId": {"type": "integer", "minimum": 1}, "migrationNotes": {"type": "array", "items": {"type": "string"}}
   },
   "required": ["schema", "name", "buildType", "budget", "loads", "decks", "nextId", "migrationNotes"],

@@ -1,6 +1,7 @@
 #include <apsis/shipyard/render.hpp>
 #include <apsis/shipyard/validator.hpp>
 #include "internal.hpp"
+#include "holds.hpp"
 #include "render_font.hpp"
 
 #include <miniz.h>
@@ -163,6 +164,11 @@ void check_input_work(const Json& input) {
         const auto& current = *pending.back();
         pending.pop_back();
         if (!current.is_object() || !current.contains("decks") || !current.at("decks").is_array()) continue;
+        if (const auto holds = current.find("holds"); holds != current.end() && holds->is_array()) {
+            modules += holds->size();
+            if (modules > max_input_modules)
+                fail("render_resource_limit", "Input exceeds the renderer's operational module/hold-entry limit.");
+        }
         for (const auto& deck : current.at("decks")) {
             if (!deck.is_object()) continue;
             if (deck.contains("floors") && deck.at("floors").is_object()) {
@@ -180,8 +186,9 @@ void check_input_work(const Json& input) {
     }
 }
 
-Canvas draw_deck(const Json& deck, std::size_t index, const Json& rules,
+Canvas draw_deck(const Json& blueprint, std::size_t index, const Json& rules,
                  const RenderOptions& options, const Camera& view) {
+    const auto& deck = blueprint.at("decks").at(index);
     Canvas canvas(options.width, options.height);
     canvas.rect(view.x, view.y, view.grid_width * view.cell, view.grid_height * view.cell, grid_background);
     if (options.labels)
@@ -197,6 +204,22 @@ Canvas draw_deck(const Json& deck, std::size_t index, const Json& rules,
         const int inset = view.cell >= 3 ? 1 : 0;
         canvas.rect(view.x + x * view.cell + inset, view.y + y * view.cell + inset,
                     view.cell - inset, view.cell - inset, floor_color);
+    }
+    if (const auto holds = blueprint.find("holds"); holds != blueprint.end()) {
+        for (const auto& hold : *holds) {
+            if (index < hold.at("firstDeck").get<std::size_t>() ||
+                index > hold.at("lastDeck").get<std::size_t>()) continue;
+            const int x = view.x + hold.at("x").get<int>() * view.cell;
+            const int y = view.y + hold.at("y").get<int>() * view.cell;
+            const int right = x + hold.at("w").get<int>() * view.cell - 1;
+            const int bottom = y + hold.at("h").get<int>() * view.cell - 1;
+            canvas.line(x, y, right, y, border);
+            canvas.line(right, y, right, bottom, border);
+            canvas.line(right, bottom, x, bottom, border);
+            canvas.line(x, bottom, x, y, border);
+            if (options.labels)
+                canvas.text(x + 2, y + 2, "HOLD " + detail::hold_label(hold), right - x - 3, ink);
+        }
     }
     std::map<std::string, const Json*, std::less<>> catalogue;
     for (const auto& part : rules.at("parts")) catalogue.emplace(part.at("id").get<std::string>(), &part);
@@ -341,6 +364,10 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
             {"options", {{"width", options.width}, {"height", options.height}, {"labels", options.labels},
                 {"stackLayout", "vertical-blueprint-order"}}},
             {"decks", Json::array()}, {"artifacts", Json::array()}};
+        if (const auto holds = blueprint.find("holds"); holds != blueprint.end() && !holds->empty()) {
+            manifest["holds"] = *holds;
+            for (auto& hold : manifest["holds"]) hold["label"] = detail::hold_label(hold);
+        }
         std::vector<RenderArtifact> artifacts;
         std::size_t remaining_bytes = limits.maxOutputBytes;
         const auto append = [&](RenderArtifact artifact) {
@@ -351,7 +378,7 @@ RenderResult render(std::string_view bytes, const RulesSnapshot& rules,
         };
         Canvas stack(options.width, static_cast<std::uint32_t>(stack_height));
         for (std::size_t index = 0; index < count; ++index) {
-            auto canvas = draw_deck(decks[index], index, rules.data(), options, view);
+            auto canvas = draw_deck(blueprint, index, rules.data(), options, view);
             std::copy(canvas.pixels.begin(), canvas.pixels.end(),
                 stack.pixels.begin() + static_cast<std::ptrdiff_t>(index * canvas.pixels.size()));
             const auto name = decks[index].at("name").get<std::string>();

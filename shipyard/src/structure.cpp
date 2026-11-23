@@ -223,6 +223,59 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
             }
         }
 
+        struct Hold {
+            Rectangle rectangle;
+            std::size_t first, last;
+            std::string path;
+        };
+        std::vector<Hold> holds;
+        if (const auto records = blueprint.find("holds"); records != blueprint.end()) {
+            for (std::size_t i = 0; i < records->size(); ++i) {
+                const auto& record = records->at(i);
+                holds.push_back({{record.at("x").get<Coordinate>(), record.at("y").get<Coordinate>(),
+                                  record.at("w").get<Coordinate>(), record.at("h").get<Coordinate>()},
+                                 record.at("firstDeck").get<std::size_t>(),
+                                 record.at("lastDeck").get<std::size_t>(),
+                                 path + "/holds/" + std::to_string(i)});
+            }
+        }
+        for (const auto& hold : holds) {
+            Cells covered;
+            // The first floor is the bottom; the remaining floor planes are
+            // inside the volume. One common absent coordinate stays open.
+            for (auto d = hold.first + 1; d <= hold.last; ++d)
+                for (const auto& cell : floors[d])
+                    if (hold.rectangle.contains(cell)) covered.insert(cell);
+            if (covered.size() == static_cast<std::uint64_t>(hold.rectangle.w) *
+                                  static_cast<std::uint64_t>(hold.rectangle.h)) {
+                issue("hold_open_column", "The hold needs one open column through every intervening floor plane.",
+                      hold.path, {{"firstDeck", hold.first}, {"lastDeck", hold.last}});
+            }
+            bool access = false;
+            for (const auto& [node, links] : ladders) {
+                (void)links;
+                const auto& [deck, x, y] = node;
+                if (deck != hold.first ||
+                    !(hold.rectangle.contains({x, y}) || adjacent(hold.rectangle, {x, y}))) continue;
+                bool chain = true;
+                for (auto d = hold.first; d <= hold.last; ++d)
+                    chain = chain && ladders.contains({d, x, y});
+                access = access || chain;
+            }
+            if (!access) {
+                issue("hold_access", "The hold needs a ladder or lift chain reaching every spanned deck.",
+                      hold.path, {{"firstDeck", hold.first}, {"lastDeck", hold.last}});
+            }
+            for (const auto& module : result.modules) {
+                if (module.deck < hold.first || module.deck > hold.last ||
+                    !module.part->contains("docking") || module.part->at("docking").at("kind") != "hangar") continue;
+                if (intersects(hold.rectangle, footprint(module))) {
+                    issue("hold_hangar_overlap", "A hold may touch a hangar but must not overlap it.",
+                          hold.path, module_details(module));
+                }
+            }
+        }
+
         const auto build_type = blueprint.at("buildType").get<std::string>();
         for (const auto& required : rules.at("validation").at("requiredSystems").at(build_type)) {
             const auto system = required.get<std::string>();
@@ -319,9 +372,16 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                     break;
                 }
             }
-            module.exterior = !any_in(floors[module.deck], outward_face(module));
+            const auto inside_hold = [&](const Rectangle& rectangle) {
+                return std::any_of(holds.begin(), holds.end(), [&](const Hold& hold) {
+                    return module.deck >= hold.first && module.deck <= hold.last &&
+                           intersects(hold.rectangle, rectangle);
+                });
+            };
+            const auto face = outward_face(module);
+            module.exterior = !any_in(floors[module.deck], face) && !inside_hold(face);
             const auto clearance = approach(module, grid_width, grid_height);
-            module.clear = !any_in(floors[module.deck], clearance);
+            module.clear = !any_in(floors[module.deck], clearance) && !inside_hold(clearance);
             for (const auto other_index : deck_modules[module.deck]) {
                 const auto& other = result.modules[other_index];
                 if (other.id != module.id && intersects(clearance, footprint(other))) module.clear = false;

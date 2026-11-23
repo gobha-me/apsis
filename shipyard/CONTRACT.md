@@ -151,33 +151,20 @@ one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
 than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
-Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the exact deck limit. Unrotated fit uses
-exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
-without `pending_F19`. A definite size error requires a rotation-proof bound:
-the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
-comparison `max(w,l) > hypot(W,L) + numeric.epsilon`, where `w,l` are visitor
-dimensions and `W,L` are hangar limits. The diagonal uses the same absolute
-epsilon convention as `carried_fit`; equality or excess within epsilon does not
-establish a diagonal rejection. A visitor exceeding either bound reports
-`widthLengthFit: false` and
-`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
-dimensions and limits, without `pending_F19`. Failure in both axis-aligned
-orientations alone is insufficient. Every other case that does not fit unrotated
-remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
-pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+Ports have no size fields or envelope checks. Hangars retain the exact active
+width, length and visitor deck limits. F19 was resolved by
+Luna, under owner delegation 2026-11-23: only the four right-angle facings are
+allowed. The exact fit is `(w <= W && l <= L) || (l <= W && w <= L)`.
+An over-limit visitor receives `dock_hangar_size_limit` with measured details;
+no diagonal epsilon calculation or `pending_F19` is used.
 
-Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
-recognize a requested blueprint `holds` field (including nested carried craft).
-They schema-check a bounded copy with only those unsupported fields removed
-before emitting blocking `pending_F11` through `pending_F17` issues with null
-data, once per finding kind rather than once per hold occurrence. Schema errors
-take precedence over pending features. The original input is not normalized or
-repaired by this probe.
-They do not assign a hold schema, capacity, mass, access, or floor/traversal rule.
-In particular they never misreport the intended opening as an ordinary missing
-floor. The #49 importer and bundled schemas remain unchanged. Ordinary cargo
-modules and adjacent-deck ladders continue to work normally.
+Multi-deck holds are accepted as optional blueprint `holds` records, including
+within carried designs. [HOLDS.md](HOLDS.md) specifies the grid rectangle and
+inclusive deck span, ladder access, catwalks, common open column, no hangar
+overlap, direct cargo interfaces, span labels, and unchanged material totals.
+These are the F11–F17 decisions of
+Luna, under owner delegation 2026-11-23. Schema faults keep their ordinary
+bounded diagnostics; no unsupported-feature copy or pending-hold parser runs.
 
 The independent tests session should exercise canonical structural outcomes,
 rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
