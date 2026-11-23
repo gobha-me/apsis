@@ -82,42 +82,12 @@ void preserved(const Json &source, const Json &migrated) {
           "interfaces, budget or loads");
 }
 
-const Issue &pending_f20(const Result<ImportedDefinition> &result) {
-  const auto found = std::find_if(
-      result.issues.begin(), result.issues.end(), [](const Issue &entry) {
-        return entry.code == "pending_F20" || entry.code == "pending F20";
-      });
-  require(found != result.issues.end(),
-          "applicable import must report structured pending F20");
-  require(found->severity == "warning",
-          "pending F20 must not reject an inspectable import");
-  require(found->path == "/blueprint",
-          "pending F20 identifies the affected blueprint");
-  require(!found->message.empty(), "pending F20 must have a readable message");
-  require(found->details.at("finding") == "F20",
-          "structured finding identifier");
-  return *found;
-}
-
-std::set<std::string> evaluation_set(const Json &evaluations) {
-  require(evaluations.is_array(), "pending evaluations are structured entries");
-  std::set<std::string> values;
-  for (const auto &evaluation : evaluations)
-    values.insert(canonical_json(evaluation));
-  require(values.size() == evaluations.size(),
-          "pending evaluations are not duplicated");
-  return values;
-}
-
-Json burn_evaluations() {
-  return Json::array(
-      {{{"formula", "burnSeconds"},
-        {"scenario", "full"},
-        {"operand", "burnRate"}},
-       {{"formula", "burnSeconds"},
-        {"scenario", "current"},
-        {"operand", "burnRate"}},
-       {{"formula", "exhaustVelocity"}, {"operand", "burnRate"}}});
+void no_speculative_f20(const Result<ImportedDefinition> &result) {
+  require(std::none_of(result.issues.begin(), result.issues.end(),
+                       [](const Issue &entry) {
+    return entry.code == "pending_F20" || entry.code == "pending F20" ||
+           entry.code == "stat_unavailable";
+  }), "Import must not predict performance or report resolved F20 as pending");
 }
 
 void no_excluded_values(const Json &value) {
@@ -335,31 +305,22 @@ int main() {
   for (const char *type : {"ship", "station"}) {
     suite.run(
         std::string("blank ") + type +
-            ": exact pending F20 cases, no excluded values",
+            ": accepted import without speculative performance",
         [&] {
           const auto imported = import_definition(canonical_json(blank(type)),
                                                   active, schema_set);
           require(imported.ok(),
-                  "blank imports must succeed while F20 is pending");
-          auto expected = burn_evaluations();
-          for (const char *formula : {"acceleration", "range"}) {
-            expected.push_back({{"formula", formula}, {"operand", "mass"}});
-          }
-          expected.push_back({{"formula", "deltaV"}, {"operand", "endMass"}});
-          expected.push_back({{"formula", "deltaV"}, {"operand", "ln(0)"}});
-          expected.push_back(
-              {{"formula", "fuelToDryMassRatio"}, {"operand", "dryMass"}});
-          require(
-              evaluation_set(pending_f20(imported).details.at("evaluations")) ==
-                  evaluation_set(expected),
-              "blank pending report names exactly the agreed F20 exclusions");
+                  "blank imports must succeed after F20 is resolved");
+          no_speculative_f20(imported);
+          require(imported.value->definition.at("blueprint") == blank(type),
+                  "Blank geometry, labels and direct metadata remain exact");
           no_excluded_values(imported.value->definition.at("derived"));
         });
   }
 
   suite.run(
-      "Wayfarer and a nonblank engine-less ship report only burnRate F20 "
-      "exclusions",
+      "Wayfarer and a nonblank engine-less ship retain uncomputed direct "
+      "totals",
       [&] {
         auto ship = blank();
         ship["decks"][0]["floors"] = {{"0,0", true}};
@@ -368,10 +329,7 @@ int main() {
               import_definition(canonical_json(source), active, schema_set);
           require(imported.ok(),
                   "engine-less import must succeed without guessed F20 values");
-          require(evaluation_set(pending_f20(imported).details.at(
-                      "evaluations")) == evaluation_set(burn_evaluations()),
-                  "engine-less pending report names full/current burnSeconds "
-                  "and exhaustVelocity only");
+          no_speculative_f20(imported);
           no_excluded_values(imported.value->definition.at("derived"));
         }
       });

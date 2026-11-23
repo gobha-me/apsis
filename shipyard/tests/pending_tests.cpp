@@ -73,35 +73,14 @@ void no_excluded_values(const Json &derived) {
   }
 }
 
-void pending_f20(const Json &report, bool zero_mass) {
-  const auto &item = find_issue(report, "pending_F20");
-  require(item.at("severity") == "warning" &&
-              item.at("details").at("finding") == "F20" &&
-              item.at("details").at("issue") == 51,
-          "F20 must remain a nonblocking structured pending report");
-  const auto &evaluations = item.at("details").at("evaluations");
-  std::set<std::string> actual;
-  for (const auto &evaluation : evaluations) {
-    const auto key = evaluation.at("formula").get<std::string>() + "/" +
-                     evaluation.at("operand").get<std::string>() + "/" +
-                     evaluation.value("scenario", std::string());
-    require(actual.insert(key).second,
-            "F20 evaluation identities must be unique");
-  }
-  std::set<std::string> expected{"burnSeconds/burnRate/full",
-                                 "burnSeconds/burnRate/current",
-                                 "exhaustVelocity/burnRate/"};
-  if (zero_mass) {
-    for (const auto *key :
-         {"acceleration/mass/", "range/mass/", "deltaV/endMass/",
-          "deltaV/ln(0)/", "fuelToDryMassRatio/dryMass/"})
-      expected.insert(key);
-  }
-  require(actual == expected, "F20 must name exactly the excluded evaluations");
-  for (const auto &issue : report.at("issues"))
-    require(issue.at("code") != "formula_error" &&
-                issue.at("code") != "nonfinite_total",
-            "Pending F20 must not become a formula rejection");
+void no_pending_f20(const Json &report) {
+  require(!has_issue(report, "pending_F20") &&
+              !has_issue(report, "stat_unavailable"),
+          "Import and validation do not calculate performance or speculate F20");
+  for (const auto &entry : report.at("issues"))
+    require(entry.at("code") != "formula_error" &&
+                entry.at("code") != "nonfinite_total",
+            "Resolved F20 must not become a formula rejection");
 }
 
 void port_pending(const Json &report) {
@@ -202,7 +181,7 @@ int main() {
       });
 
   suite.run(
-      "blank ships and stations retain F20 pending without numeric substitutes",
+      "blank ships and stations retain direct totals without speculative F20",
       [&] {
         for (const auto *build_type : {"ship", "station"}) {
           const auto bytes = blank(build_type).dump();
@@ -210,10 +189,10 @@ int main() {
           require(loaded.ok(),
                   "A blank design must import without formula rejection");
           const Json import_report = {{"issues", loaded.issues}};
-          pending_f20(import_report, true);
+          no_pending_f20(import_report);
           no_excluded_values(loaded.value->definition.at("derived"));
           const auto report = validate(bytes, active, schema);
-          pending_f20(report, true);
+          no_pending_f20(report);
           require(
               !report.at("data").is_null() &&
                   has_issue(report, "required_system"),
@@ -223,13 +202,13 @@ int main() {
       });
 
   suite.run(
-      "Wayfarer passes structure with exactly its three F20 exclusions", [&] {
+      "Wayfarer passes structure without speculative F20", [&] {
         const auto report = validate(host.dump(), active, schema);
         require(report.at("pass") == true &&
                     report.at("data").at("structuralPass") == true,
                 "Engine-less Wayfarer must not fail for pending burn-rate "
                 "formulas");
-        pending_f20(report, false);
+        no_pending_f20(report);
         no_excluded_values(report.at("data").at("definition").at("derived"));
       });
 

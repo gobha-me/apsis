@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
 
   suite.run("F20 station evaluations expose the exact zero denominator", [&] {
     const auto &report = reports.at("station");
-    const auto pending = findings(report, "pending_F20");
+    const auto pending = findings(report, "stat_unavailable");
     for (const auto *output :
          {"fullBurnSeconds", "currentBurnSeconds", "exhaustVelocity"}) {
       const auto path = "/performance/sublight/" + std::string(output);
@@ -344,7 +344,8 @@ int main(int argc, char **argv) {
               const auto errors = findings(report, "formula_error");
               require(report.at("status") == "FAIL" &&
                           report.at("data").is_null() && errors.size() == 1 &&
-                          findings(report, "pending_F20").empty(),
+                          findings(report, "pending_F20").empty() &&
+                          findings(report, "stat_unavailable").empty(),
                       "A fitted zero-burn engine rejects calculation without "
                       "any F20 exemption");
               require(errors[0].at("path") == "/formulas/burnSeconds" &&
