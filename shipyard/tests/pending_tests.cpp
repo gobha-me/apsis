@@ -172,6 +172,41 @@ int main() {
     no_pending_holds(host_checked);
   });
 
+  suite.run("empty holds on both docking inputs preserve control and decided endpoints", [&] {
+    auto host_request = host;
+    host_request["blueprint"]["holds"] = Json::array();
+    auto visitor_request = wren;
+    visitor_request["blueprint"]["holds"] = Json::array();
+    const auto control = dock(host.dump(), 1, 14, wren.dump(), active, schema);
+    const auto report = dock(host_request.dump(), 1, 14,
+                             visitor_request.dump(), active, schema);
+    // Luna, under owner delegation 2026-11-23: empty declarations are no-ops.
+    require(report == control && report.at("data").is_object(),
+            "Both empty hold lists retain the complete ordinary docking result and inspectable data");
+    no_pending_holds(report);
+    for (const auto *code : {"pending_F11", "pending_F17"})
+      require(std::count_if(report.at("issues").begin(), report.at("issues").end(),
+                            [&](const Json &item) { return item.at("code") == code; }) == 0,
+              "Both resolved inclusive endpoint findings must be absent");
+    const Json invalid_hold = {{"x", 0}, {"y", 0}, {"w", 1}, {"h", 1},
+                               {"firstDeck", 0}, {"lastDeck", 0}};
+    for (const bool host_side : {true, false}) {
+      auto invalid_host = host_request;
+      auto invalid_visitor = visitor_request;
+      auto &bad_blueprint = host_side ? invalid_host["blueprint"] : invalid_visitor["blueprint"];
+      bad_blueprint["holds"] = Json::array({invalid_hold});
+      const auto invalid = dock(invalid_host.dump(), 1, 14,
+                                invalid_visitor.dump(), active, schema);
+      const auto &fault = find_issue(invalid, "hold_span");
+      require(invalid.at("pass") == false && invalid.at("data").is_null() &&
+                  fault.at("severity") == "error" &&
+                  fault.at("path") == (host_side ? "/host/blueprint/holds/0" : "/visitor/blueprint/holds/0") &&
+                  fault.at("details").at("minimum") == 2,
+              "Real invalid spans retain the exact host/visitor source paths under the settled minimum");
+      no_pending_holds(invalid);
+    }
+  });
+
   suite.run("nested empty holds preserve ordinary carried-craft findings", [&] {
     auto carrier = blank();
     auto craft = blank();
