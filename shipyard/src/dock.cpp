@@ -3,7 +3,7 @@
 #include "internal.hpp"
 
 #include <algorithm>
-#include <cmath>
+#include <cstdint>
 #include <utility>
 
 namespace apsis::shipyard {
@@ -197,35 +197,26 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             const auto length = dimensions.at("lengthM").get<double>();
             const auto max_width = docking.at("maxWidthM").get<double>();
             const auto max_length = docking.at("maxLengthM").get<double>();
-            const auto epsilon = rules.data().at("numeric").at("epsilon").get<double>();
             const auto deck_count = visitor_blueprint.at("decks").size();
             const auto max_decks = docking.at("maxDecks").get<std::size_t>();
+            // The four right-angle facings have two distinct width/length
+            // envelopes. Exact input bounds apply in both orientations.
+            const bool width_length_fit = (width <= max_width && length <= max_length) ||
+                                          (length <= max_width && width <= max_length);
             data["hangar"] = {{"visitorWidthM", dimensions.at("widthM")},
                                {"visitorLengthM", dimensions.at("lengthM")}, {"visitorDeckCount", deck_count},
                                {"maxWidthM", docking.at("maxWidthM")}, {"maxLengthM", docking.at("maxLengthM")},
                                {"maxDecks", max_decks}, {"deckCountFits", deck_count <= max_decks},
-                               {"widthLengthFit", nullptr}};
+                               {"widthLengthFit", width_length_fit}};
             if (deck_count > max_decks) {
                 detail::add_issue(issues, {"dock_hangar_deck_limit", severity, "Visitor exceeds the hangar's rule-defined deck limit.",
                                   "/visitor/blueprint/decks", {{"actual", deck_count}, {"maximum", max_decks}}});
             }
-            if (width <= max_width && length <= max_length) {
-                // An unrotated fit does not require an F19 rotation decision.
-                data["hangar"]["widthLengthFit"] = true;
-            } else if (std::min(width, length) > std::min(max_width, max_length) ||
-                       std::max(width, length) > std::hypot(max_width, max_length) + epsilon) {
-                // Minimum span and diagonal bounds rule out every rotation.
-                // Failure of both axis-aligned fits alone is inconclusive.
-                data["hangar"]["widthLengthFit"] = false;
+            if (!width_length_fit) {
                 detail::add_issue(issues, {"dock_hangar_size_limit", severity,
-                    "Visitor exceeds a rotation-proof bound of the hangar's width/length envelope.",
+                    "Visitor exceeds the hangar's width/length envelope in every right-angle facing.",
                     "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
                                               {"maxWidthM", max_width}, {"maxLengthM", max_length}}});
-            } else {
-                pending = true;
-                detail::add_issue(issues, {"pending_F19", "warning",
-                    "pending F19: allowed visitor docking rotations await Luna; hangar width/length fit is not certified.",
-                    "/visitor/blueprint/decks", {{"finding", "F19"}}});
             }
         }
         data["pending"] = pending;

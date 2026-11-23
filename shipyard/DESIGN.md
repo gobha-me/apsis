@@ -23,6 +23,17 @@ and surface questions for Luna in the relevant PR. Do not copy sandbox numbers
 into the rules to make comparisons pass. Reconciliation belongs to
 [#56](https://github.com/gobha-me/apsis/issues/56).
 
+## F19 implementation decision (#77)
+
+**Luna, under owner delegation 2026-11-23** resolved docking facings to the four
+right angles only. Hangar width/length fit checks the two distinct orthogonal
+envelopes against the active limits, using exact comparisons. It reports a
+boolean fit and the existing size-limit issue when neither envelope fits.
+This supersedes this note's earlier unresolved F19 rotation wording; it adds
+no selected-facing API and does not settle the separate F03/F21 implementation
+question or implement holds. See CONTRACT.md and FINDINGS.md for the current
+F19 public result. Historical rotation-proof/diagonal wording is superseded.
+
 ## Core language and boundaries
 
 Choose **C++23**, matching `galaxy/`, now on main, and the existing native
