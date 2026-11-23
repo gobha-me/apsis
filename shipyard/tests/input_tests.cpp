@@ -73,7 +73,6 @@ int main() {
                      80),              // Non-BMP scalar, four UTF-8 bytes.
             repeated("e\xCC\x81", 40), // Two scalars per combining sequence.
             repeated("\xC3\xA9", 80),
-            " " + std::string(78, 'a') + " ",
         };
         for (const auto &name : at_limit) {
           auto blueprint = blank();
@@ -83,6 +82,21 @@ int main() {
           rejected(blueprint, active, schema, "field_limit", "/name");
         }
       });
+
+  suite.run("Luna trims the former padded-name boundary fixture", [&] {
+    // Luna, under owner delegation 2026-11-23: design names trim first.
+    auto blueprint = blank();
+    blueprint["name"] = " " + std::string(78, 'a') + " ";
+    auto result = import_definition(blueprint.dump(), active, schema);
+    require(result.ok() && result.value->definition.at("blueprint").at("name") ==
+                               std::string(78, 'a'),
+            "former padded80 fixture must normalize to its exact78 letters");
+    blueprint["name"] = " " + std::string(78, 'a') + " x";
+    result = import_definition(blueprint.dump(), active, schema);
+    require(result.ok() && result.value->definition.at("blueprint").at("name") ==
+                               std::string(78, 'a') + " x",
+            "former appended-x fixture now fits80 after leading trim");
+  });
 
   suite.run(
       "F09 exact budget sanity cap never rounds or admits epsilon overage",

@@ -23,7 +23,7 @@ if(BUILD_TESTING)
       perf perf_pending perf_scenario perf_issue_cap perf_review
       issue_cap loader_regression schema_boundary structure_regression
       dock_regression validator_cap authoring nits_owner
-      authoring_argus
+      authoring_argus name_normalization
       loader_r2 structure_r2 hangar_r2 validator_r2_cap)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)
