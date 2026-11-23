@@ -716,6 +716,39 @@ class Geometry(PublicRenderer):
                          [a for a in baseline["artifacts"] if a["mediaType"] == "image/png"],
                          "Empty hold metadata retains byte-identical deck and stack PNGs")
 
+    def test_compact_hold_label_exact_digits_hyphen_and_endpoint_bitmap(self):
+        # Literal reviewed 5x7 glyph expectations: no production font/helper is imported.
+        glyphs = {
+            "H": (17, 17, 17, 31, 17, 17, 17),
+            "O": (14, 17, 17, 17, 17, 17, 14),
+            "L": (16, 16, 16, 16, 16, 16, 31),
+            "D": (30, 17, 17, 17, 17, 17, 30),
+            " ": (0, 0, 0, 0, 0, 0, 0),
+            "0": (14, 17, 19, 21, 25, 17, 14),
+            "2": (14, 17, 1, 2, 4, 8, 31),
+            "-": (0, 0, 0, 31, 0, 0, 0),
+            "4": (2, 6, 10, 18, 31, 2, 2),
+        }
+        design = self.hold_station(count=4, first=1, last=3)
+        titled = self.render(design, validate=True)
+        manifest, images = self.verify_bundle(titled, design)
+        plain = self.render(design, options={"labels": False}, validate=True)
+        _, unlabelled = self.verify_bundle(plain, design, {"labels": False})
+        self.assertEqual(manifest["holds"], [{**design["holds"][0], "label": "decks 2–4"}])
+        camera = manifest["camera"]
+        x = camera["originX"] + 8 * camera["cellPixels"] + 2
+        y = camera["originY"] + 5 * camera["cellPixels"] + 2
+        text = "HOLD 02-04"
+        for deck in (1, 2, 3):
+            for row in range(7):
+                for index, char in enumerate(text):
+                    for column in range(6):
+                        ink = column < 5 and bool(glyphs[char][row] & (1 << (4-column)))
+                        px, py = x + 6 * index + column, y + row
+                        expected = TITLE if ink else unlabelled[deck].at(px, py)
+                        self.assertEqual(images[deck].at(px, py), expected,
+                                         (deck, text, row, index, column))
+
 
 class Bounds(PublicRenderer):
     def test_rustbucket_rejects_and_empty_holds_are_noop(self):

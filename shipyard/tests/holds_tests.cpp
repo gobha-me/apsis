@@ -129,6 +129,72 @@ int main() {
       require(!import_definition(design.dump(), active, schema).ok(), "Hold coordinates and indices are integers");
     }
   });
+  suite.run("hold integer fields reject huge finite integral doubles before semantic casts", [&] {
+    for (const auto *field : {"x", "y", "w", "h", "firstDeck", "lastDeck"}) {
+      for (const auto &too_large : {Json(1e100), Json(9007199254740992ULL)}) {
+        auto design = volume();
+        design["holds"][0][field] = too_large;
+        const auto result = import_definition(design.dump(), active, schema);
+        require(!result.ok() && issue(result.issues, "schema_error", "/holds/0/" + std::string(field)),
+                "Each new integer field rejects outside exact interoperable range at its own schema path");
+        require(std::none_of(result.issues.begin(), result.issues.end(), [](const Issue &item) {
+                  return item.code == "hold_bounds" || item.code == "hold_span";
+                }), "Schema rejects huge integral floats before converted semantic hold checks");
+      }
+    }
+  });
+  suite.run("declared hold volume contributes exact bounds while all material totals stay unchanged", [&] {
+    auto sparse = blank();
+    sparse["decks"].push_back(sparse["decks"][0]);
+    sparse["holds"] = Json::array({hold(0, 1, 20, 15, 6, 9)});
+    const auto empty_volume = import_definition(sparse.dump(), active, schema);
+    require(empty_volume.ok(), "Material-free declared volume remains an inspectable import");
+    const auto &zero = empty_volume.value->definition.at("derived");
+    require(zero.at("widthM") == 12 && zero.at("lengthM") == 18 &&
+                zero.at("floorCount") == 0 && zero.at("areaM2") == 0 &&
+                zero.at("cost") == 0 && zero.at("dryMass") == 0,
+            "A6x9-cell hold supplies12x18m bounds with no synthetic material");
+    auto design = volume();
+    const auto baseline = import_definition(design.dump(), active, schema);
+    require(baseline.ok(), "Ordinary hold source imports before bbox extension");
+    struct Bounds { int x, y, w, h, width, length; };
+    for (const auto b : {Bounds{0, 5, 11, 4, 24, 20}, Bounds{8, 0, 3, 11, 20, 24},
+                         Bounds{8, 5, 12, 4, 36, 20}, Bounds{8, 5, 3, 15, 20, 36},
+                         Bounds{0, 0, 20, 20, 40, 40}}) {
+      design["holds"][0] = hold(0, 2, b.x, b.y, b.w, b.h);
+      const auto imported = import_definition(design.dump(), active, schema);
+      require(imported.ok(), "Declared rectangle inside grid imports");
+      auto actual = imported.value->definition.at("derived");
+      auto original = baseline.value->definition.at("derived");
+      require(actual.at("widthM") == b.width && actual.at("lengthM") == b.length,
+              "All four bbox extrema use declared volume and actual floors, including inclusive end cells");
+      actual.erase("widthM"); actual.erase("lengthM");
+      original.erase("widthM"); original.erase("lengthM");
+      require(actual == original,
+              "Every material/capacity/cost/mass/area total remains exactly equal when only empty volume bounds grow");
+    }
+    auto rule_data = active.data();
+    for (auto &part : rule_data["parts"]) if (part.at("id") == "stationHangar") {
+      part["docking"]["maxWidthM"] = 20;
+      part["docking"]["maxLengthM"] = 20;
+    }
+    const auto loaded = load_rules(rule_data.dump(), schema);
+    require(loaded.ok(), "Active exact20x20 hangar envelope loads through public API");
+    const auto host = read("fixtures/v3/apsis-wayfarer-anchorage-definition-v3.json");
+    DockOptions options; options.structural = false; options.portReachability = false;
+    options.matchingAirlock = false; options.approachClearance = false;
+    auto ship = volume(2, 7, 6, hold(0, 1)); ship["buildType"] = "ship";
+    const auto fits = dock(host, 1, 15, ship.dump(), *loaded.value, schema, options);
+    require(fits.at("pass") == true && fits.at("data").at("hangar").at("widthLengthFit") == true,
+            "Actual20x20m material envelope is an inclusive positive docking control");
+    ship["holds"][0] = hold(0, 1, 0, 0, 20, 20);
+    const auto too_wide = dock(host, 1, 15, ship.dump(), *loaded.value, schema, options);
+    const auto &hangar = too_wide.at("data").at("hangar");
+    require(too_wide.at("pass") == false && hangar.at("visitorWidthM") == 40 &&
+                hangar.at("visitorLengthM") == 40 && hangar.at("widthLengthFit") == false &&
+                has_issue(too_wide, "dock_hangar_size_limit"),
+            "Declared empty hold volume participates in the real public hangar envelope rejection");
+  });
   suite.run("partial mezzanines need a single common full-height open column", [&] {
     accepted(volume(), active, schema);
     auto blocked = volume();
