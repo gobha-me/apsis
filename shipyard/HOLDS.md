@@ -10,7 +10,9 @@ A v4 blueprint may include `holds`, an array of records such as:
 
 Coordinates and positive dimensions are grid cells. Deck indices are zero-based
 and inclusive. The rectangle must fit the active grid. `holds.minDecks` is two
-in the active rules; the largest span is the design's actual deck count.
+in the active rules; older valid v4 snapshots without that optional rules block
+use the same settled minimum of two. The largest span is the design's actual
+deck count.
 Omitting the array or supplying an empty array declares no holds. Nested carried
 blueprints use the same schema and checks. Each record is one volume, labelled
 for people as `decks 2–4`; actual deck names and numbers do not collapse.

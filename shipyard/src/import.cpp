@@ -333,7 +333,7 @@ struct Importer {
         const auto gw = rules.at("grid").at("w").get<std::uint64_t>();
         const auto gh = rules.at("grid").at("h").get<std::uint64_t>();
         const auto decks = blueprint.at("decks").size();
-        const auto minimum = rules.at("holds").at("minDecks").get<std::uint64_t>();
+        const auto minimum = rules.value("holds", Json{{"minDecks", 2}}).at("minDecks").get<std::uint64_t>();
         for (std::size_t i = 0; i < records->size(); ++i) {
             const auto& hold = records->at(i);
             const auto location = at(at(path, "holds"), std::to_string(i));

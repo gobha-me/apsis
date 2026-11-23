@@ -429,7 +429,7 @@
     }
   },
   "required": [
-    "schema", "version", "notes", "floorMass", "floorCost", "cellSizeM", "massReference", "floor", "grid", "holds", "limits",
+    "schema", "version", "notes", "floorMass", "floorCost", "cellSizeM", "massReference", "floor", "grid", "limits",
     "defaults", "numeric", "rotations", "docking", "performance", "validation", "formulas", "buildTypes", "carrier",
     "schemaIds", "combat", "advisories", "technicalLimits", "parts"
   ],
