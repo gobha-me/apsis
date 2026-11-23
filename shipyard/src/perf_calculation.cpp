@@ -75,7 +75,7 @@ struct Calculator {
     }
 
     bool near_less(double left, double right) const {
-        return left < right && !numerically_equal(left, right, snapshot);
+        return left - right < -snapshot.data().at("numeric").at("epsilon").get<double>();
     }
 
     bool allowed_f20(const Issue& issue, std::string_view name) const {
@@ -166,10 +166,8 @@ struct Calculator {
             add_issue(issues, error("nonfinite_performance", "A performance result is not finite.", path));
             throw FormulaFailure{};
         }
-        if (value.is_object()) {
+        if (value.is_structured()) {
             for (const auto& [key, child] : value.items()) check_finite(child, path + "/" + pointer_token(key));
-        } else if (value.is_array()) {
-            for (std::size_t i = 0; i < value.size(); ++i) check_finite(value[i], path + "/" + std::to_string(i));
         }
     }
 

@@ -115,7 +115,7 @@ Json validate(std::string_view bytes, const RulesSnapshot& rules,
         return issue.severity == "error";
     });
     // Structural approval is explicit below; complete readiness still requires
-    // #51's rule-defined performance checks. Never equate range with jumpReady.
+    // perf()'s rule-defined performance checks. Never equate range with jumpReady.
     definition["validation"] = {{"ready", pass ? Json(nullptr) : Json(false)},
         {"jumpReady", nullptr}, {"issues", issues}};
     const auto& migration = imported.value->migration;
