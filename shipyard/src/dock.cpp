@@ -161,7 +161,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
 
         const auto& alignment_rules = rules.data().at("docking");
         const auto maximum_distance = alignment_rules.contains("alignment")
-            ? alignment_rules.at("alignment").at("maxDistanceCells").get<double>() : 1.0;
+            ? alignment_rules.at("alignment").at("maxDistanceCells").get<std::uint64_t>() : std::uint64_t{1};
         std::size_t airlock_count = 0, interface_count = 0, exterior_count = 0;
         std::size_t same_deck_count = 0, aligned_count = 0;
         for (const auto& airlock : visitor_structure.modules) {
@@ -174,7 +174,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             ++exterior_count;
             if (airlock.deck != target->deck) continue;
             ++same_deck_count;
-            if (static_cast<double>(centre_distance_twice(airlock, *target)) <= 2 * maximum_distance)
+            if (static_cast<std::uint64_t>((centre_distance_twice(airlock, *target) + 1) / 2) <= maximum_distance)
                 ++aligned_count;
         }
         checks["c"] = check(options.matchingAirlock, aligned_count > 0,

@@ -158,7 +158,9 @@ while a whole-cell diagonal offset (1,1) exceeds the limit.
 The active rules record this as docking.alignment with sameDeck, referencePoint
 centres, distanceMetric manhattan and maxDistanceCells 1. Older v4 snapshots
 without the optional policy use this same decided convention. The bound is an
-active nonnegative integer; the bundled decision is 1. All interface-compatible
+active nonnegative integer within the existing exact interoperability limit
+9007199254740991; the bundled decision is 1. The integer comparison includes
+half-cell boundaries exactly even for sparse grids near that representation limit. All interface-compatible
 exterior outward-facing candidates are counted, with no airlock picker or
 visitor transform. Any candidate satisfying the same-deck centre bound passes
 check(c); no candidate fails with structured dock_no_matching_airlock, never
