@@ -390,17 +390,14 @@ Vendored utf8proc 2.12.0 (Unicode 18.0.0) supplies stateful UAX #29 boundaries;
 input bytes are preserved without Unicode normalization. Generic JSON Schema,
 deck-name, prefix and note lengths retain their scalar-value contracts.
 
-The following two prototype differences remain **Open for Luna, not guessed**
-in this separate unit; their current behaviour remains interim:
+The other F22 decisions are also final under
+**Luna, under owner delegation 2026-11-23**, with implementation kept in separate
+issues rather than bundled into this name-counter change:
 
-- Label trimming and fallback: the current loader preserves empty and
-  whitespace-only labels without trimming or a fallback; the prototype's
-  `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
-  open.
-- Migration-note overflow: the current loader preserves existing notes and
-  leaves extra changes in the report with a warning; the prototype keeps the
-  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
-  remains open.
+- Blueprint-name trim/fallback (#81): trim and use `Unnamed design` when empty;
+  the separate unit supplies the runtime normalization and active defaults.
+- Migration-note overflow (#82): keep the newest notes with one dropped-history
+  notice; the separate unit replaces the legacy preservation/warning policy.
 
 None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
 interpretations.
