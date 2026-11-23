@@ -69,14 +69,53 @@ struct Importer {
     void add_note(Json& blueprint, const std::string& note, const std::string& path) {
         auto& notes = blueprint.at("migrationNotes");
         if (includes(notes, note)) return;
-        if (notes.size() < rules.at("limits").at("maxMigrationNotes").get<std::size_t>() &&
-            detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
+        if (detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
             notes.push_back(note);
             return;
         }
         detail::add_issue(issues, {"migration_note_limit", "warning",
-                          "Existing migration notes were preserved; additional changes are in the migration report.",
+                          "A generated migration note exceeds the active text limit; changes remain in the migration report.",
                           at(path, "migrationNotes"), Json::object()});
+    }
+
+    static bool drop_notice(const Json& note) {
+        return note == "Older migration notes were dropped." || note == "\xe2\x80\xa6";
+    }
+
+    void retain_notes(Json& blueprint, const std::string& path) {
+        auto& notes = blueprint.at("migrationNotes");
+        const auto maximum = rules.at("limits").at("maxMigrationNotes").get<std::size_t>();
+        const auto markers = static_cast<std::size_t>(std::count_if(notes.begin(), notes.end(), drop_notice));
+        const auto real_count = notes.size() - markers;
+        if (markers != 0 || real_count > maximum) {
+            // Rules require a positive cap: reserve one bounded slot for history.
+            const auto keep = std::min(real_count, maximum - 1);
+            Json retained = Json::array();
+            for (auto it = notes.rbegin(); it != notes.rend() && retained.size() < keep; ++it) {
+                if (!drop_notice(*it)) retained.push_back(*it);
+            }
+            std::reverse(retained.begin(), retained.end());
+            constexpr std::string_view full_notice = "Older migration notes were dropped.";
+            const auto marker = detail::character_count(full_notice) <=
+                rules.at("limits").at("maxNoteLength").get<std::size_t>() ? full_notice : "\xe2\x80\xa6";
+            retained.insert(retained.begin(), Json(std::string(marker)));
+            if (retained != notes) {
+                const auto dropped = real_count - keep;
+                notes = std::move(retained);
+                change(at(path, "migrationNotes") + ": retained newest notes and one dropped-history notice");
+                detail::add_issue(issues, {"migration_note_limit", "warning",
+                    "Older migration notes were dropped; the newest notes and one notice were retained.",
+                    at(path, "migrationNotes"), {{"limit", maximum}, {"dropped", dropped}, {"retained", keep}}});
+            }
+        }
+        for (auto& [deck_index, deck] : blueprint.at("decks").items()) {
+            for (auto& [module_index, module] : deck.at("modules").items()) {
+                if (module.contains("craft") && !module.at("craft").is_null()) {
+                    const auto child = at(at(at(at(at(path, "decks"), deck_index), "modules"), module_index), "craft");
+                    retain_notes(module.at("craft"), child);
+                }
+            }
+        }
     }
 
     // Normalize only schema/default metadata, never geometry, labels or IDs.
@@ -124,11 +163,11 @@ struct Importer {
             }
         }
         auto& notes = blueprint.at("migrationNotes");
-        if (notes.size() > limits.at("maxMigrationNotes").get<std::size_t>()) {
-            detail::add_issue(issues, error("field_limit", "Migration note count exceeds the active rules limit.", at(path, "migrationNotes")));
-        }
+        // Validate ordinary input notes before retention, including older notes
+        // that will be discarded. Reserved notices canonicalize to the active cap.
         for (std::size_t i = 0; i < notes.size(); ++i) {
-            check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
+            if (!drop_notice(notes[i]))
+                check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
         }
         const auto deck_count = blueprint.at("decks").size();
         if (deck_count < limits.at("minDecks").get<std::size_t>() ||
@@ -363,6 +402,8 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
             sort_issues(importer.issues);
             return {std::nullopt, std::move(importer.issues)};
         }
+        // New automatic notes are present now; retain each craft independently.
+        importer.retain_notes(blueprint, blueprint_path);
         // Validate the normalized target before any rule-dependent arithmetic.
         auto target_issues = schemas.validate(blueprint, "apsis-shipyard-v4");
         if (!target_issues.empty()) return {std::nullopt, std::move(target_issues)};

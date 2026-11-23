@@ -854,8 +854,19 @@ missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
 versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Existing full note lists are preserved; extra changes remain in
-the report with a warning. Export is always v4. Import alone does not approve
+on reimport. Migration-note count overflow retains the newest ordinary notes in order,
+reserving one active slot for exactly one dropped-history notice. This is
+resolved by **Luna, under owner delegation 2026-11-23**. The normal reserved
+notice is `Older migration notes were dropped.`; when the positive active
+note-length cap cannot fit it, reserved `…` has the same meaning and a full
+structured warning explains the drop. A note-count cap of one retains only the
+notice. Ordinary note type, controls and individual length are checked before
+culling, including entries that will be evicted. Duplicate ordinary notes are
+preserved; duplicate reserved notices canonicalize. The warning details name
+`limit`, ordinary `dropped` and ordinary `retained` counts. Stable exported lists
+reimport without another cull, duplicate notice or migration change. Generated
+ordinary notes that exceed the active text limit remain in the report with a
+warning rather than bypassing that bound. Export is always v4. Import alone does not approve
 missing systems, overlaps, hull access, or carried-fit legality; call `validate`
 for these checks. Migration never repairs Rustbucket or other structural faults.
 

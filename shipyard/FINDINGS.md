@@ -382,9 +382,8 @@ Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
 Unicode normalization occurs.
 
-The following three prototype differences are **Open for Luna, not guessed**,
-with no value picked. Current behaviour is an **interim interpretation**, not
-a settled technical encoding contract:
+The note-retention decision below is resolved; name counting and name
+trimming/fallback remain separate units. Their old behaviour is interim:
 
 - Name-length counting: the current loader counts Unicode scalar values; the
   prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
@@ -394,10 +393,15 @@ a settled technical encoding contract:
   whitespace-only labels without trimming or a fallback; the prototype's
   `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
   open.
-- Migration-note overflow: the current loader preserves existing notes and
-  leaves extra changes in the report with a warning; the prototype keeps the
-  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
-  remains open.
+- Migration-note overflow is resolved by **Luna, under owner delegation 2026-11-23**:
+  retain the newest notes, in order, plus one bounded dropped-history notice.
+  The notice occupies one active note slot, so overflow retains the newest
+  `maxMigrationNotes - 1` ordinary notes; a cap of one retains only the notice.
+  `Older migration notes were dropped.` is the normal reserved notice; the
+  reserved single-scalar `…` is used when the active note-length cap is shorter.
+  A full structured warning explains every actual cull. Ordinary note text is
+  validated before culling, duplicate ordinary notes retain their order, and
+  stable exported lists reimport without repeated notices or changes.
 
 None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
 interpretations.

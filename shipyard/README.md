@@ -27,6 +27,13 @@ active rules version, and lowercase SHA-256 of the exact rules bytes, including
 whitespace. Failed rules loading produces no snapshot or rules identity.
 Imported caches and embedded rules are discarded and replaced by active data.
 
+Migration note overflow keeps the newest notes in order and one bounded
+older-notes-dropped notice, within both active count and text limits. A cap of
+one retains the notice alone; a one-character text cap uses reserved `…` plus a
+full structured warning. Ordinary note text still validates before culling,
+and stable lists reimport identically. Decision:
+**Luna, under owner delegation 2026-11-23**.
+
 Rules are the sole balance authority. Names and budgets are never trimmed or
 clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
