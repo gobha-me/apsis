@@ -328,6 +328,98 @@ int main() {
                 outward.at("details").at("approachClear") == false,
             "With all actual outward floors removed, hold volume alone remains interior and obstructs exterior approach");
   });
+  suite.run("carried hold volume uses each exact envelope edge independently of material", [&] {
+    const auto child_at = [](int dx, int dy) {
+      auto child = blank(); child["name"] = "Real carried hold";
+      child["decks"].push_back({{"name", "Upper catwalk"}, {"floors", Json::object()},
+                                {"modules", Json::array()}});
+      for (int d = 0; d < 2; ++d)
+        for (int x = 0; x < 3; ++x) for (int y = 0; y < 5; ++y)
+          child["decks"][d]["floors"][std::to_string(x + dx) + "," + std::to_string(y + dy)] = true;
+      child["decks"][1]["floors"].erase(std::to_string(2 + dx) + "," + std::to_string(1 + dy));
+      for (const auto &m : {Json{{"id", 1}, {"type", "cockpit"}, {"x", dx}, {"y", dy}, {"r", 0}},
+                           Json{{"id", 2}, {"type", "microReactor"}, {"x", 1 + dx}, {"y", dy}, {"r", 0}},
+                           Json{{"id", 3}, {"type", "microLifeSupport"}, {"x", 2 + dx}, {"y", dy}, {"r", 0}},
+                           Json{{"id", 4}, {"type", "airlock"}, {"x", dx}, {"y", 3 + dy}, {"r", 1}},
+                           Json{{"id", 5}, {"type", "microEngine"}, {"x", 2 + dx}, {"y", 3 + dy}, {"r", 0}},
+                           Json{{"id", 6}, {"type", "ladder"}, {"x", 1 + dx}, {"y", 2 + dy}, {"r", 0}}})
+        child["decks"][0]["modules"].push_back(m);
+      child["decks"][1]["modules"].push_back({{"id", 7}, {"type", "ladder"},
+          {"x", 1 + dx}, {"y", 2 + dy}, {"r", 0}});
+      child["nextId"] = 8;
+      child["holds"] = Json::array({hold(0, 1, 1 + dx, 1 + dy, 2, 2)});
+      return child;
+    };
+    const auto carrier_for = [&](const Json &child) {
+      auto parent = station();
+      const auto berth = add_module(parent, "shuttleDock", 12, 5);
+      require(berth == 6, "Real carrier fixture keeps independently known module identity");
+      fill(parent, 0, 12, 5, 4, 6);
+      parent["decks"][0]["modules"].back()["craft"] = child;
+      return parent;
+    };
+    const Json *limits = nullptr;
+    for (const auto &part : active.data().at("parts"))
+      if (part.at("id") == "shuttleDock") limits = &part.at("carrier");
+    require(limits && limits->at("maxWidthM") == 6 && limits->at("maxLengthM") == 10 &&
+                limits->at("maxDecks") == 5,
+            "The real catalogue6x10 shuttle berth is the tested inclusive envelope");
+    struct Extension { int dx, dy, x, y, w, h, width, length; };
+    for (const auto edge : {Extension{0, 0, 2, 1, 2, 2, 8, 10},
+                            Extension{1, 0, 0, 1, 2, 2, 8, 10},
+                            Extension{0, 1, 1, 0, 2, 3, 6, 12},
+                            Extension{0, 0, 0, 3, 2, 3, 6, 12}}) {
+      auto child = child_at(edge.dx, edge.dy);
+      accepted(child, active, schema);
+      const auto original_child = import_definition(child.dump(), active, schema);
+      auto parent = carrier_for(child);
+      accepted(parent, active, schema);
+      const auto before = import_definition(parent.dump(), active, schema);
+      require(original_child.ok() && before.ok() &&
+                  original_child.value->definition.at("derived").at("widthM") == 6 &&
+                  original_child.value->definition.at("derived").at("lengthM") == 10,
+              "Real3x5 material and partial second-deck opening fit6x10 before volume extension");
+      child["holds"][0] = hold(0, 1, edge.x, edge.y, edge.w, edge.h);
+      accepted(child, active, schema);
+      parent["decks"][0]["modules"].back()["craft"] = child;
+      const auto report = validate(parent.dump(), active, schema);
+      const auto &item = finding(report, "carried_fit", "/blueprint/decks/0/modules/5/craft");
+      require(report.at("pass") == false && item.at("details") ==
+                  Json{{"deck", 0}, {"moduleId", 6}, {"widthM", edge.width},
+                       {"lengthM", edge.length}, {"deckCount", 2}, {"limits", *limits},
+                       {"rule", "/validation/checks/invalid_blueprint"}},
+              "Each carried bbox arithmetic edge reports exact measured dimensions, active limits and nested source identity");
+      require(!has_issue(report, "carried_not_ready") && !has_issue(report, "hold_access") &&
+                  !has_issue(report, "hold_open_column"),
+              "The actual child remains structurally sound; only its carried envelope is too large");
+      const auto after = import_definition(parent.dump(), active, schema);
+      const auto enlarged_child = import_definition(child.dump(), active, schema);
+      require(after.ok() && enlarged_child.ok(), "Oversize carried drafts remain inspectable imports");
+      auto old_child_totals = original_child.value->definition.at("derived");
+      auto child_totals = enlarged_child.value->definition.at("derived");
+      old_child_totals.erase("widthM"); old_child_totals.erase("lengthM");
+      child_totals.erase("widthM"); child_totals.erase("lengthM");
+      require(child_totals == old_child_totals,
+              "All child material totals are unchanged by each empty hold extension");
+      auto old_parent_totals = before.value->definition.at("derived");
+      auto parent_totals = after.value->definition.at("derived");
+      require(parent_totals.at("carriedCraft")[0].at("widthM") == edge.width &&
+                  parent_totals.at("carriedCraft")[0].at("lengthM") == edge.length,
+              "Independent normalized carried manifest agrees with structural envelope dimensions");
+      for (auto *totals : {&old_parent_totals, &parent_totals})
+        for (auto &craft : (*totals)["carriedCraft"]) {
+          craft.erase("widthM"); craft.erase("lengthM");
+        }
+      require(parent_totals == old_parent_totals,
+              "Parent material/cost/capacity totals remain identical; only child envelope metadata grows");
+      DockOptions options; options.matchingAirlock = false;
+      const auto docked = dock(parent.dump(), 0, 5, visitor().dump(), active, schema, options);
+      const auto &nested = finding(docked, "carried_fit", "/host/blueprint/decks/0/modules/5/craft");
+      require(nested.at("details") == item.at("details") &&
+                  docked.at("data").at("checks").at("a").at("status") == "FAIL",
+              "Real docking retains the exact carried-fit nested host path and enabled structural failure");
+    }
+  });
   suite.run("nested and wrapped hold errors preserve their public source paths", [&] {
     auto child = volume(); child["holds"][0]["lastDeck"] = 3;
     auto carrier = base("station");
