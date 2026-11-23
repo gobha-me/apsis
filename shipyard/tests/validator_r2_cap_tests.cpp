@@ -85,7 +85,7 @@ int main() {
   suite.run("N16: combining two uncapped designs retains the shared prefix", [&] {
     const auto host_report = validate(host.dump(), active, schema);
     const auto ship_report = validate(ship.dump(), active, schema);
-    require(host_report.at("issues").size() == 68 &&
+    require(host_report.at("issues").size() == 67 &&
                 ship_report.at("issues").size() == 67 &&
                 count(host_report, "module_overlap") == 66 &&
                 count(ship_report, "module_overlap") == 66 &&
@@ -97,10 +97,10 @@ int main() {
     require(report.at("issues").size() == 128,
             "combined structural truncation must preserve 127 issues and marker");
     // The structural temporary contains 127 overlaps plus its marker. The
-    // public shared cap also includes three earlier import warnings, leaving
-    // 124 overlap slots; these warnings must not be silently discarded.
-    require(count(report, "module_overlap") == 124 &&
-                count(report, "pending_F20") == 1 &&
+    // public shared cap also includes two earlier import warnings, leaving
+    // 125 overlap slots; these warnings must not be silently discarded.
+    require(count(report, "module_overlap") == 125 &&
+                count(report, "pending_F20") == 0 &&
                 count(report, "pending_performance") == 2,
             "combined diagnostics must retain the overlap prefix and import warnings");
   });
@@ -110,9 +110,9 @@ int main() {
     options.structural = false;
     const auto report = dock_at_port(host, ship, active, schema, options);
     terminal_marker(report, "dock");
-    require(report.at("issues").size() == 4 &&
+    require(report.at("issues").size() == 3 &&
                 count(report, "module_overlap") == 0 &&
-                count(report, "pending_F20") == 1 &&
+                count(report, "pending_F20") == 0 &&
                 count(report, "pending_performance") == 2,
             "disabled structural reporting must still retain the terminal marker");
   });

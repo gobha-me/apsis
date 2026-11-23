@@ -74,7 +74,7 @@ definitions and stock identifiers, never caller-selected server paths or URLs.
 
 | Operation | Input and behavior | Result data |
 | --- | --- | --- |
-| `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Pending-F20 formula cases must not reject a blank build; return the definition and structural validation report without assigning those formula results. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
+| `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Resolved F20 accepts blank designs and reports uncomputable stats as n/a; retain the structural validation report. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
 | `validate` | Blueprint or definition; check schema, hull, parts, required systems, crew routes, adjacent-deck ladders, station modules, carried craft, and approaches using active rules. | PASS/FAIL and structured issues; recomputed definition when normalization succeeds |
 | `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump, subject to the F20 gate below; issues with rule-defined severity (default `warning`) |
 | `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks using any compatible matching visitor airlock meeting F03; the tool does not pick an airlock. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
@@ -102,12 +102,21 @@ power, or absent jump fuel. A performance finding fails a build when the active
 rules give it error severity; warnings remain non-blocking. Malformed input or
 invalid rules still fail `perf`. An undefined or invalid formula rejects the design
 with a clear structured error, including during performance evaluation (F10).
-Until Luna answers F20, this rejection excludes these evaluations: in zero-mass
-blank ships and blank stations, `acceleration` and `range` division by `mass`,
-`deltaV` division by `endMass` and ln(0), and `fuelToDryMassRatio` division by
-`dryMass`; in engine-less designs, including stations, full/current `burnSeconds`
-and `exhaustVelocity` division by zero `burnRate`. Open for Luna, not guessed.
-Do not assign a result or handling rule here.
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
+
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
 Docking incompatibility fails `dock`. A self-test
 passes when actual behavior matches expectations, including expected rejection
 of a negative fixture. `ready`, `jumpReady`, and theoretical range are distinct:
@@ -224,13 +233,21 @@ The decision whether a player can afford the build belongs to the sim (F09).
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
-**Interpretation (F10):** An undefined or invalid formula rejects the design
-with a clear error, never a silent zero. Pending Luna's answer, F20 excludes the
-zero-mass blank-ship/station evaluations (`acceleration` and `range` on `mass`,
-`deltaV` on `endMass` and ln(0), `fuelToDryMassRatio` on `dryMass`) and the
-engine-less evaluations (full/current `burnSeconds` and `exhaustVelocity` on
-zero `burnRate`, including stations). Open for Luna, not guessed. Do not assign
-a result or handling rule here.
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
+
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
 
 Migration is an explicit, deterministic adapter, available to `build` and all
 operations accepting definitions. It reports source/target versions and changes:
@@ -266,28 +283,21 @@ module IDs), locale-independent numbers, and the rules' precision/epsilon
 policy. Define the exact numeric comparison and canonicalization contract in
 #49 with independent tests.
 
-**Interpretation (F10):** Reject malformed formulas, unknown variables or
-operators, and invalid arity when loading rules. If evaluation encounters a
-missing variable, division by zero, invalid logarithm input, nonfinite result,
-or another undefined outcome, reject the design with a clear error identifying
-the formula's rule/path. Until Luna answers F20, F10 rejection excludes exactly:
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
 
-- In zero-mass blank ships and blank stations: `acceleration` and `range`
-  division by `mass` = 0; `deltaV` division by `endMass` = 0 and ln(0);
-  `fuelToDryMassRatio` division by `dryMass` = 0.
-- In engine-less designs, including stations: full/current `burnSeconds`
-  (`fuel/burnRate`, twice) and `exhaustVelocity` (`thrust/burnRate`, once)
-  division by `burnRate` = 0.
-
-Wayfarer Anchorage encounters the three `burnRate` evaluations; each blank ship
-and blank station also encounters the zero-mass and undefined-log cases. These
-pending-F20 formula cases must not reject a blank `build`. Open for Luna, not
-guessed. Do not assign a result or handling rule here. Until Luna answers, #51
-must hold on F20 by returning a structured `pending F20` issue rather than
-outputting excluded values; do not invent numeric stand-ins.
-For other formula failures, never substitute zero, NaN, or a successful
-unavailable value. Legitimate computed zero-thrust/no-drive cases remain
-distinct from formula errors (F10).
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
 
 ## Port-dock checks and visitor airlock (F18)
 
@@ -519,9 +529,9 @@ independent verification before declaring that capability complete.
 | Historical goldens (#48) | SHA-256 manifest protects the seven v3 JSON files; compare import bytes to the reference; do not regenerate expected v3 results |
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
-| Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
+| Recorded decisions | All five drive prices; Rustbucket rejected; active name/budget technical bounds; no affordability enforcement; Luna, under owner delegation 2026-11-23 resolves F20/N1: valid uncomputable stats are n/a, blank JSON accepted, actual F10 errors reject; computed zero stays numeric |
 | Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
-| Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
+| Performance (#51) | Independent current/empty/half/full stats, fuel pools, jump charges and power; active severities; exact n/a for design-unavailable stats with structured diagnostics; actual invalid and independent sibling formulas reject under F10 |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |
 | Generator (#54) | Same seed/version/rules repeats exactly, call-order/thread independence if relevant, varied seeds and boundaries; every result uses the ordinary validator |

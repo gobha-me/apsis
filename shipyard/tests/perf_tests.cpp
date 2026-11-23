@@ -33,7 +33,7 @@ void compare_baseline(const Json &actual, const Json &expected,
     for (const auto &[key, value] : expected.items()) {
       const auto child_path = path + "/" + key;
       if (engine_less && excluded.contains(child_path)) {
-        require(!actual.contains(key), child_path + " must be omitted for F20");
+        require(actual.at(key) == "n/a", child_path + " must be n/a for F20");
         continue;
       }
       require(actual.contains(key), "Missing baseline metric " + child_path);

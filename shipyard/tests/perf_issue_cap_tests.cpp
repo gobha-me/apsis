@@ -127,23 +127,23 @@ void saturated(const Json &report) {
 
 void blank_omissions(const Json &performance) {
   for (const auto *key : {"acceleration", "range", "fuelToDryMassRatio"})
-    require(!performance.contains(key),
-            "Excluded blank metrics cannot acquire any stand-in value");
+    require(performance.at(key) == "n/a",
+            "Undefined blank metrics must contain exact n/a");
   for (const auto *key : {"fullBurnSeconds", "currentBurnSeconds",
                           "exhaustVelocity", "deltaV"})
-    require(!performance.at("sublight").contains(key),
-            "Engine-less sublight omissions must remain absent");
+    require(performance.at("sublight").at(key) == "n/a",
+            "Engine-less sublight metrics must contain exact n/a");
   for (const auto *name : {"current", "empty", "half", "full"}) {
     const auto &scenario = performance.at("scenarios").at(name);
-    require(scenario.at("mass") == 0 && !scenario.contains("acceleration") &&
-                !scenario.contains("range"),
-            "Every zero-mass child scenario must omit undefined outputs");
+    require(scenario.at("mass") == 0 && scenario.at("acceleration") == "n/a" &&
+                scenario.at("range") == "n/a",
+            "Every zero-mass child scenario must show undefined outputs as n/a");
   }
 }
 
 void pending(const Json &report, const std::string &path,
              std::size_t evaluations) {
-  const auto &item = finding(report, "pending_F20", path);
+  const auto &item = finding(report, "stat_unavailable", path);
   require(item.at("severity") == "warning" &&
               item.at("details").at("finding") == "F20" &&
               item.at("details").at("evaluations").size() == evaluations,
@@ -181,6 +181,16 @@ int main() {
       blank_omissions(children[i].at("performance"));
       pending(report, "/performance/carriedCraft/" + std::to_string(i) +
                           "/performance/sublight/exhaustVelocity", 1);
+      const auto &item = finding(report, "stat_unavailable",
+          "/performance/carriedCraft/" + std::to_string(i) +
+          "/performance/sublight/exhaustVelocity");
+      require(item.at("details").at("childBlueprintPath") ==
+                  "/blueprint/decks/0/modules/" + std::to_string(i) + "/craft" &&
+                  item.at("details").at("evaluations")[0] ==
+                      Json{{"formula", "exhaustVelocity"},
+                           {"formulaPath", "/formulas/exhaustVelocity"},
+                           {"operator", "div"}, {"denominator", 0.0}},
+              "Child unavailability keeps its real blueprint path and exact denominator");
     }
   });
 
@@ -197,7 +207,7 @@ int main() {
       // performance traversal reached the children, without requiring its tail.
       require(std::any_of(report.at("issues").begin(), report.at("issues").end(),
                            [](const Json &item) {
-        return item.at("code") == "pending_F20" &&
+        return item.at("code") == "stat_unavailable" &&
                item.at("path").get<std::string>().starts_with(
                    "/performance/carriedCraft/") &&
                item.at("details").at("finding") == "F20" &&

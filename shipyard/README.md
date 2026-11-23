@@ -69,10 +69,22 @@ empty, half, and full scenarios, propellant and jump charges, endurance, and pow
 at idle, cruise, and jump. Optional fractions override current loads for the
 requested design; carried craft retain their own current loads. Performance
 findings use active rule severities, defaulting to `warning`; an active `error`
-fails the result. Formula failures reject with structured errors, except the
-exact pending-F20 evaluations in DESIGN.md: those emit `pending_F20` and omit
-the values, including dependent values, without numeric substitutes. Blank
-sources use active defaults and retain their structural validation report.
+fails the result. **Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
+
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
+
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.

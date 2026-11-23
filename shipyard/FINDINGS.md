@@ -143,29 +143,21 @@ does not enforce player affordability or treat 100M cr as a game budget ceiling.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F10: reject with an error"
 
-**Interpretation:** An undefined or invalid formula rejects the design with a
-clear error, never a silent zero. Until Luna answers F20, F10 rejection excludes
-these evaluations: in zero-mass blank ships and blank stations, `acceleration`
-and `range` division by `mass`, `deltaV` division by `endMass` and ln(0), and
-`fuelToDryMassRatio` division by `dryMass`; in engine-less designs, including
-stations, full/current `burnSeconds` and `exhaustVelocity` division by zero
-`burnRate`. Open for Luna, not guessed. Do not assign a result or handling rule
-here.
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
 
-`index.html:formula` substitutes zero for missing variables, zero denominators,
-invalid logarithm input, and nonfinite results. This can make a bad formula look
-like a computed value. The v4 loader must reject malformed formulas, unknown
-variables/operators, and invalid arity (#49). At evaluation, missing variables,
-division by zero, invalid logarithm input, and nonfinite or otherwise undefined
-results reject the design with a clear formula error identifying its rule/path
-(#49/#51), except exactly the F20 evaluations listed above and below: zero-mass
-blank ships/stations' `acceleration` and `range` on `mass`, `deltaV` on `endMass`
-and ln(0), `fuelToDryMassRatio` on `dryMass`; and engine-less designs' full/current
-`burnSeconds` and `exhaustVelocity` on zero `burnRate`, including stations.
-Open for Luna, not guessed. Do not assign a result or handling rule here.
-Legitimate zero-thrust/no-drive values remain distinct from formula failures;
-neither zero nor an unavailable value may hide a failed calculation outside
-these unresolved F20 cases.
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
 
 ## F11 — Access inside a multi-deck cargo hold
 
@@ -306,14 +298,23 @@ clarifies the computed comparison without choosing any allowed rotation.
 
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
-**Open for Luna, not guessed.** How should v4 handle these evaluations?
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
 
-- In zero-mass blank ships and blank stations: `acceleration` and `range`
-  division by `mass` = 0; `deltaV` division by `endMass` = 0 and ln(0);
-  `fuelToDryMassRatio` division by `dryMass` = 0.
-- In engine-less designs, including stations: full/current `burnSeconds`
-  (`fuel/burnRate`, twice) and `exhaustVelocity` (`thrust/burnRate`, once)
-  division by `burnRate` = 0.
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
+
+Historical prototype evidence (not the resolved output contract):
 
 Argus's instrumented prototype compilation of `createDesign('blank', 'ship')`
 and `createDesign('blank', 'station')` found, in each, four `acceleration` and
@@ -323,12 +324,6 @@ and one `fuelToDryMassRatio` zero-`dryMass` division. Among the five canonical
 definitions, only Wayfarer Anchorage encounters these failures: the three
 `burnRate` evaluations. It is a ready station with no engines.
 
-F10 rejection excludes exactly the evaluations listed above until Luna answers;
-these pending-F20 formula cases must not reject a blank `build` or reject
-Wayfarer Anchorage. #51 must hold on F20 by returning a structured `pending F20`
-issue rather than outputting excluded values until Luna answers. Do not invent
-numeric stand-ins. Open for Luna, not guessed. Do not assign a result or handling
-rule here.
 
 ## F21 — Same-deck mapping and 1-cell measurement
 
@@ -348,9 +343,10 @@ then recomputes direct costs, capacities, and masses. It discards imported
 derived/validation caches and embedded rules as authority. Structural legality,
 carried-fit/empty-berth legality, readiness, performance, and docking remain
 unimplemented for #50/#51; exported readiness is unset with structured pending
-issues, including `pending_F20` for applicable blank/engine-less cases. No F20
-evaluation path or excluded numeric value is exposed. In
-particular, migration preserves Rustbucket's geometry without repairing it.
+issues for operations not performed by import. F20 and zero-cell N1 are resolved
+by Luna, under owner delegation 2026-11-23: perf() returns n/a for valid
+uncomputable stats, and import remains accepted. Migration preserves
+Rustbucket's geometry without repairing it.
 
 Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
@@ -399,9 +395,10 @@ The former per-deck-only hull and multiple-start crew rules are superseded.
 Performance advisories from the prototype, including Skiff's `no_cargo` and
 Rustbucket's power/fuel warnings, are deferred to #51. Complete readiness and
 jump readiness remain unset on structural success; structural failure sets
-ready false. Wayfarer's three excluded burn-rate formula evaluations remain
-nonblocking `pending_F20`, with no excluded values or numeric substitutes.
-The #49 blank-design F20 exclusions remain unchanged.
+ready false. F20 is resolved by Luna, under owner delegation 2026-11-23:
+Wayfarer's undefined burn-rate stats and dependent deltaV are n/a in perf(),
+while structural validation retains numeric direct totals and emits no speculative
+pending_F20 report. Blank JSON follows the same accepted-design rule.
 
 The prototype required structural validity, a reachable and clear visitor
 airlock, a clear approach, the size envelope, deck limits, and station crew
@@ -436,7 +433,7 @@ structured pending F11–F17 issues once per finding kind before any guessed hol
 totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
-F11–F17, F19, F20, and F21 remain Open for Luna.
+F11–F17, F19, and F21 remain Open for Luna; F20/N1 are resolved above.
 
 ## F24 — Performance implementation boundary and canonical comparison (#51)
 
@@ -477,18 +474,25 @@ carried Skiff; the prototype's parent issue list omitted it. This extra nested
 diagnostic uses the active severity and changes no canonical numeric result.
 Child formula failures reject the containing design under F10.
 
-Wayfarer Anchorage's historical full/current burnSeconds and exhaustVelocity
-fallback zeros become structured `pending_F20` issues with those values omitted.
-Its deltaV also remains omitted because exhaustVelocity is pending, rather than
-acquiring a fabricated zero. Blank ship/station sources likewise omit all F20
-zero-mass divisions and ln(0) results; pending issues identify each evaluation.
-Other formula failures still reject, including invalid independent operands
-beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
-range are separate outputs. The blank source defaults to a ship; station
-creation is explicit, without editor history.
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
+
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
+
 
 Independent performance tests remain for the later tests session. F11–F17,
-F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
+F19 and F21 remain **Open for Luna, not guessed**. No hold, docking
 rotation, or same-deck distance convention is assigned here.
 
 
