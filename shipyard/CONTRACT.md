@@ -154,16 +154,20 @@ than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
 Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the exact deck limit. Docking permits the
-four right-angle facings only, resolved by **Luna, under owner delegation
-2026-11-23** (#77, Refs #60, F19). Width/length fit is the exact comparison
-`(w <= W && l <= L) || (l <= W && w <= L)` against active hangar limits.
-`data.hangar.widthLengthFit` is always boolean. A failed fit emits
-`dock_hangar_size_limit` at the active docking severity (v3: error), retaining
-measured dimensions and limits. There is no diagonal-fit allowance, epsilon
-extension of these input bounds, or `pending_F19` result. No facing or visitor
-airlock is selected. All F18 checks, including separate F03/F21 certification,
-remain in force.
+length, and deck limits and enforce the exact deck limit. Unrotated fit uses
+exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
+without `pending_F19`. A definite size error requires a rotation-proof bound:
+the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
+comparison `max(w,l) > hypot(W,L) + numeric.epsilon`, where `w,l` are visitor
+dimensions and `W,L` are hangar limits. The diagonal uses the same absolute
+epsilon convention as `carried_fit`; equality or excess within epsilon does not
+establish a diagonal rejection. A visitor exceeding either bound reports
+`widthLengthFit: false` and
+`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
+dimensions and limits, without `pending_F19`. Failure in both axis-aligned
+orientations alone is insufficient. Every other case that does not fit unrotated
+remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
+pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
 recognize a requested blueprint `holds` field (including nested carried craft).
@@ -180,7 +184,7 @@ modules and adjacent-deck ladders continue to work normally.
 The independent tests session should exercise canonical structural outcomes,
 rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
 switch with mutation evidence, multiple compatible airlocks, ports beyond former
-size caps, orthogonal hangar limits, and all remaining pending gates. No new tests or
+size caps, hangar limits subject to F19, and all pending gates. No new tests or
 workflow steps are supplied by this implementation session.
 
 ## Performance (#51)
@@ -231,7 +235,7 @@ count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
 ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19 uses the right-angle fit above; F21 certification remains separate.
+F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
 
 The independent tests session should cover all four scenarios, load overrides,
 carried loads and child-specific formula failures, all five explicit drive prices,
@@ -242,9 +246,9 @@ goldens and compare only their rules-defined values; F24 records v4 differences.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
-tolerance. The `carried_fit` width/length checks reject only when
-`actual > maximum + numeric.epsilon`. Both orthogonal hangar width/length
-orientations and deck limits use exact input-bound comparisons.
+tolerance. The `carried_fit` width/length checks and hangar's computed diagonal
+reject only when `actual > maximum + numeric.epsilon`. Hangar unrotated fit,
+minimum-side rejection, and deck limits remain exact input-bound comparisons.
 Input bounds, IDs, coordinates, versions, and counts are exact: epsilon never
 admits an over-limit input. Computed masses are rounded at the
 reference's direct-total boundaries to `numeric.precision` decimal places

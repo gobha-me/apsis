@@ -34,9 +34,8 @@ Blueprint and ship/station default names count extended grapheme clusters using
 vendored utf8proc, without Unicode normalization; generic schema, deck and note
 lengths remain scalar-based. Decision: **Luna, under owner delegation 2026-11-23**.
 The shipyard does not enforce player affordability. Ports have no size envelope;
-hangars retain their rule-defined dimensions and deck count. Hangar fit uses
-the four right-angle facings only, resolved by **Luna, under owner delegation
-2026-11-23** (F19, #77). F03 alignment remains separate #79 work.
+hangars retain their rule-defined dimensions and deck count. No docking
+rotation or F03 distance convention is implemented.
 
 Include `<apsis/shipyard/validator.hpp>` for the public operations:
 
@@ -52,10 +51,9 @@ Docking reports each F18 check separately; `DockOptions` independently controls
 `structural` (a), `portReachability` (b), `matchingAirlock` (c), and
 `approachClearance` (d). CLI and HTTP always use defaults and never map request
 fields to these switches; the public types remain for independent tests of the
-real checks. Pending F21 prevents certifying a port dock. Hangar width/length
-fit is boolean for the two distinct orthogonal envelopes; no `pending_F19`
-result remains. No visitor airlock or facing is selected. See the precise
-pending and switch semantics in CONTRACT.md.
+real checks. Pending F21 prevents certifying a port dock; hangar rotations remain
+pending F19. No visitor airlock is selected. See the precise pending and switch
+semantics in CONTRACT.md.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:
 

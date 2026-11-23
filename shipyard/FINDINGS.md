@@ -306,20 +306,29 @@ port size envelope. Issue #50 already contains these acceptance items and remain
 
 ## F19 — Allowed docking rotations
 
-**Resolved by Luna, under owner delegation 2026-11-23**, recorded in #77
-(Refs #60): docking permits the four right-angle facings only.
+**Open for Luna, not guessed.** Which visitor rotations are allowed when
+checking hangar width/length fit? The original test-strategy phrase "allowed
+rotations after rule clarification" needs an owner rule before independent
+tests can assert permitted orientations. Do not infer quarter-turn permission
+or prohibition from the prototype; F02's port size decision does not settle
+hangar rotations.
 
-Hangar width/length fit uses the two distinct orthogonal envelopes:
-`(w <= W && l <= L) || (l <= W && w <= L)`, where `w,l` are visitor dimensions
-and `W,L` are the active rule-defined hangar limits. These are exact input-bound
-comparisons. `widthLengthFit` is always boolean; failure reports the existing
-`dock_hangar_size_limit` at the active docking severity. No diagonal fit or
-`pending_F19` result remains. The rule-defined deck limit is independent.
+The v4 rules deliberately omit v3 `docking.allowQuarterTurn: true`
+(`fixtures/v3/apsis-rules-v3.json:85`) pending Luna. The omission encodes
+neither permission nor prohibition; F19 remains **Open for Luna, not guessed**.
 
-This slice implements F19 only. It adds no chosen-facing or airlock-selection
-API. Hold representation and access, capacity, mass, walkability, overlap and
-hold-specific docking remain separate #77 slices. F03/F21 implementation is
-separate #79 work; its pending certification is retained here.
+The implementation certifies an unrotated fit without choosing allowed docking
+rotations. A definite size error requires a rotation-proof bound:
+`min(w,l) > min(W,L)` or `max(w,l) > hypot(W,L)`, where `w,l` are visitor
+dimensions and `W,L` are hangar limits. Failure in both axis-aligned orientations
+is insufficient: a diagonal fit may still be possible. Every other case that
+does not fit unrotated remains `pending_F19`, without choosing any rotation.
+
+Round 4 numeric clarification: the computed diagonal comparison applies active
+absolute `numeric.epsilon` as documented in CONTRACT.md. Only
+`max(w,l) > hypot(W,L) + numeric.epsilon` establishes diagonal rejection;
+unrotated fit, minimum-side rejection, and deck limits remain exact. This
+clarifies the computed comparison without choosing any allowed rotation.
 
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
@@ -424,11 +433,15 @@ The prototype required structural validity, a reachable and clear visitor
 airlock, a clear approach, the size envelope, deck limits, and station crew
 reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
 until Luna defines same-deck mapping and the distance/reference/inclusivity
-convention. Hangars use the four right-angle facings decided in F19:
-`widthLengthFit` is true when either orthogonal width/length envelope fits and
-false otherwise, with `dock_hangar_size_limit` at the active docking severity
-(v3: error). Measured dimensions and the independent exact deck cap remain.
-There is no `pending_F19` result. F03/F21 certification remains separate.
+convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
+visitor fits unrotated. A visitor satisfying either rotation-proof bound from
+F19 reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+docking severity (v3: error), including measured dimensions and limits, without
+`pending_F19`. Every other case that does not fit unrotated remains uncertified
+with `widthLengthFit: null` and `pending_F19`; the rule-defined deck cap is
+enforced. Failure in both axis-aligned orientations alone does not prove that
+the visitor exceeds the hangar. These bounds do not choose allowed rotations.
+The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
@@ -449,7 +462,7 @@ structured pending F11–F17 issues once per finding kind before any guessed hol
 totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
-F19 is resolved above; the remaining feature implementations are separate slices.
+F11–F17, F19, F20, and F21 remain Open for Luna.
 
 ## F24 — Performance implementation boundary and canonical comparison (#51)
 
@@ -500,9 +513,9 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Independent performance tests remain for the later tests session. Hold,
-F20 and F03/F21 implementation changes remain separate slices. The decided F19
-right-angle envelope check is documented above.
+Independent performance tests remain for the later tests session. F11–F17,
+F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
+rotation, or same-deck distance convention is assigned here.
 
 
 ## Historical boundary notes preserved by the #63/#65 integration
