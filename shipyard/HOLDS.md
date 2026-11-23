@@ -61,3 +61,8 @@ rules rotations. A hangar fits if the visitor's width and length fit either
 unrotated or swapped, using exact bounds. Equality passes; an oblique-only fit
 fails. F21 alignment and F20 undefined-performance handling are separate from
 these resolved hold/rotation decisions.
+
+The exact mutation minimum remains `390/491`. The hold implementation retires
+eight obsolete allowances (the removed pending-hold parser and replaced
+floor-count geometry guard), shifting only 23 byte-identical source-site
+identities. The allowed set tightens from 101 to 93; no new survivor is allowed.
