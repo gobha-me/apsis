@@ -9,6 +9,7 @@ import csv
 import hashlib
 import itertools
 import json
+import math
 import re
 import subprocess
 import sys
@@ -174,7 +175,8 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
         or response.get("operation") != "validate"
         or response.get("status") != ("PASS" if passed else "FAIL")
         or response.get("rulesSha256") != rules_hash
-        or response.get("rulesVersion") != 4
+        or type(response.get("rulesVersion")) is not int
+        or response["rulesVersion"] != 4
     ):
         raise ReportError("adapter result identity/status mismatch")
     issues = response.get("issues")
@@ -186,8 +188,12 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
             for key in ("code", "severity", "message", "path")
         ):
             raise ReportError("adapter returned a malformed issue")
-    if passed and any(issue["severity"] == "error" for issue in issues):
-        raise ReportError("PASS result contains an error")
+        if issue["severity"] not in {"error", "warning"} or not isinstance(
+            issue.get("details"), dict
+        ):
+            raise ReportError("adapter returned an invalid issue severity/details")
+    if passed == any(issue["severity"] == "error" for issue in issues):
+        raise ReportError("adapter status disagrees with its error findings")
     data = response.get("data")
     if data is not None and not isinstance(data, dict):
         raise ReportError("adapter returned malformed data")
@@ -197,15 +203,27 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
     if data is not None:
         if data.get("structuralPass") is not passed or not isinstance(definition, dict):
             raise ReportError("adapter returned inconsistent structural result")
-        if data.get("checks") != {"crewRoutes": True, "approachClearance": True}:
+        checks = data.get("checks")
+        if checks != {"crewRoutes": True, "approachClearance": True} or any(
+            type(value) is not bool for value in checks.values()
+        ):
             raise ReportError("adapter did not use the default structural checks")
     validation = definition.get("validation", {}) if definition else {}
     derived = definition.get("derived", {}) if definition else {}
     if not isinstance(validation, dict) or not isinstance(derived, dict):
         raise ReportError("adapter returned malformed definition caches")
+    if definition is not None and any(
+        not (
+            type(derived.get(key)) is int
+            or (type(derived.get(key)) is float and math.isfinite(derived[key]))
+        )
+        for key in TOTALS
+    ):
+        raise ReportError("adapter returned missing/nonfinite direct totals")
     if definition is not None and (
         validation.get("ready") is not (None if passed else False)
         or validation.get("jumpReady") is not None
+        or validation.get("issues") != issues
     ):
         raise ReportError("adapter confused structural approval with readiness")
     return {

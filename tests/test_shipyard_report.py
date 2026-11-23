@@ -38,8 +38,14 @@ def response():
             "structuralPass": True,
             "checks": {"crewRoutes": True, "approachClearance": True},
             "definition": {
-                "validation": {"ready": None, "jumpReady": None},
-                "derived": {"cost": 100, "currentMass": 10},
+                "validation": {"ready": None, "jumpReady": None, "issues": []},
+                "derived": {
+                    "cost": 100,
+                    "dryMass": 8,
+                    "currentMass": 10,
+                    "cargo": 3,
+                    "fuel": 2,
+                },
             },
             "migration": {},
         },
@@ -152,6 +158,7 @@ class ReportPlanningTests(unittest.TestCase):
             ("pass", 1),
             ("status", "FAIL"),
             ("issues", None),
+            ("rulesVersion", 4.0),
             ("data", None),
         ]
         for field, value in variations:
@@ -159,10 +166,36 @@ class ReportPlanningTests(unittest.TestCase):
             changed[field] = value
             with self.subTest(field=field), self.assertRaises(report.ReportError):
                 report.summarize(cases[0], changed, baseline["rulesSha256"])
-        for change in ("checks", "readiness", "error"):
+        for change in (
+            "checks",
+            "integer_checks",
+            "readiness",
+            "error",
+            "totals",
+            "issue_severity",
+            "fail_without_errors",
+        ):
             changed = copy.deepcopy(baseline)
             if change == "checks":
                 changed["data"]["checks"]["crewRoutes"] = False
+            elif change == "integer_checks":
+                changed["data"]["checks"]["crewRoutes"] = 1
+            elif change == "totals":
+                changed["data"]["definition"]["derived"]["currentMass"] = "10"
+            elif change == "issue_severity":
+                changed["issues"] = [
+                    {
+                        "code": "bad",
+                        "severity": "unknown",
+                        "path": "",
+                        "message": "bad",
+                        "details": {},
+                    }
+                ]
+            elif change == "fail_without_errors":
+                changed["pass"] = False
+                changed["status"] = "FAIL"
+                changed["data"] = None
             elif change == "readiness":
                 changed["data"]["definition"]["validation"]["ready"] = True
             else:
