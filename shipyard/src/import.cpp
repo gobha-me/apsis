@@ -56,9 +56,11 @@ struct Importer {
         }
     }
 
-    void check_text(const Json& value, const Json& maximum, const std::string& path) {
+    void check_text(const Json& value, const Json& maximum, const std::string& path,
+                    bool blueprint_name = false) {
         const auto& text = value.get_ref<const std::string&>();
-        if (detail::character_count(text) > maximum.get<std::size_t>()) {
+        const auto length = blueprint_name ? detail::grapheme_count(text) : detail::character_count(text);
+        if (length > maximum.get<std::size_t>()) {
             detail::add_issue(issues, error("field_limit", "Text exceeds the active rules character limit.", path));
         }
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; })) {
@@ -110,7 +112,7 @@ struct Importer {
         }
         const auto& limits = rules.at("limits");
         check_text(blueprint.at("name"), rules.at("technicalLimits").at("maxBlueprintNameCharacters"),
-                   at(path, "name"));
+                   at(path, "name"), true);
         if (blueprint.at("budget").get<double>() > rules.at("technicalLimits").at("maxBudgetInputCr").get<double>()) {
             detail::add_issue(issues, error("field_limit", "Budget input exceeds the active technical sanity limit.", at(path, "budget")));
         }

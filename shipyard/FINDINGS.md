@@ -382,14 +382,17 @@ Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
 Unicode normalization occurs.
 
-The following three prototype differences are **Open for Luna, not guessed**,
-with no value picked. Current behaviour is an **interim interpretation**, not
-a settled technical encoding contract:
+Name-length decision resolved by **Luna, under owner delegation 2026-11-23**:
+the active 80-character blueprint-name limit counts user-perceived extended
+grapheme clusters, so one emoji is one character. The same count validates
+ship/station default names, including carried blueprint names on import.
+Vendored utf8proc 2.12.0 (Unicode 18.0.0) supplies stateful UAX #29 boundaries;
+input bytes are preserved without Unicode normalization. Generic JSON Schema,
+deck-name, prefix and note lengths retain their scalar-value contracts.
 
-- Name-length counting: the current loader counts Unicode scalar values; the
-  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
-  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
-  the prototype's limit. The counting choice remains open.
+The following two prototype differences remain **Open for Luna, not guessed**
+in this separate unit; their current behaviour remains interim:
+
 - Label trimming and fallback: the current loader preserves empty and
   whitespace-only labels without trimming or a fallback; the prototype's
   `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains

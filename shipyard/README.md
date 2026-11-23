@@ -5,7 +5,7 @@ The library implements loading, schema checks, direct totals, explicit v3
 migration, structural validation, docking checks, and performance evaluation.
 Public CLI/HTTP adapters remain separate work.
 
-Build (CMake 3.20+, g++-13, OpenSSL 3.x development files):
+Build (CMake 3.20+, a C compiler, g++-13, OpenSSL 3.x development files):
 
 ~~~sh
 cmake -S shipyard -B build/shipyard -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release
@@ -30,6 +30,9 @@ Imported caches and embedded rules are discarded and replaced by active data.
 Rules are the sole balance authority. Names and budgets are never trimmed or
 clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
+Blueprint and ship/station default names count extended grapheme clusters using
+vendored utf8proc, without Unicode normalization; generic schema, deck and note
+lengths remain scalar-based. Decision: **Luna, under owner delegation 2026-11-23**.
 The shipyard does not enforce player affordability. Ports have no size envelope;
 hangars retain their rule-defined dimensions and deck count. No docking
 rotation or F03 distance convention is implemented.

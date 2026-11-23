@@ -12,4 +12,6 @@ std::string pointer_token(std::string_view token);
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name,
                                 const Json& variables);
 std::size_t character_count(std::string_view utf8);
+// Design names count extended grapheme clusters; other text stays scalar-counted.
+std::size_t grapheme_count(std::string_view utf8);
 } // namespace apsis::shipyard::detail

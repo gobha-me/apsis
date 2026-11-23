@@ -178,7 +178,10 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
     for (const auto key : {"shipName", "stationName", "deckName"}) {
         const auto max = key == std::string_view("deckName") ? r["limits"]["maxDeckName"].get<double>()
                             : r["technicalLimits"]["maxBlueprintNameCharacters"].get<double>();
-        if (detail::character_count(r["defaults"][key].get<std::string>()) > max)
+        const auto& name = r["defaults"][key].get_ref<const std::string&>();
+        const auto length = key == std::string_view("deckName")
+            ? detail::character_count(name) : detail::grapheme_count(name);
+        if (length > max)
             fail("/defaults/" + std::string(key), "Default name exceeds its rules limit.");
         const auto& text = r["defaults"][key].get_ref<const std::string&>();
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; }))

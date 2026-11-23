@@ -1,18 +1,22 @@
 cmake_minimum_required(VERSION 3.20)
-project(apsis_shipyard LANGUAGES CXX)
+project(apsis_shipyard LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
+add_library(shipyard-utf8proc STATIC vendor/utf8proc/utf8proc.c)
+set_target_properties(shipyard-utf8proc PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+target_compile_definitions(shipyard-utf8proc PUBLIC UTF8PROC_STATIC)
+target_include_directories(shipyard-utf8proc SYSTEM PUBLIC vendor/utf8proc)
 add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
   src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp
-  src/authoring.cpp)
+  src/authoring.cpp src/name_text.cpp)
 add_library(apsis::shipyard ALIAS apsis-shipyard)
 target_include_directories(apsis-shipyard PUBLIC include)
 target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)
-target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto)
+target_link_libraries(apsis-shipyard PRIVATE OpenSSL::Crypto shipyard-utf8proc)
 target_compile_features(apsis-shipyard PUBLIC cxx_std_23)
 target_compile_options(apsis-shipyard PRIVATE -Wall -Wextra -Wpedantic)
 
