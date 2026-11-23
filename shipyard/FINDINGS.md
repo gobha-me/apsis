@@ -503,6 +503,17 @@ descriptions do not override the reviewed behavior above. F24 remains current.
 No finding was renumbered.
 
 ~~~text
+
+## Superseded original #66 findings
+
+The following verbatim F22/F23 entries from `27b1e3b` are historical, superseded
+by the reviewed current entries above. They preserve the original text, including
+its former scope and prototype claims; they do not change the current contract.
+No F finding was renumbered.
+
+<details>
+<summary>Historical F22 and F23 text</summary>
+
 ## F22 — Loader boundary and encoding contract (#49)
 
 Implementation note, not a new game rule or an answer to any open finding.
@@ -593,6 +604,20 @@ returns null data. This excerpt assigns no owner decision or current rule.
 No finding was renumbered.
 
 ~~~text
+
+
+</details>
+
+
+<details>
+<summary>Historical r1 text retained at the r2 integration</summary>
+
+The following pre-r2 text is preserved verbatim from the Mull branch. It is
+superseded by the current contract and reviewed F19/F23 rotation-proof bounds
+and terminal-truncation behavior above; it assigns no current owner decision.
+No FINDINGS IDs were renumbered.
+
+```md
 ## F23 — Validator implementation boundary and canonical comparison (#50)
 
 Implementation note, not a new game rule or a resolution of an open finding.
@@ -650,3 +675,7 @@ geometry is invented, and no opening is filled. The independent tests session mu
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
 ~~~
+
+```
+
+</details>
