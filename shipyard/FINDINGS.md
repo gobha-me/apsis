@@ -382,17 +382,15 @@ Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
 Unicode normalization occurs.
 
-The note-retention decision below is resolved; name counting and name
-trimming/fallback remain separate units. Their old behaviour is interim:
+All three F22 decisions are final under
+**Luna, under owner delegation 2026-11-23**; their implementations remain
+separate issue units:
 
-- Name-length counting: the current loader counts Unicode scalar values; the
-  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
-  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
-  the prototype's limit. The counting choice remains open.
-- Label trimming and fallback: the current loader preserves empty and
-  whitespace-only labels without trimming or a fallback; the prototype's
-  `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
-  open.
+- Name-length counting (#80): the active design-name cap counts extended
+  grapheme clusters, including one emoji as one character. That separate unit
+  supplies segmentation; this note policy does not replace the counter.
+- Blueprint-name trim/fallback (#81): trim and use `Unnamed design` when empty;
+  the separate unit supplies runtime normalization and active defaults.
 - Migration-note overflow is resolved by **Luna, under owner delegation 2026-11-23**:
   retain the newest notes, in order, plus one bounded dropped-history notice.
   The notice occupies one active note slot, so overflow retains the newest

@@ -16,12 +16,11 @@ the request time limit (#52). Draft schemas describe shape; the loader then
 checks active catalogue references, grid coordinates, module IDs/nextId,
 rotations, interfaces, carry depth, and limits.
 C0 and DEL controls are rejected in labels/notes; no Unicode normalization
-occurs. F22's name-length counting and label trimming/fallback choices are
-**Open for Luna, not guessed**, with no value picked. The current loader's
-Unicode scalar-value counting and preservation of empty or whitespace-only
-labels without trimming or fallback are an **interim interpretation**. The
-prototype instead uses JavaScript UTF-16 length units and trims labels with a
-fallback. These differences are not a settled technical encoding contract.
+occurs. F22 name counting and trim/fallback are decided by
+**Luna, under owner delegation 2026-11-23** and implemented separately in #80
+and #81. This independent note-retention unit leaves the earlier name runtime
+unchanged until those implementations are integrated; it adds no new name
+interpretation or unresolved design question.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
