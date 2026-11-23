@@ -129,6 +129,24 @@ int main() {
       require(!import_definition(design.dump(), active, schema).ok(), "Hold coordinates and indices are integers");
     }
   });
+  suite.run("hold full-grid width and height equalities import without shrinking the volume", [&] {
+    const int width = active.data().at("grid").at("w").get<int>();
+    const int height = active.data().at("grid").at("h").get<int>();
+    require(width == 26 && height == 24 && active.data().at("cellSizeM") == 2,
+            "Bundled physical grid gives independent52m/48m exact outer boundaries");
+    for (const auto &record : {hold(0, 2, 0, 5, width, 4), hold(0, 2, 8, 0, 3, height)}) {
+      auto design = volume(); design["holds"][0] = record;
+      const auto result = import_definition(design.dump(), active, schema);
+      require(result.ok() && result.value->definition.at("blueprint").at("holds") == Json::array({record}),
+              "Full active-grid width/height equality is accepted and preserved exactly");
+      const auto &derived = result.value->definition.at("derived");
+      require(record.at("w") == width ? derived.at("widthM") == 52 : derived.at("lengthM") == 48,
+              "Each full-grid dimension reaches its independent inclusive physical extent");
+      require(std::none_of(result.issues.begin(), result.issues.end(), [](const Issue &item) {
+                return item.code == "hold_bounds";
+              }), "Equality must not become an out-of-bounds diagnostic");
+    }
+  });
   suite.run("hold integer fields reject huge finite integral doubles before semantic casts", [&] {
     for (const auto *field : {"x", "y", "w", "h", "firstDeck", "lastDeck"}) {
       for (const auto &too_large : {Json(1e100), Json(9007199254740992ULL)}) {
@@ -327,6 +345,39 @@ int main() {
                 outward.at("details").at("exteriorOutward") == false &&
                 outward.at("details").at("approachClear") == false,
             "With all actual outward floors removed, hold volume alone remains interior and obstructs exterior approach");
+  });
+  suite.run("cargo port sees declared interior on both inclusive hold endpoint decks", [&] {
+    const int grid_width = active.data().at("grid").at("w").get<int>();
+    for (const int deck : {0, 2}) {
+      auto design = volume(3, 7, 6, hold(0, 2, 4, 5, 3, 5));
+      const auto id = design.at("nextId").get<int>();
+      design["nextId"] = id + 1;
+      const auto index = design["decks"][deck]["modules"].size();
+      design["decks"][deck]["modules"].push_back({{"id", id}, {"type", "dockingPort"},
+          {"x", 2}, {"y", 7}, {"r", 1}, {"interface", "cargo"}});
+      accepted(design, active, schema);
+      design["decks"][deck]["modules"][index]["r"] = 3;
+      for (int x = 4; x < grid_width; ++x) for (int y = 7; y < 9; ++y)
+        design["decks"][deck]["floors"].erase(std::to_string(x) + "," + std::to_string(y));
+      for (int x = 4; x < grid_width; ++x) for (int y = 7; y < 9; ++y)
+        require(!design["decks"][deck]["floors"].contains(std::to_string(x) + "," + std::to_string(y)),
+                "The complete real outward floor ray is absent through the active grid edge");
+      const std::string path = "/blueprint/decks/" + std::to_string(deck) +
+                               "/modules/" + std::to_string(index);
+      const auto checked = validate(design.dump(), active, schema);
+      finding(checked, "blocked_approach", path);
+      DockOptions options; options.structural = false;
+      options.portReachability = false; options.matchingAirlock = false;
+      const auto docked = dock(design.dump(), deck, id, visitor().dump(), active, schema, options);
+      const auto &target = docked.at("data").at("target");
+      const auto &outward = docked.at("data").at("checks").at("d");
+      require(target.at("deck") == deck && target.at("moduleId") == id &&
+                  outward.at("status") == "FAIL" &&
+                  outward.at("details").at("exteriorOutward") == false &&
+                  outward.at("details").at("approachClear") == false,
+              "Both first and last spanned deck retain interior classification and obstructed approach with no real outward floors");
+      finding(docked, "dock_blocked_approach", "/host" + path);
+    }
   });
   suite.run("carried hold volume uses each exact envelope edge independently of material", [&] {
     const auto child_at = [](int dx, int dy) {

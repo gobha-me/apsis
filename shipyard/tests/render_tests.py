@@ -749,6 +749,29 @@ class Geometry(PublicRenderer):
                         self.assertEqual(images[deck].at(px, py), expected,
                                          (deck, text, row, index, column))
 
+    def test_nine_pixel_hold_width_clips_after_exact_first_h_glyph(self):
+        design = self.hold_station(count=3, first=0, last=2)
+        options = {"width": 110, "height": 120, "labels": True}
+        titled = self.render(design, options=options, validate=True)
+        manifest, images = self.verify_bundle(titled, design, options)
+        no_labels = {**options, "labels": False}
+        untitled = self.render(design, options=no_labels, validate=True)
+        _, ordinary = self.verify_bundle(untitled, design, no_labels)
+        camera = manifest["camera"]
+        self.assertEqual(camera["cellPixels"], 3)
+        self.assertEqual(design["holds"][0]["w"] * camera["cellPixels"], 9)
+        x = camera["originX"] + 8 * 3 + 2
+        y = camera["originY"] + 5 * 3 + 2
+        # Literal H is the only complete glyph fitting this narrow held panel.
+        h_rows = (17, 17, 17, 31, 17, 17, 17)
+        for deck in (0, 2):
+            for row in range(7):
+                for column in range(20):
+                    ink = column < 5 and bool(h_rows[row] & (1 << (4-column)))
+                    expected = TITLE if ink else ordinary[deck].at(x + column, y + row)
+                    self.assertEqual(images[deck].at(x + column, y + row), expected,
+                                     (deck, row, column))
+
 
 class Bounds(PublicRenderer):
     def test_rustbucket_rejects_and_empty_holds_are_noop(self):
