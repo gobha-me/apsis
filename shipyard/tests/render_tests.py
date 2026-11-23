@@ -716,6 +716,31 @@ class Geometry(PublicRenderer):
                          [a for a in baseline["artifacts"] if a["mediaType"] == "image/png"],
                          "Empty hold metadata retains byte-identical deck and stack PNGs")
 
+    def test_exact_hold_right_and_bottom_midpoints_and_outside_pixels(self):
+        design = self.hold_station()
+        options = {"labels": False}
+        rendered = self.render(design, options=options, validate=True)
+        manifest, images = self.verify_bundle(rendered, design, options)
+        without = copy.deepcopy(design)
+        del without["holds"]
+        baseline = self.render(without, options=options, validate=True)
+        _, ordinary = self.verify_bundle(baseline, without, options)
+        camera = manifest["camera"]
+        cell, ox, oy = camera["cellPixels"], camera["originX"], camera["originY"]
+        right, bottom = ox + 11 * cell - 1, oy + 9 * cell - 1
+        middle_x, middle_y = ox + 9 * cell + cell // 2, oy + 7 * cell + cell // 2
+        for deck in (1, 2):
+            self.assertEqual(images[deck].at(right, middle_y), BORDER)
+            self.assertEqual(images[deck].at(middle_x, bottom), BORDER)
+            self.assertNotEqual(ordinary[deck].at(right, middle_y), BORDER)
+            self.assertNotEqual(ordinary[deck].at(middle_x, bottom), BORDER)
+            self.assertEqual(images[deck].at(right + 1, middle_y), GRID)
+            self.assertEqual(images[deck].at(middle_x, bottom + 1), GRID)
+            self.assertEqual(images[deck].at(right + 2, middle_y),
+                             ordinary[deck].at(right + 2, middle_y))
+            self.assertEqual(images[deck].at(middle_x, bottom + 2),
+                             ordinary[deck].at(middle_x, bottom + 2))
+
     def test_compact_hold_label_exact_digits_hyphen_and_endpoint_bitmap(self):
         # Literal reviewed 5x7 glyph expectations: no production font/helper is imported.
         glyphs = {
@@ -800,6 +825,18 @@ class Bounds(PublicRenderer):
         holds["holds"] = [{"x": 0, "y": 0, "w": 1, "h": 1,
                             "firstDeck": 0, "lastDeck": 0}]
         self.rejected(self.render(holds), "hold_span")
+
+    def test_raw_holds_only_subtotal4096_is_not_an_operational_overflow(self):
+        design = self.station()
+        design["decks"][0]["modules"] = []
+        design["nextId"] = 1
+        design["holds"] = [{} for _ in range(4096)]
+        self.assertEqual(sum(len(deck["modules"]) for deck in design["decks"]), 0)
+        equality = self.render(design)
+        self.rejected(equality, "schema_error")
+        self.assertNotIn("render_resource_limit", [i["code"] for i in equality["envelope"]["issues"]])
+        design["holds"].append({})
+        self.rejected(self.render(design), "render_resource_limit")
 
     def test_combined_module_hold_work_bound_including_real_nested_craft(self):
         options = {"width": 320, "height": 320, "labels": False}

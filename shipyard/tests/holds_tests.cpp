@@ -213,6 +213,30 @@ int main() {
                 has_issue(too_wide, "dock_hangar_size_limit"),
             "Declared empty hold volume participates in the real public hangar envelope rejection");
   });
+  suite.run("all hold records are imported and structurally checked at their exact second index", [&] {
+    const auto control = volume();
+    accepted(control, active, schema);
+    for (const auto &bad : {hold(0, 2, 26, 5, 1, 4), hold(0, 0)}) {
+      auto design = control;
+      design["holds"].push_back(bad);
+      const auto result = import_definition(design.dump(), active, schema);
+      const auto code = bad.at("x") == 26 ? "hold_bounds" : "hold_span";
+      require(!result.ok() && issue(result.issues, code, "/holds/1"),
+              "A valid first hold cannot hide the second record importer bounds/span failure");
+      require(std::none_of(result.issues.begin(), result.issues.end(), [](const Issue &item) {
+                return (item.code == "hold_bounds" || item.code == "hold_span") && item.path == "/holds/0";
+              }), "The valid first declaration retains its independent identity");
+    }
+    auto structural = control;
+    structural["holds"].push_back(hold(0, 2, 2, 7, 2, 2));
+    require(import_definition(structural.dump(), active, schema).ok(),
+            "Second hold is a well-shaped declaration requiring real structural inspection");
+    const auto checked = validate(structural.dump(), active, schema);
+    require(checked.at("pass") == false && !checked.at("data").is_null(),
+            "Second structural hold failure retains inspectable validation data");
+    finding(checked, "hold_access", "/blueprint/holds/1");
+    finding(checked, "hold_open_column", "/blueprint/holds/1");
+  });
   suite.run("partial mezzanines need a single common full-height open column", [&] {
     accepted(volume(), active, schema);
     auto blocked = volume();
@@ -289,6 +313,25 @@ int main() {
     design["holds"][0]["w"] = 4;
     finding(validate(design.dump(), active, schema), "hold_hangar_overlap", "/blueprint/holds/0");
     design["holds"][0]["firstDeck"] = 1;
+    accepted(design, active, schema);
+  });
+  suite.run("hangar overlap on only the inclusive last hold deck is still forbidden", [&] {
+    auto design = volume(4, 7, 6, hold(0, 2));
+    const int id = design.at("nextId").get<int>();
+    design["nextId"] = id + 1;
+    const Json hangar = {{"id", id}, {"type", "stationHangar"}, {"x", 11}, {"y", 5}, {"r", 0}};
+    design["decks"][2]["modules"].push_back(hangar);
+    fill(design, 2, 11, 5, 5, 7);
+    accepted(design, active, schema);
+    design["holds"][0]["w"] = 4;
+    const auto overlap = validate(design.dump(), active, schema);
+    const auto &item = finding(overlap, "hold_hangar_overlap", "/blueprint/holds/0");
+    require(overlap.at("pass") == false && item.at("details").at("deck") == 2 &&
+                item.at("details").at("moduleId") == id,
+            "Actual hangar overlaps the same hold only on its inclusive last deck2");
+    design["decks"][2]["modules"].erase(design["decks"][2]["modules"].end() - 1);
+    design["decks"][3]["modules"].push_back(hangar);
+    fill(design, 3, 11, 5, 5, 7);
     accepted(design, active, schema);
   });
   suite.run("hangar collision uses actual rotated footprint", [&] {
