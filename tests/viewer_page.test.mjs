@@ -121,6 +121,9 @@ async function openViewer(text, { status = 200, fetchError = null, contentLength
     timeline() {
       return get('timeline').children.map((item) => item.children.map((child) => child.textContent));
     },
+    inspection() {
+      return get('inspection').children.map((row) => row.children.map((cell) => cell.textContent));
+    },
     tick(timestamp) {
       const callbacks = [...frameCallbacks.values()];
       frameCallbacks.clear();
@@ -229,6 +232,7 @@ function assertRejected(page, message) {
   assert.equal(page.get('hash').textContent, '');
   assert.deepEqual(page.state(), {});
   assert.deepEqual(page.timeline(), []);
+  assert.deepEqual(page.inspection(), []);
   assert.equal(page.callbacks.size, 0);
 }
 
@@ -338,6 +342,70 @@ if (process.argv.includes('--export-stdin')) {
     assertRejected(page, /frames.*hash|framesHash/i);
   });
 } else {
+  await test('entity inspector follows scrubbed frames and preserves exact int64 deltas', async () => {
+    const run = sampleRun();
+    // Unrecognized properties are outside framesHash and must not enter the inspector.
+    run.frames[1].pilot.unverified = 'do not show';
+    const page = await openViewer(JSON.stringify(run));
+    assert.equal(page.get('entity').value, 'pilot');
+    assert.equal(page.inspection().length, 12);
+    assert.deepEqual(page.inspection().find(([field]) => field === 'pilot.wallet'),
+      ['pilot.wallet', '0', '—', 'baseline']);
+    page.seek(1);
+    assert.deepEqual(page.inspection().find(([field]) => field === 'pilot.wallet'),
+      ['pilot.wallet', '9007199254740993', '0', '+9007199254740993']);
+    assert.deepEqual(page.inspection().find(([field]) => field === 'pilot.alive'),
+      ['pilot.alive', 'true', 'false', 'changed']);
+    assert.ok(!page.inspection().some(([field]) => field === 'pilot.unverified'));
+    page.seek(2);
+    assert.deepEqual(page.inspection().find(([field]) => field === 'pilot.wallet'),
+      ['pilot.wallet', '0', '9007199254740993', '-9007199254740993']);
+    page.get('entity').value = 'war';
+    page.get('entity').dispatch('change');
+    assert.deepEqual(page.inspection(), [
+      ['war.active', 'true', 'true', 'unchanged'],
+      ['war.hostilePairs', '2', '2', 'unchanged'],
+      ['war.pairs', '3', '3', 'unchanged'],
+    ]);
+    page.seek(3);
+    assert.deepEqual(page.inspection()[1], ['war.hostilePairs', '1', '2', '-1']);
+    assert.equal(page.get('inspector-description').textContent, 'Day 13 compared with day 12.');
+    page.get('reload').click();
+    await settle();
+    assert.equal(page.get('entity').value, 'pilot');
+    assert.equal(page.get('inspector-description').textContent, 'Day 10 is the baseline before A_START.');
+    await page.file('{}');
+    assertRejected(page, /apsis-viewer-v1/);
+  });
+
+  await test('invalid run records fail even when their timeline digest matches', async () => {
+    const mutations = [
+      (run) => { run.run.seed = -1; },
+      (run) => { run.run.seed = 4294967296; },
+      (run) => { run.run.seed = '42'; },
+      (run) => { run.run.majors = 6; },
+      (run) => { run.run.majors = 2; },
+      (run) => { run.run.majors = 3.5; },
+      (run) => { run.run.station = -1; },
+      (run) => { run.run.startDay = 36001; run.frames.forEach((frame, index) => { frame.day = 36001 + index; }); },
+      (run) => { run.run.settings.rules.flag = 'true'; },
+      (run) => { run.run.settings.core.stockTank = 6; },
+      (run) => { run.run.settings.core.stockTank = '9223372036854775808'; },
+      (run) => { run.run.settings.world.rate = { amount: '1' }; },
+      (run) => { run.run.inputs = [{ day: 9, kind: 7, fields: ['0', '0', '0', '0', '0', '0'] }]; },
+      (run) => { run.run.inputs = [{ day: 13, kind: 7, fields: ['0', '0', '0', '0', '0', '0'] }]; },
+      (run) => { run.run.inputs = [{ day: 10, kind: 11, fields: ['0', '0', '0', '0', '0', '0'] }]; },
+      (run) => { run.run.inputs = [{ day: 10, kind: 7, fields: ['0'] }]; },
+      (run) => { run.run.inputs = [{ day: 10, kind: 7, fields: [0, '0', '0', '0', '0', '0'] }]; },
+    ];
+    for (const mutate of mutations) {
+      const run = sampleRun();
+      mutate(run);
+      withEvidence(run);
+      assertRejected(await openViewer(JSON.stringify(run)), /invalid run record/);
+    }
+  });
+
   await test('reloading and reparsing a recorded export preserves full timeline and checkpoint hash', async () => {
     const source = await readFile(new URL('fixtures/viewer/recorded-run.json', import.meta.url), 'utf8');
     const run = JSON.parse(source);

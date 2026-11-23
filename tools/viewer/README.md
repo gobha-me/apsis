@@ -5,6 +5,9 @@ and the static page plays its recorded daily states. The browser does not execut
 the simulation. All adapter code and generated outputs live outside the replaceable
 `sim/` tree. No sim rules, events, or gate criteria change.
 
+See [replay inspection and reproduction](../../docs/replay-viewer.md) for the
+recorded entity inspector, exact native round trips, and optional browser smoke.
+
 From the repository root, with the same Python `ziglang` package used by
 `sim/build_wasm.sh` and Node's WASI support available:
 

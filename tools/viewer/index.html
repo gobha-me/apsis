@@ -76,15 +76,38 @@
           </section>
         </div>
 
+        <section class="panel inspector" aria-labelledby="inspector-heading">
+          <div class="inspector-heading">
+            <h2 id="inspector-heading">Recorded entity inspector</h2>
+            <label>Entity
+              <select id="entity" data-run-control disabled>
+                <option value="pilot" selected>Pilot</option>
+                <option value="war">World war-gate statistic</option>
+              </select>
+            </label>
+          </div>
+          <p id="inspector-description" class="note"></p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Recorded field</th><th scope="col">Current</th><th scope="col">Previous frame</th><th scope="col">Change</th></tr></thead>
+              <tbody id="inspection"></tbody>
+            </table>
+          </div>
+          <p class="note">Values come from the validated daily frame. Integer changes use
+            exact arithmetic. The export contains one pilot and a world aggregate;
+            individual stations, ships, and factions are not recorded.</p>
+        </section>
+
         <section class="panel provenance" aria-labelledby="provenance-heading">
           <h2 id="provenance-heading">Run record</h2>
           <p><strong>Final run checkpoint hash</strong> <code id="hash"></code></p>
           <p class="note">Before playback, this page checks the supplied final checkpoint
             against this hash and checks every displayed daily frame against a separate
-            digest linked to it. These are consistency checks on exporter-supplied evidence;
+            digest linked to it. Recorded settings, inputs, and the observation timeline are
+            also bound to the final hash by the timeline digest. These are consistency checks on exporter-supplied evidence;
             anyone who edits the export can also forge that evidence. They do not authenticate
-            the run or replay the simulation. Metadata, settings, inputs, and the observation
-            timeline are outside these checks. The final hash belongs to the completed export.</p>
+            the run or replay the simulation. Metadata is outside these checks.
+            The final hash belongs to the completed export.</p>
           <p id="history-gap"></p>
           <p class="note"><code>World.log</code> is an input journal, not an outcome history.
             No war declarations or stranding event kinds exist in the imported simulator.</p>

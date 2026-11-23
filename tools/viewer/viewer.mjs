@@ -233,6 +233,42 @@ function renderTimeline(day) {
     : 'No entries through this day. Later observations appear as you advance.';
 }
 
+function renderInspection() {
+  const entity = byId('entity').value === 'war' ? 'war' : 'pilot';
+  const frame = artifact.frames[position];
+  const previous = position > 0 ? artifact.frames[position - 1] : null;
+  // Only inspect the exact fields covered by framesHash. Unknown JSON properties
+  // are never displayed as though they were validated exporter evidence.
+  const fields = entity === 'pilot'
+    ? ['alive', 'at', 'system', 'busyUntil', 'tripActive', 'tripDestination',
+      'end', 'endDay', 'wallet', 'fuel', 'strandings', 'debt']
+    : ['active', 'hostilePairs', 'pairs'];
+  const fragment = document.createDocumentFragment();
+  for (const field of fields) {
+    const current = frame[entity][field];
+    const before = previous?.[entity][field];
+    const row = document.createElement('tr');
+    let change = previous ? 'unchanged' : 'baseline';
+    if (previous && current !== before) {
+      row.className = 'changed';
+      if (typeof current === 'boolean') change = 'changed';
+      else {
+        const difference = BigInt(current) - BigInt(before);
+        change = `${difference > 0n ? '+' : ''}${difference}`;
+      }
+    }
+    for (const text of [`${entity}.${field}`, String(current), previous ? String(before) : '—', change]) {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      row.append(cell);
+    }
+    fragment.append(row);
+  }
+  byId('inspection').replaceChildren(fragment);
+  byId('inspector-description').textContent = `Day ${frame.day}` +
+    (previous ? ` compared with day ${previous.day}.` : ' is the baseline before A_START.');
+}
+
 function render() {
   const frame = artifact.frames[position];
   const pilot = frame.pilot;
@@ -256,6 +292,7 @@ function render() {
     ['Start war-gate statistic baseline (derived, daily)', warLabel(baseline)],
   ]);
   renderTimeline(frame.day);
+  renderInspection();
 }
 
 function advance(timestamp) {
@@ -284,6 +321,8 @@ async function loadRun(file) {
   byId('hash').textContent = '';
   byId('state').replaceChildren();
   byId('timeline').replaceChildren();
+  byId('inspection').replaceChildren();
+  byId('inspector-description').textContent = '';
   byId('status').className = '';
   byId('status').textContent = `Loading ${file ? file.name : 'run.json'}…`;
   try {
@@ -307,6 +346,7 @@ async function loadRun(file) {
     artifactText = text;
     selectedFile = file;
     position = 0;
+    byId('entity').value = 'pilot';
     const run = artifact.run;
     byId('run-title').textContent = `Seed ${run.seed}`;
     byId('run-description').textContent = `${run.majors} majors · start day ${run.startDay} · ` +
@@ -354,6 +394,8 @@ byId('position').addEventListener('input', () => {
   position = Number(byId('position').value);
   render();
 });
+
+byId('entity').addEventListener('change', renderInspection);
 
 byId('reload').addEventListener('click', () => { void loadRun(selectedFile); });
 byId('run-file').addEventListener('change', () => {

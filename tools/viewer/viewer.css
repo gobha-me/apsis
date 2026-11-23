@@ -123,6 +123,16 @@ dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 .provenance { margin-top: 1rem; }
 
+.inspector { margin-top: 1rem; }
+.inspector-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.8rem; }
+.inspector-heading label { font-size: 0.85rem; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+th, td { border-bottom: 1px solid #364559; padding: 0.5rem; font-variant-numeric: tabular-nums; }
+th { color: #b6c3d3; }
+td { overflow-wrap: anywhere; }
+tr.changed td { color: #b9dfd5; }
+
 code { overflow-wrap: anywhere; color: #b9dfd5; }
 
 summary { cursor: pointer; }
