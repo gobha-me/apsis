@@ -20,7 +20,7 @@ option(BUILD_TESTING "Build shipyard tests" OFF)
 include(CTest)
 if(BUILD_TESTING)
   foreach(suite IN ITEMS rules migration input json_numeric validator dock pending
-      perf perf_pending perf_scenario perf_issue_cap
+      perf perf_pending perf_scenario perf_issue_cap perf_review
       issue_cap loader_regression schema_boundary structure_regression
       dock_regression validator_cap authoring nits_owner
       authoring_argus

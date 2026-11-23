@@ -386,7 +386,7 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
             return {std::nullopt, std::move(importer.issues)};
         }
         detail::add_issue(importer.issues, {"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
-        detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance evaluation awaits issue #51; F20 outcomes remain unimplemented.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
+        detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
         detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
         sort_issues(importer.issues);
         Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
