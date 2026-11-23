@@ -103,11 +103,13 @@ int main() {
     rejected_name(blueprint, active, schema); // Exactly 81 independent clusters.
   });
 
-  suite.run("leading combining marks and empty names keep exact boundaries", [&] {
+  suite.run("one-grapheme and leading combining names keep exact boundaries", [&] {
     const auto narrow = cap(active, schema, 1);
     auto blueprint = blank();
-    blueprint["name"] = "";
+    blueprint["name"] = "e\u0301";
     accepted(blueprint, narrow, schema);
+    blueprint["name"] = "e\u0301x";
+    rejected_name(blueprint, narrow, schema);
     blueprint["name"] = repeat("\u0301", 80);
     accepted(blueprint, narrow, schema); // Leading Extend run is one cluster.
     blueprint["name"] = repeat("\u0301", 80) + "x";
