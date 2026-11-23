@@ -347,8 +347,9 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (c) At least one compatible matching visitor airlock meets F03: same deck,
   exterior, facing out, within 1 cell. That airlock must also be crew-reachable
   and clear, as v3 requires; violations tie to check (a) at the rules' `error`
-  severity (v3). F21 leaves the visitor-deck mapping, distance measure, and
-  reference point open for Luna.
+  severity (v3). Luna, under owner delegation 2026-11-23 resolves F03/F21:
+  visitor deck equals target deck, measured from footprint centres with
+  inclusive orthogonal Manhattan distance of at most 1 cell.
 - (d) Approach clearance.
 
 Each check needs its own independent test in #50. Any matching airlock works;

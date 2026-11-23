@@ -283,7 +283,8 @@ and `:3793` filters matches to reachable, clear airlocks; `:3800` requires a
 matching reachable exterior visitor airlock; `:3801` requires station crew
 reachability. Visitor reachability and clearance also feed check (a) at the rules'
 `error` severity (v3). F03 adds geometric alignment requirements, with its deck
-mapping and distance convention still pending F21; F02 removes the prototype's
+mapping and Manhattan centre convention resolved by Luna, under owner delegation
+2026-11-23; F02 removes the prototype's
 port size envelope. Issue #50 already contains these acceptance items and remains open.
 
 ## F19 — Allowed docking rotations
