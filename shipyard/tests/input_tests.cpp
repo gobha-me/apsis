@@ -357,7 +357,15 @@ int main() {
                                     .get<std::size_t>();
         for (std::size_t i = 0; i <= note_count; ++i)
           blueprint["migrationNotes"].push_back("note");
-        rejected(blueprint, active, schema, "field_limit", "/migrationNotes");
+        // Luna, under owner delegation 2026-11-23: count overflow retains
+        // newest notes and one notice inside the original active bound.
+        const auto retained = import_definition(blueprint.dump(), active, schema);
+        require(retained.ok(), "Note count overflow must remain importable");
+        Json expected = Json::array({"Older migration notes were dropped."});
+        for (std::size_t i = 1; i < note_count; ++i)
+          expected.push_back("note");
+        require(retained.value->definition.at("blueprint").at("migrationNotes") == expected,
+                "Overflow keeps newest duplicate notes plus exactly one bounded notice");
       });
 
   suite.run("import forwards operational input byte and nesting limits", [&] {
