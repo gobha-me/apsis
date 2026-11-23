@@ -8,7 +8,7 @@ void add_issue(std::vector<Issue>& issues, Issue issue);
 Issue error(std::string code, std::string message, std::string path = "");
 std::string pointer_token(std::string_view token);
 // Checked evaluation visits independent operands and reports every failure.
-// The perf operation classifies only DESIGN's exact F20 exclusions as pending.
+// The perf operation distinguishes unavailable design stats from invalid formulas.
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name,
                                 const Json& variables);
 std::size_t character_count(std::string_view utf8);

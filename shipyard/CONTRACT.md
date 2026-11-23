@@ -105,7 +105,8 @@ checks. Cached validation is discarded.
 `validation.ready` is false on structural failure and null on structural pass;
 `jumpReady` stays null in this structural operation; use `perf` for performance
 and readiness.
-Applicable `pending_F20` remains nonblocking and excluded values remain absent.
+Resolved F20 does not add speculative importer warnings; perf() returns n/a
+for valid uncomputable performance stats.
 No performance warnings or affordability checks are introduced here.
 
 CLI and HTTP always use default `ValidationOptions` and `DockOptions`; adapters
@@ -217,16 +218,21 @@ Performance checks read `validation.checks.<code>.severity`, defaulting to
 their own active severities. Malformed input, invalid rules, and non-F20 formula
 failures reject clearly; calculation failure returns null data.
 
-Until Luna answers F20, omit exactly the excluded undefined results: blank
-zero-mass ships/stations' acceleration and range division by `mass`, deltaV
-division by `endMass` and ln(0), and fuel-to-dry-mass ratio division by `dryMass`;
-engine-less designs' full/current burnSeconds and exhaustVelocity division by
-zero `burnRate`. Each case returns structured `pending_F20` details. DeltaV
-depending on omitted exhaustVelocity is also omitted with a pending dependency
-issue. No zero, null metric, NaN, string placeholder, or successful unavailable
-value substitutes for an excluded result. Other formula errors still reject,
-including unrelated errors beside an excluded operand. Legitimate computed
-zero-thrust/no-drive values remain numeric results.
+**Resolved: Luna, under owner delegation 2026-11-23.** A valid design with
+zero mass or no engines retains its inspectable definition. Its uncomputable
+performance metrics are the literal JSON string "n/a", including each affected
+load scenario and the mirrored performance cache. Computable zeros remain
+numbers. Resolved stat_unavailable warnings retain formula/operator/operand,
+denominator and dependency details. Import and structural validation do not
+predict performance failures or emit pending_F20; call perf() for these values.
+A zero-cell JSON blueprint is accepted as a blank design under this same rule.
+Ordinary structural findings still apply; importability does not certify readiness.
+
+F10 still rejects actually invalid formulas: literal zero divisors, literal
+invalid logarithms, unknown inputs/operators, nonfinite results and unrelated
+invalid operands are not unavailability. An engine fitted with zero burn rate
+still produces a formula error. The checked evaluator visits independent
+operands, so an unavailable design stat cannot hide an invalid sibling.
 
 `blank_blueprint(rules)` creates a ship using active defaults and minimum deck
 count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly.
@@ -238,7 +244,7 @@ F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
 The independent tests session should cover all four scenarios, load overrides,
 carried loads and child-specific formula failures, all five explicit drive prices,
 active severity changes, separate
-ready/jumpReady/range outcomes, every F20 omission/dependency, and F10 rejection
+ready/jumpReady/range outcomes, every resolved n/a metric/dependency, and F10 rejection
 including a non-F20 sibling beside an F20 expression. Preserve the five v3
 goldens and compare only their rules-defined values; F24 records v4 differences.
 

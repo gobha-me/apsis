@@ -231,8 +231,6 @@ struct Importer {
         values["carriedCraft"] = Json::array();
         const auto number = [&values](std::string_view key) { return values.at(std::string(key)).get<double>(); };
         const auto add = [&values, &number](const std::string& key, double amount) { values[key] = number(key) + amount; };
-        bool no_modules = true, has_engine = false;
-        double burn_rate = 0;
         std::uint64_t min_x = rules.at("grid").at("w"), min_y = rules.at("grid").at("h"), max_x = 0, max_y = 0;
         for (std::size_t d = 0; d < blueprint.at("decks").size(); ++d) {
             const auto& deck = blueprint.at("decks")[d];
@@ -249,9 +247,6 @@ struct Importer {
             for (std::size_t m = 0; m < deck.at("modules").size(); ++m) {
                 const auto& module = deck.at("modules")[m];
                 const auto& part = *parts.at(module.at("type").get<std::string>());
-                no_modules = false;
-                has_engine = has_engine || part.value("system", std::string()) == "engine";
-                burn_rate += part.value("burnRate", 0.0);
                 add("cost", part.at("cost").get<double>());
                 add("componentMass", part.at("mass").get<double>());
                 add("space", part.at("space").get<double>());
@@ -303,25 +298,6 @@ struct Importer {
             if (it.value().is_number() && !std::isfinite(it.value().get<double>())) {
                 detail::add_issue(issues, error("nonfinite_total", "A direct total is not finite.", at("/derived", it.key())));
             }
-        }
-        Json pending = Json::array();
-        if (no_modules && number("floorCount") == 0 && number("dryMass") == 0 && number("currentMass") == 0) {
-            for (const auto* formula_name : {"acceleration", "range"}) {
-                pending.push_back({{"formula", formula_name}, {"operand", "mass"}});
-            }
-            pending.push_back({{"formula", "deltaV"}, {"operand", "endMass"}});
-            pending.push_back({{"formula", "deltaV"}, {"operand", "ln(0)"}});
-            pending.push_back({{"formula", "fuelToDryMassRatio"}, {"operand", "dryMass"}});
-        }
-        if (!has_engine && burn_rate == 0) {
-            for (const auto* scenario : {"full", "current"}) {
-                pending.push_back({{"formula", "burnSeconds"}, {"scenario", scenario}, {"operand", "burnRate"}});
-            }
-            pending.push_back({{"formula", "exhaustVelocity"}, {"operand", "burnRate"}});
-        }
-        if (!pending.empty()) {
-            detail::add_issue(issues, {"pending_F20", "warning", "pending F20: excluded formula results await Luna and remain unset.",
-                              path, {{"finding", "F20"}, {"issue", 51}, {"evaluations", std::move(pending)}}});
         }
         return values;
     }
