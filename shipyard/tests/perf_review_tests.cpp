@@ -403,6 +403,104 @@ int main(int argc, char **argv) {
             "Two engines fall below the next threshold");
   });
 
+  suite.run("fractional engine advisory threshold keeps its fraction", [&] {
+    auto data = active.data();
+    data["advisories"]["many_engines"]["minEngineCount"] = 2.5;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the fractional engine threshold");
+
+    auto wren = fixture_blueprint("wren", *loaded.value, schema);
+    const auto two_engines = perf(canonical_json(wren), *loaded.value, schema);
+    auto &modules = wren.at("decks").at(0).at("modules");
+    modules.push_back({{"id", wren.at("nextId")},
+                       {"type", "microEngine"},
+                       {"x", 12},
+                       {"y", 18},
+                       {"r", 0}});
+    wren["nextId"] = wren.at("nextId").get<int>() + 1;
+    const auto three_engines =
+        perf(canonical_json(wren), *loaded.value, schema);
+    require(two_engines.at("pass") == true && three_engines.at("pass") == true,
+            "Both Wren variants must be structurally accepted: " +
+                three_engines.at("issues").dump());
+    require(findings(two_engines, "many_engines").empty(),
+            "Two engines fall below the 2.5-engine threshold");
+    advisory(three_engines, "many_engines", "/performance",
+             {{"rule", "/validation/checks/many_engines"}});
+  });
+
+  suite.run("fractional module advisory threshold keeps its fraction", [&] {
+    auto data = active.data();
+    data["advisories"]["no_cargo"]["minModuleCount"] = 5.5;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the fractional module threshold");
+
+    auto skiff = fixture_blueprint("skiff", *loaded.value, schema);
+    const auto six_modules = perf(canonical_json(skiff), *loaded.value, schema);
+    auto &modules = skiff.at("decks").at(0).at("modules");
+    modules.erase(std::remove_if(modules.begin(), modules.end(),
+                                 [](const Json &module) {
+                                   return module.at("type") == "shuttleSeats";
+                                 }),
+                  modules.end());
+    const auto five_modules =
+        perf(canonical_json(skiff), *loaded.value, schema);
+    require(five_modules.at("pass") == true && six_modules.at("pass") == true,
+            "Both cargo-less Skiff variants must be structurally accepted: " +
+                five_modules.at("issues").dump());
+    require(findings(five_modules, "no_cargo").empty(),
+            "Five modules fall below the 5.5-module threshold");
+    advisory(six_modules, "no_cargo", "/performance",
+             {{"rule", "/validation/checks/no_cargo"}});
+  });
+
+  suite.run(
+      "engine advisory respects ship-only rules at a zero threshold", [&] {
+        auto data = active.data();
+        auto &engine_advice = data["advisories"]["many_engines"];
+        engine_advice["buildTypes"] = Json::array({"ship"});
+        engine_advice["minEngineCount"] = 0;
+        const auto loaded = load_rules(canonical_json(data), schema);
+        require(loaded.ok(), "Rules accept the ship-only zero threshold");
+
+        const auto station =
+            fixture_blueprint("wayfarer-anchorage", *loaded.value, schema);
+        const auto wren = fixture_blueprint("wren", *loaded.value, schema);
+        const auto station_report =
+            perf(canonical_json(station), *loaded.value, schema);
+        const auto ship_report =
+            perf(canonical_json(wren), *loaded.value, schema);
+        require(station_report.at("pass") == true &&
+                    ship_report.at("pass") == true,
+                "Both builds must be structurally accepted");
+        require(findings(station_report, "many_engines").empty(),
+                "The ship-only advisory excludes Wayfarer Anchorage");
+        advisory(ship_report, "many_engines", "/performance",
+                 {{"rule", "/validation/checks/many_engines"}});
+      });
+
+  suite.run("a positive life reserve alone gives zero endurance", [&] {
+    auto data = active.data();
+    part(data, "cockpit")["effect"]["lifeReserve"] = 1;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the cockpit life reserve");
+
+    auto skiff = fixture_blueprint("skiff", *loaded.value, schema);
+    auto &modules = skiff.at("decks").at(0).at("modules");
+    modules.erase(std::remove_if(modules.begin(), modules.end(),
+                                 [](const Json &module) {
+                                   return module.at("type") ==
+                                          "microLifeSupport";
+                                 }),
+                  modules.end());
+    const auto report = perf(canonical_json(skiff), *loaded.value, schema);
+    require(
+        report.at("data").at("definition").at("derived").at("lifeReserve") == 1,
+        "The cockpit contributes one reserve to the public total");
+    require(performance(report).at("endurance") == 0,
+            "One reserve without installed life support gives zero endurance");
+  });
+
   suite.run("fuel ratio advice includes equality and the active epsilon", [&] {
     for (const auto *name : {"fuel_threshold_0", "fuel_threshold_1"}) {
       const auto &report = reports.at(name);
