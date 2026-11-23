@@ -221,6 +221,35 @@ class SimGateTests(unittest.TestCase):
     "set APSIS_SIM_INVARIANT_DRIVER for native smoke",
 )
 class NativeSimGateTests(unittest.TestCase):
+    def test_repayment_reachability_survives_later_upkeep_and_bankruptcy(self):
+        with tempfile.TemporaryDirectory(prefix="sim-gate-repayment-") as directory:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--driver",
+                    os.environ["APSIS_SIM_INVARIANT_DRIVER"],
+                    "--output-dir",
+                    str(Path(directory) / "matrix"),
+                    "--seeds",
+                    "333860",
+                    "--scenarios",
+                    "repayment",
+                    "--days",
+                    "36000",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            summary = json.loads((Path(directory) / "matrix/summary.json").read_text())
+            report = summary["cases"][0]["report"]
+            self.assertTrue(report["checks"]["outcome_reachable"])
+            self.assertEqual(report["simulated_days"], 36000)
+            self.assertEqual(report["end_state"], 3)
+
     def test_all_scenarios_and_entity_limit_failure(self):
         with tempfile.TemporaryDirectory(prefix="sim-gate-native-") as directory:
             for limit, expected in ((100000, 0), (1, 1)):

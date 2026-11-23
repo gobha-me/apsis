@@ -97,19 +97,22 @@ int main(int argc, char **argv) {
       }
     }
     uint64_t simulated = 0;
+    bool outcome = scenario != "repayment" && scenario != "bankruptcy";
     for (; simulated < days && ledger && bounded && clock; ++simulated) {
       if (style >= 0 && ready(w))
         for (const auto &action : decideBot(w, style))
           submit(w, action);
-      if (!advance(scenario != "world")) {
+      const bool advanced = advance(scenario != "world");
+      // Reachability is an observed event, not a condition that must persist
+      // forever: an idle pilot can incur new upkeep debt after repaying.
+      outcome |= scenario == "repayment" && w.pl.debt.empty() && w.pl.alive;
+      outcome |=
+          scenario == "bankruptcy" && !w.pl.alive && w.pl.end == E_BANKRUPT;
+      if (!advanced) {
         ++simulated;
         break;
       }
     }
-    const bool outcome =
-        scenario == "repayment"    ? w.pl.debt.empty() && w.pl.alive
-        : scenario == "bankruptcy" ? !w.pl.alive && w.pl.end == E_BANKRUPT
-                                   : true;
     const bool passed = ledger && bounded && clock && outcome;
     std::cout << "{\"schema_version\":1,\"seed\":" << seed << ",\"scenario\":\""
               << scenario << "\",\"requested_days\":" << days

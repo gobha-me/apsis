@@ -36,8 +36,10 @@ Every state, including initial state, warmup ticks and pilot start, checks:
 - a configurable operational entity bound (`--max-entities`, default 100,000);
 - a one-day clock increment after each tick.
 
-After the measured horizon, the two explicit probes must reach successful
-repayment or terminal bankruptcy respectively.
+During the measured horizon, the two explicit probes must observe successful
+repayment or terminal bankruptcy respectively. An observed repayment remains a
+success if later upkeep causes a new debt or the idle pilot eventually goes
+bankrupt. The final `end_state` still records that later outcome.
 
 The entity count includes stations, freighters, route states, agents, contests,
 queued intents, applied-input log entries, pilot debts, warrants and events, plus
@@ -77,8 +79,9 @@ APSIS_SIM_INVARIANT_DRIVER="$TMPDIR/apsis-tools/sim_invariant_driver" \
 ```
 
 The existing default Python discovery runs the pure tests and reports native
-tests as skipped unless the corresponding environment variable is set. No CI
-workflow is changed by this tooling.
+tests as skipped unless the corresponding environment variable is set. The
+invariant matrix does not add a CI step; the separately reviewed replay suite
+below has its own test-only CI step.
 
 ## Existing standing suites
 
@@ -96,3 +99,52 @@ For the paired war-rate campaign use
 [`rescue-debt-sampler.md`](rescue-debt-sampler.md). Those reports describe their
 own worker limits and interpretation. Shipyard tests and measured Mull checks
 are documented in [`shipyard/tests/README.md`](../shipyard/tests/README.md).
+
+## Recorded replays and seeded input properties
+
+The independent adapters introduced in [PR #72](https://github.com/gobha-me/apsis/pull/72)
+have a [detailed guide](https://github.com/gobha-me/apsis/blob/b3fa7b59b14b7cff3fde0dc3b6b86623b283c5bd/docs/sim-replay.md).
+In a checkout containing that change, run:
+
+```sh
+cmake -S tests/sim -B "$TMPDIR/apsis-replays" -DCMAKE_CXX_COMPILER=g++-13 \
+  -DCMAKE_BUILD_TYPE=Release '-DCMAKE_CXX_FLAGS_RELEASE=-O2 -DNDEBUG'
+cmake --build "$TMPDIR/apsis-replays" \
+  --target sim_replay_driver sim_input_properties --parallel 2
+ctest --test-dir "$TMPDIR/apsis-replays" --output-on-failure --parallel 2
+```
+
+The tiny recorded input corpus pins daily full-checkpoint hashes; tests compare
+checkpoint bytes for fresh replay, canonical input order and save/load. For
+optimization parity, build `sim_replay_driver` in a separate directory using
+`-O0 -DNDEBUG`, then set `APSIS_SIM_REPLAY_DRIVER_O0` to that executable when
+running CTest against the O2 build. These checks cover the tested corpus and
+toolchain only. Native CTest paths are set automatically; ordinary Python
+discovery skips native checks without explicit driver variables.
+
+The property executable uses a fixed seed, 8,192 serialized actions and eight
+30-day random command streams; its Python wrapper enforces a 15-second process
+deadline. Full integer extrema stay in serialization/inbox properties; gameplay
+commands have bounded fields. The guide documents explicit fixture recording;
+tests never regenerate golden hashes.
+
+## Shipyard follow-on suites
+
+The assertions in [PR #73](https://github.com/gobha-me/apsis/pull/73) extend the
+existing pending/schema-boundary suites with hold-finding deduplication,
+identifier alphabets and SHA-256 syntax. Build the Release test tree and run all
+existing entries:
+
+```sh
+cmake -S shipyard -B "$TMPDIR/apsis-shipyard" -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_COMPILER=g++-13 -DBUILD_TESTING=ON
+cmake --build "$TMPDIR/apsis-shipyard" --parallel 2
+ctest --test-dir "$TMPDIR/apsis-shipyard" --output-on-failure --parallel 2
+```
+
+For measured mutation checks use the instrumented Clang20/Mull0.37.0 build
+instructions in the Shipyard test README, with the shipped `shipyard/mull.yml`.
+Run `python shipyard/mutation.py /path/to/instrumented-build` through the host's
+mutation wrapper (`agent-mutate` where available). Do not use `--record-baseline`
+to accommodate a failure. Disable core dumps for deliberate mutation failures
+(`ulimit -c 0`) and retain actual before/after mutant identities with the report.
