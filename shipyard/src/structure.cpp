@@ -454,6 +454,15 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                         max_x = std::max(max_x, x); max_y = std::max(max_y, y);
                     }
                 }
+                if (const auto records = craft.find("holds"); records != craft.end()) {
+                    for (const auto& hold : *records) {
+                        const auto x = hold.at("x").get<Coordinate>();
+                        const auto y = hold.at("y").get<Coordinate>();
+                        min_x = std::min(min_x, x); min_y = std::min(min_y, y);
+                        max_x = std::max(max_x, x + hold.at("w").get<Coordinate>() - 1);
+                        max_y = std::max(max_y, y + hold.at("h").get<Coordinate>() - 1);
+                    }
+                }
                 const auto cell_size = rules.at("cellSizeM").get<double>();
                 const auto width = max_x < 0 ? 0.0 : static_cast<double>(max_x - min_x + 1) * cell_size;
                 const auto length = max_y < 0 ? 0.0 : static_cast<double>(max_y - min_y + 1) * cell_size;

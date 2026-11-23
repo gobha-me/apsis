@@ -41,8 +41,10 @@ new numeric door-size rule. Clear exterior approach, outward orientation and
 crew access remain active. The hold interior is not mistaken for exterior space.
 
 Hold rectangles contribute once to the design width/length envelope, including
-open areas outside the material floor bounding box. Floor area still counts
-actual material. Numeric cost, mass and capacity continue to come
+open areas outside the material floor bounding box. The same physical bounds
+apply to independently checked carried-craft envelopes, including nested holds;
+a carried volume cannot bypass the existing carrier width/length limits.
+Floor area still counts actual material. Numeric cost, mass and capacity continue to come
 only from actual floors and catalogue modules, counted once. Removing interior
 floors uses the existing floor-count formulas; ladders, cargo parts and doors use
 their existing catalogue effects. There is no new incremental per-volume
