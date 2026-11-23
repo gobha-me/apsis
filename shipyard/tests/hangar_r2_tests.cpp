@@ -52,6 +52,7 @@ const Json &find_issue(const Json &report, std::string_view code) {
 
 void check_envelope(const Json &report, int visitor_width, int visitor_length,
                     int hangar_width, int hangar_length, bool definite) {
+  (void)definite; // Historical cases all exceed both decided cardinal envelopes.
   require(report.at("operation") == "dock" &&
               report.at("status") == "FAIL" && report.at("pass") == false,
           "a definite size failure or unresolved rotation must block docking");
@@ -75,33 +76,14 @@ void check_envelope(const Json &report, int visitor_width, int visitor_length,
           "reported dimensions must come from the imported hull and active rules");
   require(!has_issue(report, "dock_hangar_deck_limit"),
           "the width/length case must stay within the independent deck cap");
-  if (definite) {
-    require(hangar.at("widthLengthFit") == false &&
-                data.at("pending") == false &&
-                !has_issue(report, "pending_F19"),
-            "rotation-proof oversize must be definite without pending F19");
-    const auto &item = find_issue(report, "dock_hangar_size_limit");
-    require(item.at("severity") == "error" &&
-                item.at("path") == "/visitor/blueprint/decks" &&
-                !item.at("message").get<std::string>().empty(),
-            "definite oversize must expose a readable structured size error");
-  } else {
-    require(hangar.at("widthLengthFit").is_null() &&
-                data.at("pending") == true &&
-                !has_issue(report, "dock_hangar_size_limit"),
-            "an envelope without a rotation-proof rejection must stay unknown");
-    const auto &item = find_issue(report, "pending_F19");
-    require(item.at("severity") == "warning" &&
-                item.at("path") == "/visitor/blueprint/decks" &&
-                item.at("details").at("finding") == "F19" &&
-                !item.at("message").get<std::string>().empty(),
-            "unresolved rotation must retain the documented pending finding");
-    require(std::none_of(report.at("issues").begin(),
-                         report.at("issues").end(), [](const Json &item) {
-                           return item.at("severity") == "error";
-                         }),
-            "the isolated pending case must not acquire a definite rejection");
-  }
+  require(hangar.at("widthLengthFit") == false &&
+              data.at("pending") == false && !has_issue(report, "pending_F19"),
+          "Luna cardinal-only facings reject every failed orthogonal envelope");
+  const auto &item = find_issue(report, "dock_hangar_size_limit");
+  require(item.at("severity") == "error" &&
+              item.at("path") == "/visitor/blueprint/decks" &&
+              !item.at("message").get<std::string>().empty(),
+          "Decided oversize retains its readable structured size error");
 }
 } // namespace
 
@@ -152,18 +134,15 @@ int main() {
                 hangar.at("maxLengthM") == length &&
                 hangar.at("deckCountFits") == true,
             "diagonal checks must use the real visitor and fractional rules");
-    require(definite ? hangar.at("widthLengthFit") == false
-                     : hangar.at("widthLengthFit").is_null(),
-            "only diagonal excess beyond epsilon can decide the size fit");
-    require(has_issue(report, "dock_hangar_size_limit") == definite &&
-                has_issue(report, "pending_F19") == !definite &&
-                data.at("pending") == !definite,
-            "diagonal equality within epsilon must stay pending without a size error");
-    const auto &item = find_issue(
-        report, definite ? "dock_hangar_size_limit" : "pending_F19");
-    require(item.at("severity") == (definite ? "error" : "warning") &&
+    require(hangar.at("widthLengthFit") == false,
+            "A 2 x 10 visitor exceeds both cardinal facings of 6 x under-10");
+    require(has_issue(report, "dock_hangar_size_limit") &&
+                !has_issue(report, "pending_F19") && data.at("pending") == false,
+            "Diagonal equality and epsilon no longer change cardinal rejection");
+    const auto &item = find_issue(report, "dock_hangar_size_limit");
+    require(item.at("severity") == "error" &&
                 item.at("path") == "/visitor/blueprint/decks",
-            "diagonal outcomes must retain their structured public finding");
+            "Cardinal outcomes retain their structured public finding");
   };
 
   suite.run("D09 exact unrotated Skiff equality fits the 6 x 10 hangar", [&] {
@@ -182,19 +161,30 @@ int main() {
             "exact unrotated equality must fit without pending F19 or a size error");
   });
 
+  suite.run("Luna exact swapped equality is a permitted cardinal fit", [&] {
+    const auto configured = with_hangar_limits(active, schema, 10, 6);
+    const auto report = dock(anchorage.dump(), 1, 15, skiff.dump(), configured, schema, options);
+    const auto &hangar = report.at("data").at("hangar");
+    require(report.at("pass") == true && hangar.at("widthLengthFit") == true &&
+                hangar.at("visitorWidthM") == 6 && hangar.at("visitorLengthM") == 10 &&
+                hangar.at("maxWidthM") == 10 && hangar.at("maxLengthM") == 6 &&
+                report.at("data").at("pending") == false && !has_issue(report, "pending_F19"),
+            "Luna, under owner delegation 2026-11-23: inclusive swapped extent equality passes");
+  });
+
   const double epsilon = active.data().at("numeric").at("epsilon").get<double>();
-  suite.run("diagonal exact equality remains pending with active epsilon", [&] {
+  suite.run("diagonal exact equality rejects under cardinal facings with active epsilon", [&] {
     check_diagonal(8.0, epsilon, false);
   });
 
-  suite.run("diagonal excess within active epsilon remains pending", [&] {
+  suite.run("diagonal excess within active epsilon rejects under cardinal facings", [&] {
     check_diagonal(7.9999999, epsilon, false);
   });
 
   suite.run("the same diagonal excess rejects beyond a smaller active epsilon",
             [&] { check_diagonal(7.9999999, 1e-8, true); });
 
-  suite.run("E03 diagonal excess equal to epsilon remains pending", [&] {
+  suite.run("E03 diagonal excess equal to epsilon rejects under cardinal facings", [&] {
     const double diagonal = std::hypot(6.0, 7.9999999);
     const double boundary_epsilon = 10.0 - diagonal;
     require(boundary_epsilon > 0.0 && diagonal + boundary_epsilon == 10.0,
@@ -258,11 +248,11 @@ int main() {
     check(wren, 20, 34, 10, 18, true);
   });
 
-  suite.run("Skiff 6 x 10 in 8 x 8 has no rotation-proof rejection", [&] {
+  suite.run("Skiff 6 x 10 in 8 x 8 exceeds both cardinal facings", [&] {
     check(skiff, 6, 10, 8, 8, false);
   });
 
-  suite.run("minimum-side equality leaves Skiff rotation pending", [&] {
+  suite.run("minimum-side equality rejects Skiff cardinal fit", [&] {
     check(skiff, 6, 10, 6, 9, false);
   });
 
@@ -270,11 +260,11 @@ int main() {
     check(skiff, 6, 10, 5, 9, true);
   });
 
-  suite.run("2 x 10 in 9 x 9 may fit diagonally and remains pending", [&] {
+  suite.run("2 x 10 in 9 x 9 only fits obliquely and rejects under cardinal facings", [&] {
     check(thin, 2, 10, 9, 9, false);
   });
 
-  suite.run("hangar diagonal equality cannot prove a size rejection", [&] {
+  suite.run("hangar diagonal equality still rejects cardinal docking", [&] {
     // hypot(6, 8) is exactly 10: the documented comparison is strict.
     check(thin, 2, 10, 6, 8, false);
   });

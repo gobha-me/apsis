@@ -154,9 +154,8 @@ int main() {
         const auto bytes = read("rules/apsis-rules-v4.json");
         require(active.sha256() == sha256(bytes),
                 "active SHA-256 must hash original bytes");
-        require(active.sha256() == "0dcbe1504cd37ecd0ae37949534572270cf246998cb"
-                                   "7d4bab7785085a412e7ef",
-                "reviewed v4 rules byte identity");
+        require(active.sha256() == "d9a9946f64e6a390daed47aa65545ed4f46b98138c4024475904c29d223a5e8f",
+                "Luna hold rules exact byte identity, rulesVersion4 retained");
         const auto changed_bytes = bytes + "\n";
         const auto changed = load_rules(changed_bytes, schema_set);
         require(changed.ok(), "trailing JSON whitespace must be accepted");

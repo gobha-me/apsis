@@ -402,6 +402,24 @@ class PublicRenderer(unittest.TestCase):
             "migrationNotes": [],
         }
 
+    def hold_station(self, count=4, first=1, last=2):
+        design = self.station()
+        design["decks"][0]["modules"].pop()  # This fixture has no cargo module.
+        design["nextId"] = 6
+        floors = copy.deepcopy(design["decks"][0]["floors"])
+        for d in range(1, count):
+            design["decks"].append({"name": f"Normal deck {d+1}",
+                                    "floors": copy.deepcopy(floors), "modules": []})
+        for d, deck in enumerate(design["decks"]):
+            deck["modules"].append({"id": design["nextId"], "type": "ladder",
+                                    "x": 7, "y": 6, "r": 0})
+            design["nextId"] += 1
+            if d > 0:
+                del deck["floors"]["9,6"]
+        design["holds"] = [{"x": 8, "y": 5, "w": 3, "h": 4,
+                            "firstDeck": first, "lastDeck": last}]
+        return design
+
 
 class Artifacts(PublicRenderer):
     def test_canonical_ships_and_station(self):
@@ -654,8 +672,53 @@ class Geometry(PublicRenderer):
                             self.assertEqual(images[0].at(x, y), BACKGROUND)
 
 
+    def test_luna_hold_span_manifest_border_labels_and_unchanged_other_decks(self):
+        # Luna, under owner delegation 2026-11-23: one object, normal deck indices.
+        design = self.hold_station()
+        plain = copy.deepcopy(design)
+        del plain["holds"]
+        no_labels = {"labels": False}
+        result = self.render(design, options=no_labels, validate=True)
+        manifest, images = self.verify_bundle(result, design, no_labels)
+        baseline = self.render(plain, options=no_labels, validate=True)
+        _, ordinary = self.verify_bundle(baseline, plain, no_labels)
+        self.assertEqual(manifest["holds"], [{**design["holds"][0], "label": "decks 2–3"}])
+        self.assertEqual([d["deckIndex"] for d in manifest["decks"]], [0, 1, 2, 3])
+        self.assertEqual([d["name"] for d in manifest["decks"]],
+                         [d["name"] for d in design["decks"]])
+        camera = manifest["camera"]
+        cell, ox, oy = camera["cellPixels"], camera["originX"], camera["originY"]
+        x, y = ox + 8 * cell, oy + 5 * cell
+        right, bottom = x + 3 * cell - 1, y + 4 * cell - 1
+        for d in (1, 2):
+            for px, py in ((x, y), (right, y), (right, bottom), (x, bottom),
+                           (x + cell, y), (x, y + cell)):
+                self.assertEqual(images[d].at(px, py), BORDER)
+            self.assertNotEqual(images[d].pixels, ordinary[d].pixels)
+        for d in (0, 3):
+            self.assertEqual(images[d].pixels, ordinary[d].pixels,
+                             "Holds affect neither deck before first nor after last")
+        titled = self.render(design, validate=True)
+        labelled, title_images = self.verify_bundle(titled, design)
+        self.assertEqual(labelled["holds"], manifest["holds"])
+        for d in (1, 2):
+            ink_pixels = sum(title_images[d].at(px, py) == TITLE
+                             for py in range(y + 2, y + 9)
+                             for px in range(x + 2, right - 1))
+            self.assertGreater(ink_pixels, 0, "Real held panels carry the span label")
+            self.assertFalse(any(images[d].at(px, py) == TITLE
+                                 for py in range(y + 2, y + 9)
+                                 for px in range(x + 2, right - 1)))
+        empty = copy.deepcopy(plain)
+        empty["holds"] = []
+        empty_result = self.render(empty, options=no_labels, validate=True)
+        self.assertEqual([a for a in empty_result["artifacts"] if a["mediaType"] == "image/png"],
+                         [a for a in baseline["artifacts"] if a["mediaType"] == "image/png"],
+                         "Empty hold metadata retains byte-identical deck and stack PNGs")
+
+
 class Bounds(PublicRenderer):
-    def test_rustbucket_and_pending_holds_reject_without_artifacts(self):
+    def test_rustbucket_rejects_and_empty_holds_are_noop(self):
         rustbucket = self.render(self.fixture("rustbucket"), validate=True)
         self.rejected(rustbucket, "missing_airlock")
         self.assertEqual(
@@ -671,12 +734,58 @@ class Bounds(PublicRenderer):
         self.assertTrue(all(i["severity"] == "error" for i in unreachable))
         holds = self.station()
         holds["holds"] = []
-        pending = self.render(holds)
-        self.rejected(pending)
-        codes = [i["code"] for i in pending["envelope"]["issues"]]
-        for number in range(11, 18):
-            self.assertIn(f"pending_F{number}", codes)
-        self.assertNotIn("missing_floor", codes)
+        empty = self.render(holds, validate=True)
+        self.verify_bundle(empty, holds)
+        plain = self.render(self.station(), validate=True)
+        self.assertEqual([a for a in empty["artifacts"] if a["mediaType"] == "image/png"],
+                         [a for a in plain["artifacts"] if a["mediaType"] == "image/png"])
+        self.assertFalse(any(i["code"].startswith("pending_F1")
+                             for i in empty["envelope"]["issues"]))
+        holds["holds"] = [{"x": 0, "y": 0, "w": 1, "h": 1,
+                            "firstDeck": 0, "lastDeck": 0}]
+        self.rejected(self.render(holds), "hold_span")
+
+    def test_combined_module_hold_work_bound_including_real_nested_craft(self):
+        options = {"width": 320, "height": 320, "labels": False}
+        design = self.hold_station(count=3, first=0, last=2)
+        modules = sum(len(deck["modules"]) for deck in design["decks"])
+        design["holds"] *= 4096 - modules
+        exact = self.render(design, options=options, validate=True)
+        self.passed(exact)
+        self.assertEqual(len(json.loads(exact["artifacts"][-2]["raw"])["holds"]), 4096-modules)
+        design["holds"].append(copy.deepcopy(design["holds"][0]))
+        self.rejected(self.render(design, options=options), "render_resource_limit")
+
+        # A real 3x5-cell, two-deck craft fits the catalogue shuttle berth.
+        child = {"schema": "apsis-shipyard-v4", "name": "Small hold craft",
+                 "buildType": "ship", "budget": 100000,
+                 "loads": {"cargo": 0, "jumpFuel": 1, "sublightFuel": 1},
+                 "nextId": 8, "migrationNotes": [], "decks": []}
+        floors = {f"{x},{y}": True for x in range(3) for y in range(5)}
+        modules = [{"id": 1, "type": "cockpit", "x": 0, "y": 0, "r": 0},
+                   {"id": 2, "type": "microReactor", "x": 1, "y": 0, "r": 0},
+                   {"id": 3, "type": "microLifeSupport", "x": 2, "y": 0, "r": 0},
+                   {"id": 4, "type": "airlock", "x": 0, "y": 2, "r": 1},
+                   {"id": 5, "type": "microEngine", "x": 2, "y": 3, "r": 0},
+                   {"id": 6, "type": "ladder", "x": 1, "y": 2, "r": 0}]
+        child["decks"].append({"name": "Bottom", "floors": floors, "modules": modules})
+        upper = copy.deepcopy(floors)
+        del upper["2,1"]
+        child["decks"].append({"name": "Upper", "floors": upper,
+                               "modules": [{"id": 7, "type": "ladder", "x": 1, "y": 2, "r": 0}]})
+        nested = self.station()
+        nested["decks"][0]["modules"].pop()
+        nested["decks"][0]["modules"].append({"id": 6, "type": "shuttleDock", "x": 12,
+                                              "y": 5, "r": 0, "craft": child})
+        nested["nextId"] = 7
+        nested["decks"][0]["floors"].update({f"{x},{y}": True
+                                               for x in range(12, 16) for y in range(5, 11)})
+        count = 6 + 7
+        child["holds"] = [{"x": 1, "y": 1, "w": 2, "h": 2,
+                            "firstDeck": 0, "lastDeck": 1}] * (4096-count)
+        self.passed(self.render(nested, options=options, validate=True))
+        child["holds"].append(copy.deepcopy(child["holds"][0]))
+        self.rejected(self.render(nested, options=options), "render_resource_limit")
 
     def test_option_and_limit_rejections(self):
         design = self.fixture("wren")
