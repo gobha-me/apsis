@@ -46,9 +46,9 @@
       "items": {
         "type": "object",
         "properties": {
-          "x": {"type": "integer", "minimum": 0}, "y": {"type": "integer", "minimum": 0},
-          "w": {"type": "integer", "minimum": 1}, "h": {"type": "integer", "minimum": 1},
-          "firstDeck": {"type": "integer", "minimum": 0}, "lastDeck": {"type": "integer", "minimum": 0}
+          "x": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}, "y": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+          "w": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}, "h": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "firstDeck": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}, "lastDeck": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
         },
         "required": ["x", "y", "w", "h", "firstDeck", "lastDeck"], "additionalProperties": false
       }

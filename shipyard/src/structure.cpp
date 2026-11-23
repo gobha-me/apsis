@@ -255,8 +255,8 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
             for (const auto& [node, links] : ladders) {
                 (void)links;
                 const auto& [deck, x, y] = node;
-                if (deck != hold.first ||
-                    !(hold.rectangle.contains({x, y}) || adjacent(hold.rectangle, {x, y}))) continue;
+                (void)deck;
+                if (!(hold.rectangle.contains({x, y}) || adjacent(hold.rectangle, {x, y}))) continue;
                 bool chain = true;
                 for (auto d = hold.first; d <= hold.last; ++d)
                     chain = chain && ladders.contains({d, x, y});

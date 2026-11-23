@@ -472,6 +472,16 @@ F11–F17 and F19 are resolved by Luna, under owner delegation 2026-11-23 above;
 the historical performance boundary below does not reopen them.
 
 
+## F25 — Current hold presentation and preserved reference boundary (#53)
+
+Luna, under owner delegation 2026-11-23 resolved F11–F17 and F19. Normal deck
+indices remain unchanged; each hold is one span-labelled manifest object, with
+an outline and compact span label on every deck it occupies. Existing floor
+and catalogue material remains the sole mass/cost/capacity input; the spatial
+rectangle contributes to width/length bounds. The historical F25 reference-scene
+comparison below remains valid evidence about the unmatched prototype image,
+and its old pending-hold wording is superseded by these final decisions.
+
 ## Historical boundary notes preserved by the #63/#65 integration
 
 The following is the complete pre-review F22/F23 text from the performance

@@ -218,7 +218,8 @@ Canvas draw_deck(const Json& blueprint, std::size_t index, const Json& rules,
             canvas.line(right, bottom, x, bottom, border);
             canvas.line(x, bottom, x, y, border);
             if (options.labels)
-                canvas.text(x + 2, y + 2, "HOLD " + detail::hold_label(hold), right - x - 3, ink);
+                canvas.text(x + 2, y + 2, "HOLD " + number(hold.at("firstDeck").get<std::size_t>() + 1) +
+                            "-" + number(hold.at("lastDeck").get<std::size_t>() + 1), right - x - 3, ink);
         }
     }
     std::map<std::string, const Json*, std::less<>> catalogue;

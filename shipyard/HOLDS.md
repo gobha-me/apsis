@@ -8,7 +8,9 @@ A v4 blueprint may include `holds`, an array of records such as:
 {"x": 2, "y": 3, "w": 4, "h": 5, "firstDeck": 1, "lastDeck": 3}
 ```
 
-Coordinates and positive dimensions are grid cells. Deck indices are zero-based
+Coordinates and positive dimensions are grid cells. New hold integers retain
+the interoperable exact-integer bound 2^53−1 before numeric conversions.
+Deck indices are zero-based
 and inclusive. The rectangle must fit the active grid. `holds.minDecks` is two
 in the active rules; older valid v4 snapshots without that optional rules block
 use the same settled minimum of two. The largest span is the design's actual
@@ -38,7 +40,9 @@ using existing catalogue footprints and `interface: "cargo"`; there is no
 new numeric door-size rule. Clear exterior approach, outward orientation and
 crew access remain active. The hold interior is not mistaken for exterior space.
 
-Holds identify spatial volume. Numeric cost, mass and capacity continue to come
+Hold rectangles contribute once to the design width/length envelope, including
+open areas outside the material floor bounding box. Floor area still counts
+actual material. Numeric cost, mass and capacity continue to come
 only from actual floors and catalogue modules, counted once. Removing interior
 floors uses the existing floor-count formulas; ladders, cargo parts and doors use
 their existing catalogue effects. There is no new incremental per-volume

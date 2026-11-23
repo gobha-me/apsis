@@ -3,24 +3,6 @@
   "killed": 390,
   "survivors": [
     {
-      "file": "shipyard/src/dock.cpp",
-      "line": 33,
-      "column": 30,
-      "end_line": 33,
-      "end_column": 32,
-      "operator": "cxx_ge_to_gt",
-      "replacement": ">"
-    },
-    {
-      "file": "shipyard/src/dock.cpp",
-      "line": 33,
-      "column": 58,
-      "end_line": 33,
-      "end_column": 60,
-      "operator": "cxx_le_to_lt",
-      "replacement": "<"
-    },
-    {
       "file": "shipyard/src/import.cpp",
       "line": 72,
       "column": 26,
@@ -58,93 +40,84 @@
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 147,
+      "line": 148,
       "column": 42,
-      "end_line": 147,
+      "end_line": 148,
       "end_column": 43,
       "operator": "cxx_gt_to_ge",
       "replacement": ">="
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 158,
+      "line": 159,
       "column": 55,
-      "end_line": 158,
+      "end_line": 159,
       "end_column": 57,
       "operator": "cxx_ge_to_gt",
       "replacement": ">"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 195,
+      "line": 196,
       "column": 35,
-      "end_line": 195,
+      "end_line": 196,
       "end_column": 37,
       "operator": "cxx_ge_to_gt",
       "replacement": ">"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 237,
+      "line": 239,
       "column": 67,
-      "end_line": 237,
+      "end_line": 239,
       "end_column": 69,
       "operator": "cxx_pre_inc_to_pre_dec",
       "replacement": "--"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 282,
+      "line": 295,
       "column": 42,
-      "end_line": 282,
+      "end_line": 295,
       "end_column": 43,
       "operator": "cxx_mul_to_div",
       "replacement": "/"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 289,
+      "line": 302,
       "column": 87,
-      "end_line": 289,
+      "end_line": 302,
       "end_column": 88,
       "operator": "cxx_add_to_sub",
       "replacement": "-"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 295,
+      "line": 308,
       "column": 62,
-      "end_line": 295,
+      "end_line": 308,
       "end_column": 63,
       "operator": "cxx_sub_to_add",
       "replacement": "+"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 297,
+      "line": 310,
       "column": 49,
-      "end_line": 297,
+      "end_line": 310,
       "end_column": 50,
       "operator": "cxx_mul_to_div",
       "replacement": "/"
     },
     {
       "file": "shipyard/src/import.cpp",
-      "line": 297,
+      "line": 310,
       "column": 61,
-      "end_line": 297,
+      "end_line": 310,
       "end_column": 62,
       "operator": "cxx_mul_to_div",
       "replacement": "/"
-    },
-    {
-      "file": "shipyard/src/import.cpp",
-      "line": 298,
-      "column": 34,
-      "end_line": 298,
-      "end_column": 35,
-      "operator": "cxx_gt_to_ge",
-      "replacement": ">="
     },
     {
       "file": "shipyard/src/json.cpp",
@@ -742,174 +715,129 @@
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 258,
+      "line": 311,
       "column": 32,
-      "end_line": 258,
+      "end_line": 311,
       "end_column": 33,
       "operator": "cxx_lt_to_le",
       "replacement": "<="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 258,
+      "line": 311,
       "column": 60,
-      "end_line": 258,
+      "end_line": 311,
       "end_column": 61,
       "operator": "cxx_gt_to_ge",
       "replacement": ">="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 258,
+      "line": 311,
       "column": 72,
-      "end_line": 258,
+      "end_line": 311,
       "end_column": 73,
       "operator": "cxx_add_to_sub",
       "replacement": "-"
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 259,
+      "line": 312,
       "column": 50,
-      "end_line": 259,
+      "end_line": 312,
       "end_column": 51,
       "operator": "cxx_lt_to_le",
       "replacement": "<="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 281,
+      "line": 334,
       "column": 88,
-      "end_line": 281,
+      "end_line": 334,
       "end_column": 89,
       "operator": "cxx_add_to_sub",
       "replacement": "-"
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 283,
+      "line": 336,
       "column": 55,
-      "end_line": 283,
+      "end_line": 336,
       "end_column": 56,
       "operator": "cxx_sub_to_add",
       "replacement": "+"
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 284,
+      "line": 337,
       "column": 39,
-      "end_line": 284,
+      "end_line": 337,
       "end_column": 41,
       "operator": "cxx_ge_to_gt",
       "replacement": ">"
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 284,
+      "line": 337,
       "column": 82,
-      "end_line": 284,
+      "end_line": 337,
       "end_column": 83,
       "operator": "cxx_add_to_sub",
       "replacement": "-"
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 343,
+      "line": 403,
       "column": 48,
-      "end_line": 343,
+      "end_line": 403,
       "end_column": 49,
       "operator": "cxx_gt_to_ge",
       "replacement": ">="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 344,
+      "line": 404,
       "column": 52,
-      "end_line": 344,
+      "end_line": 404,
       "end_column": 53,
       "operator": "cxx_lt_to_le",
       "replacement": "<="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 398,
+      "line": 458,
       "column": 42,
-      "end_line": 398,
+      "end_line": 458,
       "end_column": 43,
       "operator": "cxx_lt_to_le",
       "replacement": "<="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 399,
+      "line": 459,
       "column": 43,
-      "end_line": 399,
+      "end_line": 459,
       "end_column": 44,
       "operator": "cxx_lt_to_le",
       "replacement": "<="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 402,
+      "line": 462,
       "column": 27,
-      "end_line": 402,
+      "end_line": 462,
       "end_column": 28,
       "operator": "cxx_gt_to_ge",
       "replacement": ">="
     },
     {
       "file": "shipyard/src/structure.cpp",
-      "line": 403,
+      "line": 463,
       "column": 28,
-      "end_line": 403,
+      "end_line": 463,
       "end_column": 29,
       "operator": "cxx_gt_to_ge",
       "replacement": ">="
-    },
-    {
-      "file": "shipyard/src/validate.cpp",
-      "line": 19,
-      "column": 22,
-      "end_line": 19,
-      "end_column": 23,
-      "operator": "cxx_gt_to_ge",
-      "replacement": ">="
-    },
-    {
-      "file": "shipyard/src/validate.cpp",
-      "line": 26,
-      "column": 47,
-      "end_line": 26,
-      "end_column": 49,
-      "operator": "cxx_pre_inc_to_pre_dec",
-      "replacement": "--"
-    },
-    {
-      "file": "shipyard/src/validate.cpp",
-      "line": 29,
-      "column": 39,
-      "end_line": 29,
-      "end_column": 40,
-      "operator": "cxx_gt_to_ge",
-      "replacement": ">="
-    },
-    {
-      "file": "shipyard/src/validate.cpp",
-      "line": 30,
-      "column": 72,
-      "end_line": 30,
-      "end_column": 73,
-      "operator": "cxx_gt_to_ge",
-      "replacement": ">="
-    },
-    {
-      "file": "shipyard/src/validate.cpp",
-      "line": 32,
-      "column": 53,
-      "end_line": 32,
-      "end_column": 55,
-      "operator": "cxx_pre_inc_to_pre_dec",
-      "replacement": "--"
     }
   ]
 }

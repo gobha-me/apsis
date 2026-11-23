@@ -235,6 +235,7 @@ struct Importer {
         bool no_modules = true, has_engine = false;
         double burn_rate = 0;
         std::uint64_t min_x = rules.at("grid").at("w"), min_y = rules.at("grid").at("h"), max_x = 0, max_y = 0;
+        bool has_geometry = false;
         for (std::size_t d = 0; d < blueprint.at("decks").size(); ++d) {
             const auto& deck = blueprint.at("decks")[d];
             add("floorCount", static_cast<double>(deck.at("floors").size()));
@@ -244,6 +245,7 @@ struct Importer {
                 const auto* start = it.key().data();
                 std::from_chars(start, start + comma, x);
                 std::from_chars(start + comma + 1, start + it.key().size(), y);
+                has_geometry = true;
                 min_x = std::min(min_x, x); min_y = std::min(min_y, y);
                 max_x = std::max(max_x, x); max_y = std::max(max_y, y);
             }
@@ -280,6 +282,16 @@ struct Importer {
                 }
             }
         }
+        if (const auto holds = blueprint.find("holds"); holds != blueprint.end()) {
+            for (const auto& hold : *holds) {
+                const auto x = hold.at("x").get<std::uint64_t>();
+                const auto y = hold.at("y").get<std::uint64_t>();
+                has_geometry = true;
+                min_x = std::min(min_x, x); min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x + hold.at("w").get<std::uint64_t>() - 1);
+                max_y = std::max(max_y, y + hold.at("h").get<std::uint64_t>() - 1);
+            }
+        }
         add("cost", number("floorCount") * rules.at("floor").at("cost").get<double>());
         values["structureMass"] = round_computed(formula("structureMass", {{"floorCount", values.at("floorCount")}, {"floorMass", rules.at("floor").at("mass")}}), snapshot);
         for (const auto* key : {"componentMass", "carriedMass", "carriedCurrentMass", "carriedDryMass"}) values[key] = round_computed(number(key), snapshot);
@@ -296,7 +308,7 @@ struct Importer {
             {"carriedLoadMass", number("carriedCurrentMass") - number("carriedDryMass")}}), snapshot);
         const auto cell_size = rules.at("cellSizeM").get<double>();
         values["areaM2"] = number("floorCount") * cell_size * cell_size;
-        if (number("floorCount") > 0) {
+        if (has_geometry) {
             values["widthM"] = static_cast<double>(max_x - min_x + 1) * cell_size;
             values["lengthM"] = static_cast<double>(max_y - min_y + 1) * cell_size;
         }
@@ -348,7 +360,8 @@ struct Importer {
             }
             const auto first = hold.at("firstDeck").get<std::uint64_t>();
             const auto last = hold.at("lastDeck").get<std::uint64_t>();
-            if (first > last || last - first + 1 < minimum || last >= decks) {
+            const auto steps = minimum - 1;
+            if (last < steps || first > last - steps || last >= decks) {
                 detail::add_issue(issues, {"hold_span", "error",
                     "Hold span must cover at least the rule-defined minimum and remain inside this design.", location,
                     {{"firstDeck", first}, {"lastDeck", last}, {"minimum", minimum}, {"deckCount", decks}}});
