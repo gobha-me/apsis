@@ -178,8 +178,13 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
     for (const auto key : {"shipName", "stationName", "deckName"}) {
         const auto max = key == std::string_view("deckName") ? r["limits"]["maxDeckName"].get<double>()
                             : r["technicalLimits"]["maxBlueprintNameCharacters"].get<double>();
-        if (detail::character_count(r["defaults"][key].get<std::string>()) > max)
+        const auto name = key == std::string_view("deckName")
+            ? r["defaults"][key].get<std::string>()
+            : detail::trim_design_name(r["defaults"][key].get<std::string>());
+        if (detail::character_count(name) > max)
             fail("/defaults/" + std::string(key), "Default name exceeds its rules limit.");
+        if (key != std::string_view("deckName") && name.empty())
+            fail("/defaults/" + std::string(key), "Default design names cannot be blank after trimming.");
         const auto& text = r["defaults"][key].get_ref<const std::string&>();
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; }))
             fail("/defaults/" + std::string(key), "Default names cannot contain control characters.");

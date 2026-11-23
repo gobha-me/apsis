@@ -15,13 +15,16 @@ checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
 the request time limit (#52). Draft schemas describe shape; the loader then
 checks active catalogue references, grid coordinates, module IDs/nextId,
 rotations, interfaces, carry depth, and limits.
-C0 and DEL controls are rejected in labels/notes; no Unicode normalization
-occurs. F22's name-length counting and label trimming/fallback choices are
-**Open for Luna, not guessed**, with no value picked. The current loader's
-Unicode scalar-value counting and preservation of empty or whitespace-only
-labels without trimming or fallback are an **interim interpretation**. The
-prototype instead uses JavaScript UTF-16 length units and trims labels with a
-fallback. These differences are not a settled technical encoding contract.
+C0 and DEL controls are rejected in labels/notes before any name trimming;
+invalid UTF-8 also rejects before normalization. Blueprint names, including
+carried craft, trim surrounding ECMAScript whitespace and use the active
+ship/station default if empty. Both bundled defaults are `Unnamed design`.
+This name decision is resolved by **Luna, under owner delegation 2026-11-23**.
+Controls at either margin still reject; other labels/notes and interior name
+bytes are unchanged. Names are checked against the active limit after trimming
+and fallback. Valid default design names must be nonblank after trimming and
+fit the same cap. No Unicode normalization occurs; grapheme counting and
+migration-note overflow are separate F22 units.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 

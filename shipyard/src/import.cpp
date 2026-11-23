@@ -61,8 +61,35 @@ struct Importer {
         if (detail::character_count(text) > maximum.get<std::size_t>()) {
             detail::add_issue(issues, error("field_limit", "Text exceeds the active rules character limit.", path));
         }
+        static_cast<void>(check_controls(text, path));
+    }
+
+    bool check_controls(const std::string& text, const std::string& path) {
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; })) {
             detail::add_issue(issues, error("invalid_text", "Control characters are not allowed in labels or notes.", path));
+            return false;
+        }
+        return true;
+    }
+
+    void normalize_name(Json& blueprint, const std::string& path) {
+        auto& value = blueprint.at("name");
+        const auto original = value.get<std::string>();
+        const auto name_path = at(path, "name");
+        if (check_controls(original, name_path)) {
+            auto normalized = detail::trim_design_name(original);
+            if (normalized.empty()) {
+                const auto key = blueprint.at("buildType") == "station" ? "stationName" : "shipName";
+                normalized = detail::trim_design_name(rules.at("defaults").at(key).get<std::string>());
+            }
+            if (normalized != original) {
+                value = std::move(normalized);
+                change(name_path + ": normalized design name with trimming and the active rules default");
+            }
+        }
+        if (detail::character_count(value.get_ref<const std::string&>()) >
+            rules.at("technicalLimits").at("maxBlueprintNameCharacters").get<std::size_t>()) {
+            detail::add_issue(issues, error("field_limit", "Text exceeds the active rules character limit.", name_path));
         }
     }
 
@@ -79,7 +106,7 @@ struct Importer {
                           at(path, "migrationNotes"), Json::object()});
     }
 
-    // Normalize only schema/default metadata, never geometry, labels or IDs.
+    // Normalize schema/default metadata and the decided design name, never geometry or IDs.
     void normalize(Json& blueprint, std::size_t depth, const std::string& path, int version) {
         if (depth > rules.at("limits").at("maxCarryDepth").get<std::size_t>()) {
             detail::add_issue(issues, error("carry_depth", "Carried craft nesting exceeds the active rules limit.", path));
@@ -109,8 +136,7 @@ struct Importer {
             }
         }
         const auto& limits = rules.at("limits");
-        check_text(blueprint.at("name"), rules.at("technicalLimits").at("maxBlueprintNameCharacters"),
-                   at(path, "name"));
+        normalize_name(blueprint, path);
         if (blueprint.at("budget").get<double>() > rules.at("technicalLimits").at("maxBudgetInputCr").get<double>()) {
             detail::add_issue(issues, error("field_limit", "Budget input exceeds the active technical sanity limit.", at(path, "budget")));
         }
@@ -209,7 +235,7 @@ struct Importer {
             detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
-            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.", path);
+            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, budget and loads retained; design names normalized.", path);
         }
     }
 
