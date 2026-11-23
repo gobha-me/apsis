@@ -382,13 +382,13 @@ Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
 Unicode normalization occurs.
 
-The blueprint-name trim/fallback decision below is resolved; name counting and
-migration-note overflow remain separate units. Their old behaviour is interim:
+All three F22 decisions are final under
+**Luna, under owner delegation 2026-11-23**; their implementations remain
+separate issue units:
 
-- Name-length counting: the current loader counts Unicode scalar values; the
-  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
-  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
-  the prototype's limit. The counting choice remains open.
+- Name-length counting (#80): the active design-name cap counts extended
+  grapheme clusters, including one emoji as one character. That separate unit
+  supplies segmentation; this trim/default change does not replace the counter.
 - Blueprint-name trimming/fallback is resolved by **Luna, under owner delegation 2026-11-23**:
   trim surrounding ECMAScript whitespace and use the active ship/station default
   when empty. Both bundled defaults are exactly `Unnamed design`, including the
@@ -397,10 +397,8 @@ migration-note overflow remain separate units. Their old behaviour is interim:
   Default design names must be nonblank after trimming and fit the active limit;
   caller-provided coherent defaults remain authoritative. Normalized names are
   reported as migration changes and are stable on reimport.
-- Migration-note overflow: the current loader preserves existing notes and
-  leaves extra changes in the report with a warning; the prototype keeps the
-  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
-  remains open.
+- Migration-note overflow (#82): keep the newest notes with one dropped-history
+  notice; the separate unit replaces the legacy preservation/warning policy.
 
 None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
 interpretations.
