@@ -224,6 +224,50 @@ class SimGateTests(unittest.TestCase):
                 self.assertEqual(self.run_gate().returncode, 2)
                 self.assertEqual(self.summary()["counts"]["error"], 1)
 
+    def test_invalid_reports_are_recorded_in_both_summaries(self):
+        deep_array = "[" * 2000 + "0" + "]" * 2000
+        report = json.dumps(valid_report())
+        passing = dict(valid_report(), seed=8)
+        for name, raw, diagnostic in (
+            (
+                "decoder-depth",
+                "[" * 10000 + "0" + "]" * 10000,
+                "JSON nesting limit",
+            ),
+            (
+                "nested-extra-field",
+                report[:-1] + ',"unknown_nested":' + deep_array + "}",
+                None,
+            ),
+            ("extra-field", report[:-1] + ',"unknown_nested":0}', "unknown_nested"),
+            (
+                "duplicate-surrogate-key",
+                r'{"\ud800":0,"\ud800":1}',
+                r"duplicate report key: '\ud800'",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.output = self.root / name
+                self.fixture(
+                    "import sys\n"
+                    f"print({raw!r} if sys.argv[1] == '7' else {json.dumps(passing)!r})"
+                )
+                result = self.run_gate("--seeds", "7,8")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                summary = self.summary()
+                self.assertEqual(summary["counts"], {"pass": 1, "fail": 0, "error": 1})
+                rejected, completed = summary["cases"]
+                self.assertEqual((rejected["seed"], rejected["status"]), (7, "error"))
+                self.assertTrue(rejected["error"])
+                if diagnostic is not None:
+                    self.assertIn(diagnostic, rejected["error"])
+                self.assertEqual(completed["status"], "pass")
+                self.assertEqual(completed["report"], passing)
+                human = (self.output / "summary.txt").read_text(encoding="utf-8")
+                self.assertIn("1 passed, 0 failed, 1 errors", human)
+                self.assertIn(f"7/world: {rejected['error']}\n", human)
+                self.assertEqual(human, result.stdout)
+
     def test_oversized_valid_report_is_rejected(self):
         raw = json.dumps(valid_report())
         self.fixture(f"print({raw!r} + ' ' * 65536)")
@@ -234,15 +278,15 @@ class SimGateTests(unittest.TestCase):
 
     def test_report_rejects_duplicate_keys_and_nonfinite_constants(self):
         raw = json.dumps(valid_report())
-        for addition in (
-            '"seed": 7',
-            '"extra": NaN',
-            '"extra": Infinity',
-            '"extra": 1e999',
+        for addition, diagnostic in (
+            ('"seed": 7', "duplicate report key"),
+            ('"extra": NaN', "nonfinite report value"),
+            ('"extra": Infinity', "nonfinite report value"),
+            ('"extra": 1e999', "nonfinite report value"),
         ):
             with self.subTest(addition=addition):
                 self.report.write_text(raw[:-1] + "," + addition + "}")
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(ValueError, diagnostic):
                     GATE.validate_report(self.report, 7, "world", 3, 100000)
 
     def test_invalid_types_provenance_and_incomplete_passes_are_rejected(self):

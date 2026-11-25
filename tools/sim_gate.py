@@ -26,6 +26,24 @@ CHECKS = (
     "pilot_started",
     "outcome_reachable",
 )
+REPORT_FIELDS = {
+    "schema_version",
+    "seed",
+    "scenario",
+    "requested_days",
+    "setup_days",
+    "simulated_days",
+    "final_day",
+    "states_checked",
+    "peak_entities",
+    "first_failure_day",
+    "end_state",
+    "deliveries",
+    "applied_bot_actions",
+    "numeric_domain",
+    "state_hash",
+    "checks",
+}
 MAX_REPORT_BYTES = 65536
 
 
@@ -39,7 +57,7 @@ def unique_object(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError(f"duplicate report key: {key}")
+            raise ValueError(f"duplicate report key: {key!a}")
         result[key] = value
     return result
 
@@ -58,14 +76,20 @@ def finite_float(value):
 def validate_report(path, seed, scenario, days, limit):
     if path.stat().st_size > MAX_REPORT_BYTES:
         raise ValueError("driver report exceeds 64 KiB")
-    report = json.loads(
-        path.read_text(encoding="utf-8"),
-        object_pairs_hook=unique_object,
-        parse_constant=reject_constant,
-        parse_float=finite_float,
-    )
+    try:
+        report = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+            parse_float=finite_float,
+        )
+    except RecursionError as error:
+        raise ValueError("driver report exceeds JSON nesting limit") from error
     if not isinstance(report, dict):
         raise ValueError("driver report must be an object")  # noqa: TRY004 - wire data
+    for key in report:
+        if key not in REPORT_FIELDS:
+            raise ValueError(f"unknown driver report field: {key!a}")
     for key, expected in (
         ("schema_version", 1),
         ("seed", seed),
