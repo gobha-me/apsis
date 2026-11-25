@@ -28,10 +28,8 @@ Json envelope(const RulesSnapshot& rules, bool pass, std::vector<Issue> issues, 
             {"issues", std::move(issues)}, {"data", std::move(data)}};
 }
 
-bool truncated(const std::vector<Issue>& issues) {
-    return std::any_of(issues.begin(), issues.end(), [](const Issue& issue) {
-        return issue.code == "issues_truncated";
-    });
+bool has_terminal_issue(const std::vector<Issue>& issues) {
+    return std::any_of(issues.begin(), issues.end(), detail::terminal_structure_issue);
 }
 
 void import_issues(std::vector<Issue>& issues, const std::vector<Issue>& source,
@@ -39,8 +37,8 @@ void import_issues(std::vector<Issue>& issues, const std::vector<Issue>& source,
     const Issue* marker = nullptr;
     for (const auto& original : source) {
         // A source limit is terminal even if this operation filters some of
-        // its diagnostics. Its library-wide marker always retains path "".
-        if (original.code == "issues_truncated") { marker = &original; continue; }
+        // its diagnostics. Structural paths already name the owning input.
+        if (detail::terminal_structure_issue(original)) { marker = &original; continue; }
         if (original.code == "pending_validation" || original.code == "pending_docking") continue;
         auto issue = original;
         issue.path = prefix + issue.path;
@@ -66,7 +64,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
     try {
         // The shared import path checks ordinary schema and scalar/grid bounds.
         auto host = detail::import_for_validation(host_bytes, rules, schemas, limits);
-        if (truncated(host.issues)) import_issues(issues, host.issues, "/host");
+        if (has_terminal_issue(host.issues)) import_issues(issues, host.issues, "/host");
         auto visitor = detail::import_for_validation(visitor_bytes, rules, schemas, limits);
         import_issues(issues, host.issues, "/host");
         import_issues(issues, visitor.issues, "/visitor");
@@ -89,9 +87,9 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         }
 
         auto host_structure = detail::inspect_structure(host_blueprint, rules, "/host/blueprint");
-        if (truncated(host_structure.issues)) import_issues(issues, host_structure.issues, "");
+        if (has_terminal_issue(host_structure.issues)) import_issues(issues, host_structure.issues, "");
         auto visitor_structure = detail::inspect_structure(visitor_blueprint, rules, "/visitor/blueprint");
-        if (truncated(visitor_structure.issues)) import_issues(issues, visitor_structure.issues, "");
+        if (has_terminal_issue(visitor_structure.issues)) import_issues(issues, visitor_structure.issues, "");
         const auto target = std::find_if(host_structure.modules.begin(), host_structure.modules.end(),
             [&](const detail::ModuleState& state) {
                 return state.deck == target_deck && state.id == target_module_id;
@@ -178,6 +176,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         Json data = {{"target", {{"deck", target_deck}, {"moduleId", target_module_id},
                                 {"kind", kind}, {"interface", target->interface}}},
                      {"checks", std::move(checks)}};
+        bool hangar_fit = true;
         if (kind == "hangar") {
             const auto& dimensions = visitor.value->definition.at("derived");
             const auto width = dimensions.at("widthM").get<double>();
@@ -195,10 +194,10 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                 detail::add_issue(issues, {"dock_hangar_deck_limit", severity, "Visitor exceeds the hangar's rule-defined deck limit.",
                                   "/visitor/blueprint/decks", {{"actual", deck_count}, {"maximum", max_decks}}});
             }
-            const bool fit = (width <= max_width && length <= max_length) ||
-                             (length <= max_width && width <= max_length);
-            data["hangar"]["widthLengthFit"] = fit;
-            if (!fit) {
+            hangar_fit = (width <= max_width && length <= max_length) ||
+                         (length <= max_width && width <= max_length);
+            data["hangar"]["widthLengthFit"] = hangar_fit;
+            if (!hangar_fit) {
                 detail::add_issue(issues, {"dock_hangar_size_limit", severity,
                     "Visitor exceeds the hangar envelope in all four allowed cardinal facings.",
                     "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
@@ -210,7 +209,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         const bool failed_check = std::any_of(measured_checks.begin(), measured_checks.end(), [](const Json& value) {
             return value.at("enabled").get<bool>() && value.at("status") == "FAIL";
         });
-        const bool pass = !errors(issues) && !failed_check && !pending;
+        const bool pass = !errors(issues) && !failed_check && !pending && hangar_fit;
         return envelope(rules, pass, std::move(issues), std::move(data));
     } catch (const detail::IssueLimitReached&) {
         return envelope(rules, false, std::move(issues), nullptr);

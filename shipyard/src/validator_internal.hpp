@@ -27,6 +27,10 @@ struct StructureReport {
     std::vector<ModuleState> modules;
 };
 
+inline bool terminal_structure_issue(const Issue& issue) {
+    return issue.code == "issues_truncated" || issue.code == "structure_resource_limit";
+}
+
 // Input has already passed import_definition's schema and rule scalar checks.
 StructureReport inspect_structure(const Json& blueprint,
                                   const RulesSnapshot& rules,

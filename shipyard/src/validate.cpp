@@ -41,13 +41,13 @@ Json validate(std::string_view bytes, const RulesSnapshot& rules,
     try {
         // Defer an existing terminal marker until its bounded diagnostics have
         // been appended; the shared helper also bounds loader + structure.
-        const Issue* truncated = nullptr;
+        const Issue* terminal = nullptr;
         for (const auto& issue : structure.issues) {
-            if (issue.code == "issues_truncated") truncated = &issue;
+            if (detail::terminal_structure_issue(issue)) terminal = &issue;
             else detail::add_issue(issues, issue);
         }
-        if (truncated) {
-            detail::add_issue(issues, *truncated);
+        if (terminal) {
+            detail::add_issue(issues, *terminal);
             // A source marker is terminal even if the combined list has room.
             return envelope(rules, false, std::move(issues), nullptr);
         }
