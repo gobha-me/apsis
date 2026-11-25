@@ -45,22 +45,29 @@ int main() {
     const auto imported = import_definition(blank().dump(), active, schema_set);
     require(imported.ok(), "direct import must return a definition");
     const auto expected_findings = Json::array({"F21"});
-    const auto advisory = std::find_if(
-        imported.issues.begin(), imported.issues.end(),
-        [](const Issue &item) { return item.code == "pending_docking"; });
-    require(advisory != imported.issues.end() && advisory->severity == "warning" &&
+    const auto is_advisory = [](const Issue &item) {
+      return item.code == "pending_docking";
+    };
+    const auto advisory = std::find_if(imported.issues.begin(),
+                                       imported.issues.end(), is_advisory);
+    require(std::count_if(imported.issues.begin(), imported.issues.end(),
+                          is_advisory) == 1 &&
+                advisory->severity == "warning" &&
                 advisory->details.at("findings") == expected_findings,
-            "direct import must return a warning for F21 alone");
+            "direct import must return exactly one docking warning for F21");
 
     const auto &issues =
         imported.value->definition.at("validation").at("issues");
-    const auto serialized = std::find_if(
-        issues.begin(), issues.end(),
-        [](const Json &item) { return item.at("code") == "pending_docking"; });
-    require(serialized != issues.end() &&
+    const auto is_serialized_advisory = [](const Json &item) {
+      return item.at("code") == "pending_docking";
+    };
+    const auto serialized =
+        std::find_if(issues.begin(), issues.end(), is_serialized_advisory);
+    require(std::count_if(issues.begin(), issues.end(),
+                          is_serialized_advisory) == 1 &&
                 serialized->at("severity") == "warning" &&
                 serialized->at("details").at("findings") == expected_findings,
-            "exported validation must contain a warning for F21 alone");
+            "exported validation must contain exactly one docking warning for F21");
   });
 
   suite.run("module grid capacity is exact even when footprints overlap", [&] {

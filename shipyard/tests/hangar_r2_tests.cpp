@@ -51,11 +51,11 @@ const Json &find_issue(const Json &report, std::string_view code) {
 }
 
 void check_envelope(const Json &report, int visitor_width, int visitor_length,
-                    int hangar_width, int hangar_length, bool definite) {
-  (void)definite; // Historical cases all exceed both decided cardinal envelopes.
+                    int hangar_width, int hangar_length,
+                    std::string_view severity = "error") {
   require(report.at("operation") == "dock" &&
               report.at("status") == "FAIL" && report.at("pass") == false,
-          "a definite size failure or unresolved rotation must block docking");
+          "exceeding both cardinal hangar envelopes must block docking");
   const auto &data = report.at("data");
   require(data.is_object() && data.at("target").at("kind") == "hangar" &&
               data.at("target").at("deck") == 1 &&
@@ -80,10 +80,10 @@ void check_envelope(const Json &report, int visitor_width, int visitor_length,
               data.at("pending") == false && !has_issue(report, "pending_F19"),
           "Luna cardinal-only facings reject every failed orthogonal envelope");
   const auto &item = find_issue(report, "dock_hangar_size_limit");
-  require(item.at("severity") == "error" &&
+  require(item.at("severity") == severity &&
               item.at("path") == "/visitor/blueprint/decks" &&
               !item.at("message").get<std::string>().empty(),
-          "Decided oversize retains its readable structured size error");
+          "oversize retains its readable finding and configured severity");
 }
 } // namespace
 
@@ -103,13 +103,11 @@ int main() {
   Suite suite;
 
   const auto check = [&](const Json &visitor, int visitor_width,
-                         int visitor_length, int width, int length,
-                         bool definite) {
+                         int visitor_length, int width, int length) {
     const auto configured = with_hangar_limits(active, schema, width, length);
     const auto report = dock(anchorage.dump(), 1, 15, visitor.dump(), configured,
                              schema, options);
-    check_envelope(report, visitor_width, visitor_length, width, length,
-                   definite);
+    check_envelope(report, visitor_width, visitor_length, width, length);
   };
 
   const auto check_diagonal = [&](double length, double epsilon,
@@ -241,36 +239,63 @@ int main() {
     // The historical swapped comparisons are false / true (34 <= 10,
     // 20 <= 40); the current unrotated comparisons are also false / true.
     // Either && -> || fault would incorrectly avoid this definite rejection.
-    check(wren, 20, 34, 10, 40, true);
+    check(wren, 20, 34, 10, 40);
   });
 
   suite.run("canonical Wren exceeds the real 10 x 18 m hangar", [&] {
-    check(wren, 20, 34, 10, 18, true);
+    check(wren, 20, 34, 10, 18);
   });
 
   suite.run("Skiff 6 x 10 in 8 x 8 exceeds both cardinal facings", [&] {
-    check(skiff, 6, 10, 8, 8, false);
+    check(skiff, 6, 10, 8, 8);
   });
 
   suite.run("minimum-side equality rejects Skiff cardinal fit", [&] {
-    check(skiff, 6, 10, 6, 9, false);
+    check(skiff, 6, 10, 6, 9);
   });
 
   suite.run("minimum-side excess rejects even below the hangar diagonal", [&] {
-    check(skiff, 6, 10, 5, 9, true);
+    check(skiff, 6, 10, 5, 9);
   });
 
   suite.run("2 x 10 in 9 x 9 only fits obliquely and rejects under cardinal facings", [&] {
-    check(thin, 2, 10, 9, 9, false);
+    check(thin, 2, 10, 9, 9);
+  });
+
+  suite.run("warning severity still requires a cardinal fit for docking", [&] {
+    const auto dock_with_warning = [&](int width, int length) {
+      auto changed = with_hangar_limits(active, schema, width, length).data();
+      changed["validation"]["checks"]["docking"]["severity"] = "warning";
+      const auto configured = load_rules(changed.dump(), schema);
+      require(configured.ok(), "warning docking severity must load");
+      return dock(anchorage.dump(), 1, 15, thin.dump(), *configured.value,
+                  schema, options);
+    };
+
+    const auto exact_fit = dock_with_warning(10, 2);
+    const auto &data = exact_fit.at("data");
+    const auto &hangar = data.at("hangar");
+    require(hangar.at("visitorWidthM") == 2 &&
+                hangar.at("visitorLengthM") == 10 &&
+                hangar.at("maxWidthM") == 10 && hangar.at("maxLengthM") == 2,
+            "the control must exactly equal the swapped cardinal limits");
+    require(exact_fit.at("status") == "PASS" && exact_fit.at("pass") == true &&
+                hangar.at("widthLengthFit") == true &&
+                hangar.at("deckCountFits") == true &&
+                data.at("pending") == false &&
+                !has_issue(exact_fit, "dock_hangar_size_limit"),
+            "an exact cardinal fit must still certify under warning severity");
+
+    check_envelope(dock_with_warning(9, 9), 2, 10, 9, 9, "warning");
   });
 
   suite.run("hangar diagonal equality still rejects cardinal docking", [&] {
-    // hypot(6, 8) is exactly 10: the documented comparison is strict.
-    check(thin, 2, 10, 6, 8, false);
+    // The diagonal is exactly 10 m, but both cardinal facings exceed a limit.
+    check(thin, 2, 10, 6, 8);
   });
 
   suite.run("a visitor longer than the hangar diagonal is definitely too large",
-            [&] { check(thin, 2, 10, 6, 7, true); });
+            [&] { check(thin, 2, 10, 6, 7); });
 
   return suite.finish();
 }

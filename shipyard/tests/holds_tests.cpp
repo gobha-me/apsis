@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <vector>
 
 namespace {
 using namespace dock_test;
@@ -74,6 +75,59 @@ int main() {
     for (int decks = 2; decks <= maximum; ++decks)
       accepted(volume(decks, 7, 6, hold(0, decks - 1)), active, schema);
     accepted(volume(4, 7, 6, hold(1, 3)), active, schema);
+  });
+  suite.run("hold work reuses repeated records and bounds distinct geometry", [&] {
+    const auto opening = hold(0, 1, 5, 6, 12, 12);
+    auto design = volume(2, 7, 6, opening);
+    for (int deck : {0, 1})
+      fill(design, deck, 2, 2, 24, 22);
+    design["decks"][1]["floors"].erase("14,12");
+    const auto port = add_module(design, "dockingPort", 6, 22);
+
+    design["holds"] = std::vector<Json>(2048, opening);
+    accepted(design, active, schema);
+
+    // Every rectangle shares the opening and the paired ladder route.
+    auto records = Json::array();
+    for (int y = 6; y <= 12; ++y)
+      for (int x = 5; x <= 14; ++x)
+        for (int right = 17; right <= 21; ++right)
+          for (int bottom = 18; bottom <= 19; ++bottom)
+            records.push_back(hold(0, 1, x, y, right - x, bottom - y));
+    // On this fixture, both decks are labelled once. Each distinct record
+    // adds two deck visits, both route scans, the upper floor scan, three
+    // comparisons per module, and two aligned ladder checks. Every record
+    // also costs one unit, including each repeat used to reach equality.
+    constexpr int limit = 1'000'000;
+    constexpr int shared_labels = 528 + 527;
+    constexpr int distinct_work = 1 + 2 + (528 + 527) + 527 + 3 * 7 + 2;
+    constexpr int distinct_records = (limit - shared_labels) / distinct_work;
+    constexpr int repeated_records = (limit - shared_labels) % distinct_work;
+    design["holds"] = Json(records.begin(), records.begin() + distinct_records);
+    for (int i = 0; i < repeated_records; ++i)
+      design["holds"].push_back(opening);
+    accepted(design, active, schema);
+
+    design["holds"].push_back(opening);
+    const auto source = design.dump();
+    const auto limited = [&](const Json &report, std::string_view path) {
+      require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                  report.at("data").is_null(),
+              "hold work exhaustion must return a terminal public failure");
+      require(finding(report, "structure_resource_limit", path)
+                      .at("details").at("limit") == limit,
+              "the diagnostic must expose the structural work limit");
+    };
+    limited(validate(source, active, schema), "/blueprint/holds");
+    limited(perf(source, active, schema), "/blueprint/holds");
+    DockOptions options;
+    options.structural = false;
+    limited(dock(source, 0, port, visitor().dump(), active, schema, options),
+            "/host/blueprint/holds");
+    const auto rendered = render(source, active, schema);
+    limited(rendered.envelope, "/blueprint/holds");
+    require(rendered.artifacts.empty(),
+            "the renderer must emit no artifacts after work exhaustion");
   });
   suite.run("hold import rejects one deck, reversal and inclusive past-end spans precisely", [&] {
     for (const auto &span : {std::pair{0, 0}, std::pair{2, 1}, std::pair{0, 3}}) {
@@ -247,10 +301,14 @@ int main() {
     accepted(volume(), active, schema);
     auto blocked = volume();
     blocked["decks"][1]["floors"]["9,6"] = true;
+    blocked["holds"].push_back(hold());
     const auto report = validate(blocked.dump(), active, schema);
     const auto &item = finding(report, "hold_open_column", "/blueprint/holds/0");
     require(item.at("details").at("firstDeck") == 0 && item.at("details").at("lastDeck") == 2,
             "A completely covered intermediate plane blocks the whole declared span");
+    require(finding(report, "hold_open_column", "/blueprint/holds/1").at("details") ==
+                item.at("details"),
+            "Reusing a geometry check must retain findings at each record path");
     auto staggered = volume();
     staggered["decks"][2]["floors"]["9,6"] = true;
     staggered["decks"][2]["floors"].erase("10,6");
