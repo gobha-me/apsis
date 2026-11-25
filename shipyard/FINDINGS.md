@@ -377,22 +377,24 @@ Stable serialization, exact input comparisons, absolute epsilon, and computed
 rounding are specified in CONTRACT.md for the independent tests session. No
 Unicode normalization occurs.
 
-The following three prototype differences are **Open for Luna, not guessed**,
-with no value picked. Current behaviour is an **interim interpretation**, not
-a settled technical encoding contract:
+All three F22 decisions are final under
+**Luna, under owner delegation 2026-11-23**; their implementations remain
+separate issue units:
 
-- Name-length counting: the current loader counts Unicode scalar values; the
-  prototype uses JavaScript UTF-16 length units (`index.html:3702`, `:3557`).
-  Thus 41–80 astral characters currently fit v4's 80-character limit but exceed
-  the prototype's limit. The counting choice remains open.
-- Label trimming and fallback: the current loader preserves empty and
-  whitespace-only labels without trimming or a fallback; the prototype's
-  `label()` returns `v.trim()||fallback` (`index.html:3702`). The choice remains
-  open.
-- Migration-note overflow: the current loader preserves existing notes and
-  leaves extra changes in the report with a warning; the prototype keeps the
-  newest notes with `.slice(-maxMigrationNotes)` (`index.html:3766`). The choice
-  remains open.
+- Name-length counting (#80): the active design-name cap counts extended
+  grapheme clusters, including one emoji as one character. That separate unit
+  supplies segmentation; this trim/default change does not replace the counter.
+- Blueprint-name trimming/fallback is resolved by **Luna, under owner delegation 2026-11-23**:
+  trim surrounding ECMAScript whitespace and use exactly `Unnamed design` when
+  the result is empty. The active design-name limit applies after fallback.
+  Controls are rejected before trimming, as in prototype `label()`
+  (`index.html:3702`). Deck labels and note text preserve their spelling. The
+  blank-design factory applies the same trim and fallback to the active ship
+  or station default. Rules loading checks the resulting name against the
+  active limit. Both bundled defaults are `Unnamed design`. Normalized names
+  are reported as migration changes and are stable on reimport.
+- Migration-note overflow (#82): keep the newest notes with one dropped-history
+  notice; the separate unit replaces the legacy preservation/warning policy.
 
 None of F11–F17 or F19–F21 is answered by this scope boundary or these interim
 interpretations.

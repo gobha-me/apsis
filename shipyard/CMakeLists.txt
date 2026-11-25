@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
   src/structure.cpp src/validate.cpp src/dock.cpp src/perf.cpp src/perf_calculation.cpp
-  src/authoring.cpp)
+  src/authoring.cpp src/name_normalization.cpp)
 add_library(apsis::shipyard ALIAS apsis-shipyard)
 target_include_directories(apsis-shipyard PUBLIC include)
 target_include_directories(apsis-shipyard SYSTEM PUBLIC vendor)
@@ -23,7 +23,7 @@ if(BUILD_TESTING)
       perf perf_pending perf_scenario perf_issue_cap perf_review
       issue_cap loader_regression schema_boundary structure_regression
       dock_regression validator_cap authoring nits_owner
-      authoring_argus
+      authoring_argus name_normalization
       loader_r2 structure_r2 hangar_r2 validator_r2_cap)
     add_executable(shipyard-${suite}-tests tests/${suite}_tests.cpp)
     target_link_libraries(shipyard-${suite}-tests PRIVATE apsis::shipyard)

@@ -131,8 +131,10 @@ Json blank_blueprint(const RulesSnapshot& rules, BlankType type) {
         remaining_name_bytes -= bytes;
         decks.push_back(empty_deck(name->text(), true));
     }
+    const auto& name = defaults.at(type == BlankType::station ? "stationName" : "shipName")
+                           .get_ref<const std::string&>();
     return {{"schema", active.at("schemaIds").at("blueprint")},
-        {"name", defaults.at(type == BlankType::station ? "stationName" : "shipName")},
+        {"name", detail::normalize_design_name(name)},
         {"buildType", type == BlankType::station ? "station" : "ship"},
         {"budget", defaults.at("budget")}, {"loads", defaults.at("loads")},
         {"decks", std::move(decks)}, {"nextId", 1}, {"migrationNotes", Json::array()}};

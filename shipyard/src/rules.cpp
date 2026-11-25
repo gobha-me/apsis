@@ -183,11 +183,13 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
     for (const auto& [key, value] : r["performance"]["scenarioFractions"].items())
         if (value.get<double>() > 1) fail("/performance/scenarioFractions/" + key, "Scenario fractions must be within zero and one.");
     for (const auto key : {"shipName", "stationName", "deckName"}) {
-        const auto max = key == std::string_view("deckName") ? r["limits"]["maxDeckName"].get<double>()
-                            : r["technicalLimits"]["maxBlueprintNameCharacters"].get<double>();
-        if (detail::character_count(r["defaults"][key].get<std::string>()) > max)
-            fail("/defaults/" + std::string(key), "Default name exceeds its rules limit.");
+        const bool is_deck_name = key == std::string_view("deckName");
+        const auto max = is_deck_name ? r["limits"]["maxDeckName"].get<double>()
+                                      : r["technicalLimits"]["maxBlueprintNameCharacters"].get<double>();
         const auto& text = r["defaults"][key].get_ref<const std::string&>();
+        const auto name = is_deck_name ? text : detail::normalize_design_name(text);
+        if (detail::character_count(name) > max)
+            fail("/defaults/" + std::string(key), "Default name exceeds its rules limit.");
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; }))
             fail("/defaults/" + std::string(key), "Default names cannot contain control characters.");
     }

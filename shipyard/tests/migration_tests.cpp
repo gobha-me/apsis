@@ -154,8 +154,8 @@ int main() {
         const auto bytes = read("rules/apsis-rules-v4.json");
         require(active.sha256() == sha256(bytes),
                 "active SHA-256 must hash original bytes");
-        require(active.sha256() == "0dcbe1504cd37ecd0ae37949534572270cf246998cb"
-                                   "7d4bab7785085a412e7ef",
+        require(active.sha256() == "a7134d8657b5effb3a65fb8e61e165f5b9ac327399"
+                                   "1d66a416299db7cd28a41a",
                 "reviewed v4 rules byte identity");
         const auto changed_bytes = bytes + "\n";
         const auto changed = load_rules(changed_bytes, schema_set);
@@ -174,6 +174,27 @@ int main() {
                     sha256(changed_bytes),
                 "export reports the active exact-byte identity");
       });
+
+  suite.run("v3 migration note fits the original 124-character limit", [&] {
+    auto data = active.data();
+    data["limits"]["maxNoteLength"] = 124;
+    const auto capped = load_rules(data.dump(), schema_set);
+    require(capped.ok(), "active rules accept the original note length");
+    const auto source = fixture(fixtures.front());
+    const auto imported =
+        import_definition(source.dump(), *capped.value, schema_set);
+    require(imported.ok(), "Wren must migrate with the original note limit");
+    const auto &notes =
+        imported.value->definition.at("blueprint").at("migrationNotes");
+    require(std::any_of(notes.begin(), notes.end(), [](const Json &note) {
+              return note.get_ref<const std::string &>().starts_with(
+                  "Migrated apsis-shipyard-v3 to apsis-shipyard-v4");
+            }),
+            "the migration note must persist at the original limit");
+    require(!issue(imported.issues, "migration_note_limit",
+                   "/blueprint/migrationNotes"),
+            "generated notes must fit without a limit warning");
+  });
 
   const auto historical_rules =
       Json::parse(read("fixtures/v3/apsis-rules-v3.json"));

@@ -16,4 +16,5 @@ Result<ImportedDefinition> import_with_load_overrides(std::string_view bytes,
     const RulesSnapshot& rules, const SchemaSet& schemas, InputLimits limits,
     const Json& load_overrides);
 std::size_t character_count(std::string_view utf8);
+std::string normalize_design_name(std::string_view utf8);
 } // namespace apsis::shipyard::detail

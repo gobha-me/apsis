@@ -15,13 +15,18 @@ checks (#52). The library has no wall-clock budget; the HTTP layer must enforce
 the request time limit (#52). Draft schemas describe shape; the loader then
 checks active catalogue references, grid coordinates, module IDs/nextId,
 rotations, interfaces, carry depth, and limits.
-C0 and DEL controls are rejected in labels/notes; no Unicode normalization
-occurs. F22's name-length counting and label trimming/fallback choices are
-**Open for Luna, not guessed**, with no value picked. The current loader's
-Unicode scalar-value counting and preservation of empty or whitespace-only
-labels without trimming or fallback are an **interim interpretation**. The
-prototype instead uses JavaScript UTF-16 length units and trims labels with a
-fallback. These differences are not a settled technical encoding contract.
+Invalid UTF-8 and C0 and DEL controls in design names are rejected before any
+trimming. Deck labels and migration notes also reject these controls. Imported
+blueprint names in v3 and v4, including carried craft, are trimmed of
+surrounding ECMAScript whitespace. An empty result becomes `Unnamed design`
+(#81).
+This name decision is resolved by **Luna, under owner delegation 2026-11-23**.
+Interior name bytes are preserved without Unicode normalization. The active
+design-name limit applies after trimming and fallback. Grapheme counting (#80)
+is implemented separately. The blank-design factory trims the active ship or
+station default and uses `Unnamed design` if the result is empty. Rules loading
+checks the resulting name against the same cap. Both bundled factory defaults
+are `Unnamed design`.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
@@ -78,17 +83,16 @@ This is not a general-purpose schema library.
 
 ## Migration and numbers
 
-Migration accepts v3 blueprints/wrappers, validates source shape, fills only
-missing optional metadata from active defaults, preserves geometry/IDs/order/
-labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
-an actionable unsupported-version error. Reports identify source/target
-versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Migration-note overflow handling (F22) is
-**Open for Luna, not guessed**, with no value picked. As an
-**interim interpretation**, the current loader preserves existing full note
-lists and leaves extra changes in the report with a warning; the prototype
-keeps the newest notes instead. This difference is not a settled technical
-encoding contract. Export is always v4.
+Migration accepts v3 blueprints/wrappers, validates source shape, and fills
+missing optional metadata from active defaults. It normalizes design names
+throughout the carried-blueprint tree and retains geometry, IDs, order, deck
+labels, budget, and existing loads. v1/v2 return an actionable
+unsupported-version error. Reports identify source/target versions,
+rule-identity changes, and deterministic changes including name normalization.
+Notes are deduplicated on reimport. The loader preserves existing full note
+lists and leaves extra changes in the report with a warning. Newest-note
+retention and the dropped-history marker (#82) are implemented separately.
+Export is always v4.
 Import alone does not approve missing systems, overlaps, hull access, or
 carried-fit legality; call `validate` for these checks. Migration never repairs
 Rustbucket or other structural faults.
@@ -266,9 +270,7 @@ representations remain distinct (1 versus 1.0), floating negative zero becomes
 RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
 and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
-canonical form. Later independent tests should lock down the settled contracts;
-the three F22 prototype differences remain open and answer none of F11–F17 or
-F19–F21.
+canonical form.
 
 ## Deck authoring (#55)
 
@@ -302,10 +304,12 @@ provenance exactly; it never guesses ownership from a name pattern. Inserting,
 moving, or removing a deck renumbers only generated root-deck names. An explicit
 rename clears ownership, even when the supplied name equals a generated label;
 passing `nullopt` to `rename_deck` restores generated naming. The same optional
-name behavior applies to insertion. Empty explicit labels remain subject to the
-existing interim F22 behavior. Retained deck contents, coordinates, module IDs,
-`nextId`, and carried-craft labels are unchanged. Removal deletes only the
-selected deck; subsequent structural validation reports any resulting faults.
+name behavior applies to insertion. Explicit deck labels may be empty or padded
+with whitespace, subject to the existing deck-label validation. The helpers
+import and normalize root and carried design names. They preserve retained deck
+contents, coordinates, module IDs, `nextId`, and carried-craft deck labels.
+Removal deletes only the selected deck. Subsequent structural validation reports
+any resulting faults.
 
 F04's default blank ship and explicit blank station are already provided by
 #65. F01's five prices are already in the v4 rules from #62; F02's port checks
