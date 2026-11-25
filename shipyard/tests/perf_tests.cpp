@@ -308,5 +308,72 @@ int main() {
     }
   });
 
+  suite.run("load overrides respect the original input byte limit", [&] {
+    const auto original = import_definition(
+        read("fixtures/v3/apsis-wren-definition-v3.json"), active, schema);
+    require(original.ok(), "Wren must import before exercising the byte cap");
+    auto blueprint = original.value->definition.at("blueprint");
+    const auto bytes = canonical_json(blueprint);
+    blueprint["loads"]["cargo"] = 0.125;
+    require(canonical_json(blueprint).size() > bytes.size(),
+            "Serializing the fractional load would exceed the input byte cap");
+
+    const LoadFractions loads{.cargo = 0.125};
+    const auto report = perf(bytes, active, schema, loads,
+                             InputLimits{.maxBytes = bytes.size()});
+    require(report.at("pass") == true,
+            "A valid load override must accept input at the exact byte cap");
+    const auto &data = report.at("data");
+    require(data.at("definition").at("blueprint") == blueprint,
+            "The normalized blueprint retains the fractional override");
+    near(data.at("definition").at("derived").at("currentMass"), 68.8, active,
+         "definition mass at the exact byte cap");
+    near(data.at("performance").at("currentMass"), 68.8, active,
+         "performance mass at the exact byte cap");
+
+    const auto rejected = perf(bytes, active, schema, loads,
+                               InputLimits{.maxBytes = bytes.size() - 1});
+    require(rejected.at("data").is_null() &&
+                rejected.at("issues").at(0).at("code") == "resource_limit",
+            "The byte cap still rejects an oversized original input");
+  });
+
+  suite.run("the superseded load never reaches the direct mass formulas", [&] {
+    auto rule_data = active.data();
+    // Wren has 20 cargo units. Only a quarter load makes the divisor zero,
+    // while the current override and the empty, half and full scenarios work.
+    rule_data["formulas"]["cargoMass"] = Json::array(
+        {"div", "cargoUnits", Json::array({"sub", "cargoUnits", 5})});
+    const auto custom = load_rules(canonical_json(rule_data), schema);
+    require(custom.ok(), "The cargo mass rule must load");
+    const auto &policy = *custom.value;
+
+    auto original =
+        Json::parse(read("fixtures/v3/apsis-wren-definition-v3.json"));
+    original["blueprint"]["loads"]["cargo"] = 0.25;
+    const auto bytes = canonical_json(original);
+    const auto rejected = import_definition(bytes, policy, schema);
+    require(!rejected.ok() &&
+                issue(rejected.issues, "formula_error", "/formulas/cargoMass"),
+            "Ordinary import evaluates and rejects the original quarter load");
+
+    const auto report =
+        perf(bytes, policy, schema, LoadFractions{.cargo = 0.75});
+    require(report.at("pass") == true,
+            "Perf must evaluate only the effective current load");
+    const auto &data = report.at("data");
+    near(data.at("definition").at("derived").at("currentMass"), 67.8, policy,
+         "definition mass with the effective load");
+    near(data.at("performance").at("currentMass"), 67.8, policy,
+         "performance mass with the effective load");
+
+    original["blueprint"]["loads"]["cargo"] = 0.75;
+    const auto preloaded = perf(canonical_json(original), policy, schema);
+    require(data.at("migration").at("sourceVersion") == 3 &&
+                data.at("migration").at("rulesIdentityChanged") == true &&
+                report == preloaded,
+            "The override preserves migration diagnostics from the v3 wrapper");
+  });
+
   return suite.finish();
 }

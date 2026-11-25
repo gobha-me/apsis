@@ -169,35 +169,38 @@ int main() {
     }
   });
 
-  suite.run("deck note and generated-prefix limits still count scalars", [&] {
+  suite.run("deck names, generated labels and migration notes count scalars", [&] {
     auto blueprint = blank();
     blueprint["decks"][0]["name"] = repeat("e\u0301", 24); // 48 scalars.
     accepted(blueprint, active, schema);
-    blueprint["decks"][0]["name"] = repeat("e\u0301", 25);
+    blueprint["decks"][0]["name"] = repeat("e\u0301", 24) + "x";
     auto over = import_definition(blueprint.dump(), active, schema);
     require(!over.ok() && issue(over.issues, "field_limit", "/decks/0/name"),
             "deck names must retain their scalar limit");
     blueprint = blank();
     blueprint["migrationNotes"] = Json::array({repeat("e\u0301", 150)});
     accepted(blueprint, active, schema); // 300 scalars.
-    blueprint["migrationNotes"][0] = repeat("e\u0301", 151);
+    blueprint["migrationNotes"][0] = repeat("e\u0301", 150) + "x";
     over = import_definition(blueprint.dump(), active, schema);
     require(!over.ok() && issue(over.issues, "field_limit", "/migrationNotes/0"),
             "ordinary notes must retain their scalar limit");
     auto data = active.data();
     data["defaults"]["deckName"] = repeat("e\u0301", 24);
-    require(load_rules(data.dump(), schema).ok(), "48-scalar deck default fits");
-    data["defaults"]["deckName"] = repeat("e\u0301", 25);
-    auto bad = load_rules(data.dump(), schema);
+    const auto loaded = load_rules(data.dump(), schema);
+    require(loaded.ok(), "48-scalar deck default fits");
+    require(blank_blueprint(*loaded.value).at("decks").at(0).at("name") ==
+                repeat("e\u0301", 23) + " 1",
+            "generated label must reserve two scalars for the space and level");
+    data["defaults"]["deckName"] = repeat("e\u0301", 24) + "x";
+    const auto bad = load_rules(data.dump(), schema);
     require(!bad.ok() && issue(bad.issues, "invalid_rules", "/defaults/deckName"),
             "rule deck defaults must retain their scalar limit");
     data = active.data();
-    data["defaults"]["deckNamePrefix"] = repeat("e\u0301", 23);
-    require(load_rules(data.dump(), schema).ok(), "46-scalar prefix plus level fits");
-    data["defaults"]["deckNamePrefix"] = repeat("e\u0301", 24);
-    bad = load_rules(data.dump(), schema);
-    require(!bad.ok() && issue(bad.issues, "invalid_rules", "/defaults/deckNamePrefix"),
-            "prefix scalar count includes the generated decimal deck suffix");
+    data["defaults"]["deckNamePrefix"] = "Deck ";
+    const auto legacy_prefix = load_rules(data.dump(), schema);
+    require(!legacy_prefix.ok() &&
+                issue(legacy_prefix.issues, "schema_error", "/defaults/deckNamePrefix"),
+            "rules schema must reject the obsolete deck prefix field");
   });
 
   suite.run("generic JSON Schema lengths retain independent scalar semantics", [&] {

@@ -11,6 +11,10 @@ std::string pointer_token(std::string_view token);
 // The perf operation classifies only DESIGN's exact F20 exclusions as pending.
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name,
                                 const Json& variables);
+// Apply validated load overrides to the normalized root before direct totals.
+Result<ImportedDefinition> import_with_load_overrides(std::string_view bytes,
+    const RulesSnapshot& rules, const SchemaSet& schemas, InputLimits limits,
+    const Json& load_overrides);
 std::size_t character_count(std::string_view utf8);
 // Design names count extended grapheme clusters; other text stays scalar-counted.
 std::size_t grapheme_count(std::string_view utf8);

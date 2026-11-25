@@ -90,16 +90,11 @@ ownership of a label; absence or `false` is explicit, including imported names
 that happen to look generated. Insert, move, and remove update generated labels
 to the ordinary one-based position; explicit labels and retained module geometry
 and IDs are preserved. An explicit rename clears generated ownership, while a
-null optional name restores it. The active rules provide a literal
-`defaults.deckNamePrefix`, followed by the decimal level (`Deck 1`, `Deck 2`, ...
-with bundled rules). Older v4 snapshots without that optional field use their
-existing `defaults.deckName` plus a space as the prefix. This does not choose
-the multi-deck-hold numbering convention in F16 or add hold behavior.
-
-Rules identity note (#55): adding `defaults.deckNamePrefix` changes the bundled
-v4 `rulesSha256` while `rulesVersion` stays `4`. Saved v4 definitions carrying
-the previous SHA report `rulesIdentityChanged: true` in the import migration
-report; active rules are applied and direct totals are recomputed.
+null optional name restores it. Generated labels use the active `defaults.deckName`
+and the decimal level (`Main deck 1`, `Main deck 2`, etc. with bundled rules).
+The authoring operation shortens the stem if needed to fit the full level
+within the name limit. The multi-deck-hold numbering convention remains open
+in F16.
 
 ## F06 — Concealed-cargo tooltip is deferred to a UI
 
@@ -388,7 +383,7 @@ grapheme clusters, so one emoji is one character. The same count validates
 ship/station default names, including carried blueprint names on import.
 Vendored utf8proc 2.12.0 (Unicode 18.0.0) supplies stateful UAX #29 boundaries;
 input bytes are preserved without Unicode normalization. Generic JSON Schema,
-deck-name, prefix and note lengths retain their scalar-value contracts.
+deck-name and migration-note lengths retain their scalar-value contracts.
 
 The other F22 decisions are also final under
 **Luna, under owner delegation 2026-11-23**, with implementation kept in separate

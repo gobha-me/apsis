@@ -29,6 +29,14 @@ Json rules_output(const Json &data, const SchemaSet &schema) {
         output(insert_deck(canonical_json(blank), 1, active, schema));
     response["renameGenerated"] = output(
         rename_deck(canonical_json(blank), 0, std::nullopt, active, schema));
+    auto legacy = test::blank();
+    legacy["decks"][0]["name"] = data.at("defaults").at("deckName");
+    const auto imported =
+        import_definition(canonical_json(legacy), active, schema);
+    response["legacyImport"] = {{"definition", imported.value
+                                                   ? imported.value->definition
+                                                   : Json(nullptr)},
+                                {"issues", imported.issues}};
   }
   return response;
 }
@@ -42,7 +50,7 @@ Json observations(const RulesSnapshot &active, const SchemaSet &schema) {
   auto five = one;
   for (int level = 2; level <= 5; ++level) {
     auto deck = one.at("decks")[0];
-    deck["name"] = "Deck " + std::to_string(level);
+    deck["name"] = "Main deck " + std::to_string(level);
     five["decks"].push_back(std::move(deck));
   }
   all["insertAtMaximum"] =
@@ -60,16 +68,15 @@ Json observations(const RulesSnapshot &active, const SchemaSet &schema) {
     all["insert" + key] = output(insert_deck(bytes, 1, active, schema, name));
   }
   auto data = active.data();
-  data["defaults"].erase("deckNamePrefix");
   data["defaults"]["deckName"] = std::string(47, 'D');
-  all["fallback47"] = rules_output(data, schema);
+  all["legacy47"] = rules_output(data, schema);
   data["defaults"]["deckName"] = std::string(46, 'D');
-  all["fallback46"] = rules_output(data, schema);
+  all["legacy46"] = rules_output(data, schema);
   data = active.data();
-  std::string prefix;
-  for (int count = 0; count < 47; ++count)
-    prefix += "\xc3\xa9";
-  data["defaults"]["deckNamePrefix"] = prefix;
+  std::string stem;
+  for (int count = 0; count < 46; ++count)
+    stem += "\xc3\xa9";
+  data["defaults"]["deckName"] = stem + "\xe4\xb8\xad";
   all["unicode47"] = rules_output(data, schema);
   return all;
 }
@@ -129,66 +136,57 @@ int main(int argc, char **argv) {
                   "Control characters are not allowed in labels or notes.");
   });
   suite.run(
-      "Argus fallback space is included in the 48 character name bound", [&] {
-        const auto &rejected = all.at("fallback47");
-        require(rejected.at("ok") == false && rejected.at("snapshot").is_null(),
-                "47 character deckName plus space and level must fail rules "
-                "loading");
-        require(
-            rejected.at("issues") ==
-                Json::array(
-                    {{{"code", "invalid_rules"},
-                      {"severity", "error"},
-                      {"path", "/defaults/deckName"},
-                      {"details", Json::object()},
-                      {"message", "Generated deck names exceed the active "
-                                  "deck-name character limit."}}}),
-            "Fallback rules errors must identify the actual deckName field");
-        const auto &accepted = all.at("fallback46");
+      "Argus legacy v4 defaults load and import at the name boundary", [&] {
+        for (const auto count : {46, 47}) {
+          const auto &accepted = all.at("legacy" + std::to_string(count));
+          const std::string original(count, 'D');
+          require(accepted.at("ok") == true && accepted.at("issues").empty() &&
+                      accepted.at("snapshot")
+                              .at("data")
+                              .at("defaults")
+                              .at("deckName") == original,
+                  "Legacy v4 rules must retain their exact default label");
+          const auto &imported = accepted.at("legacyImport").at("definition");
+          const auto &deck = imported.at("blueprint").at("decks").at(0);
+          require(deck.at("name") == original &&
+                      !deck.contains("nameGenerated"),
+                  "Ordinary import must retain the unmarked legacy label");
+          const std::string stem(46, 'D');
+          require(
+              accepted.at("blank").at("decks")[0].at("name") == stem + " 1" &&
+                  accepted.at("insert").at("ok") == true &&
+                  accepted.at("insert").at("value").at("decks")[1].at("name") ==
+                      stem + " 2",
+              "Generated labels keep a separator and the level within the cap");
+        }
+      });
+  suite.run(
+      "Argus generated labels shorten a Unicode stem at a scalar boundary",
+      [&] {
+        std::string stem;
+        for (int count = 0; count < 46; ++count)
+          stem += "\xc3\xa9";
+        const auto &accepted = all.at("unicode47");
         require(accepted.at("ok") == true && accepted.at("issues").empty() &&
+                    accepted.at("snapshot").at("version") == 4 &&
                     accepted.at("snapshot")
                             .at("data")
                             .at("defaults")
-                            .at("deckName") == std::string(46, 'D'),
-                "46 character legacy deckName must load without losing its "
-                "exact snapshot");
-        require(
-            accepted.at("blank").at("decks")[0].at("name") ==
-                    std::string(46, 'D') + " 1" &&
-                accepted.at("insert").at("ok") == true &&
-                accepted.at("insert").at("value").at("decks")[1].at("name") ==
-                    std::string(46, 'D') + " 2",
-            "Legacy generated labels must preserve the literal fallback space");
-      });
-  suite.run(
-      "Argus 47 Unicode scalar prefix loads and authors 48 character labels",
-      [&] {
-        std::string prefix;
-        for (int count = 0; count < 47; ++count)
-          prefix += "\xc3\xa9";
-        const auto &accepted = all.at("unicode47");
-        require(
-            accepted.at("ok") == true && accepted.at("issues").empty() &&
-                accepted.at("snapshot").at("version") == 4 &&
-                accepted.at("snapshot")
-                        .at("data")
-                        .at("defaults")
-                        .at("deckNamePrefix") == prefix,
-            "Rules length is Unicode scalar count, including a 94-byte prefix");
-        require(
-            accepted.at("blank").at("decks")[0].at("name") == prefix + "1" &&
-                accepted.at("blank").at("decks")[0].at("nameGenerated") ==
-                    true &&
-                accepted.at("insert").at("ok") == true &&
-                accepted.at("insert").at("value").at("decks")[1].at("name") ==
-                    prefix + "2" &&
-                accepted.at("renameGenerated").at("ok") == true &&
-                accepted.at("renameGenerated")
-                        .at("value")
-                        .at("decks")[0]
-                        .at("name") == prefix + "1",
-            "Accepted Unicode rules must remain usable through public "
-            "authoring");
+                            .at("deckName") == stem + "\xe4\xb8\xad",
+                "Rules loading preserves the 47-character default stem");
+        require(accepted.at("blank").at("decks")[0].at("name") == stem + " 1" &&
+                    accepted.at("blank").at("decks")[0].at("nameGenerated") ==
+                        true &&
+                    accepted.at("insert").at("ok") == true &&
+                    accepted.at("insert").at("value").at("decks")[1].at(
+                        "name") == stem + " 2" &&
+                    accepted.at("renameGenerated").at("ok") == true &&
+                    accepted.at("renameGenerated")
+                            .at("value")
+                            .at("decks")[0]
+                            .at("name") == stem + " 1",
+                "Accepted Unicode rules must remain usable through public "
+                "authoring");
       });
   return suite.finish();
 }

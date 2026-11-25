@@ -90,15 +90,15 @@ auto named = rename_deck(canonical_json(*inserted.value), 0,
                          std::string("Cargo deck"), rules, schemas);
 ~~~
 
-With bundled rules, generated labels are `Deck 1`, `Deck 2`, and so on. Their
-optional `nameGenerated: true` provenance lets insert/move/remove renumber only
-generated labels. User/imported labels without that marker remain explicit,
-even when they look generated. An explicit rename clears the marker; `nullopt`
-restores generated naming. The active rules supply a literal `deckNamePrefix`;
-older v4 snapshots fall back to `deckName` plus one space. Rules bound both the
-prefix and the resulting label length. See CONTRACT.md for failure codes and
+With bundled rules, generated labels are `Main deck 1`, `Main deck 2`, and so on.
+Authoring uses `defaults.deckName` as the label stem and shortens it when needed
+to fit the full deck level within the character limit. The optional
+`nameGenerated: true` marker lets insert/move/remove renumber only generated
+labels. Imported or user-supplied labels without the marker remain explicit,
+even when they look generated. An explicit rename clears the marker. Pass
+`nullopt` to restore generated naming. See CONTRACT.md for failure codes and
 preservation guarantees. Concealed-cargo tooltip work remains deferred to a UI
-(F06); no CLI, HTTP, container, or deploy code is added here.
+(F06).
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
 and canonical serialization contracts for the later independent tests.

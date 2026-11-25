@@ -245,8 +245,8 @@ byte-identical.
 ## Independent nits coverage (#55; F04/F05/F06)
 
 `shipyard-authoring` uses the public `authoring.hpp` and loader APIs. It checks
-default blank ships and explicit/imported stations, automatic names for all
-active minimum decks, literal custom prefixes and older-v4 prefix fallback.
+default blank ships and explicit/imported stations, and automatic names for all
+active minimum decks using the default name from active rules.
 Insertion, movement in both directions, removal, and rename preserve retained
 floors, module geometry/IDs, `nextId`, metadata, and nested carried craft.
 Automatic labels follow ordinary one-based physical deck positions. Imported
@@ -257,7 +257,11 @@ This chooses no F16 multi-deck-hold numbering convention.
 
 Positive controls accompany invalid indices, exact deck-count/input-byte/name
 bounds, malformed UTF-8, C0/DEL controls, and invalid provenance types. Rejected
-edits must return structured errors with no partially edited result. Blank
+edits must return structured errors with no partially edited result.
+`shipyard-authoring_argus` loads and imports v4 snapshots with near-limit
+default names and checks that generated labels shorten a UTF-8 stem at a
+character boundary. Blank allocation tests cover the deck-count and encoded
+name-byte limits, including the generated level and JSON escapes. Blank
 authoring/import retains structured `pending_F20` and absent excluded metrics,
 without numeric or null substitutes. Empty/whitespace labels retain only the
 existing interim F22 contract. F11–F17/F19/F20/F21 remain open.
@@ -270,11 +274,9 @@ structural validation. Eligible docking remains pending F21; definite fits and
 oversize cases do not assign F19 rotation rules. Existing perf, pending, dock,
 and regression suites retain their wider-than-former-port-cap coverage.
 
-The migration suite's literal v4 rules SHA pin was independently reviewed and
-updated for the sole rules-file delta, `defaults.deckNamePrefix: "Deck "`. Its
-independent digest and whitespace-sensitive identity assertions remain intact.
-No v3 fixture or manifest was edited. F06's concealed-cargo tooltip remains
-explicitly deferred until a UI exists, as issue #55 and FINDINGS require.
+The migration suite checks the pinned v4 rules SHA, an independent digest, and
+whitespace-sensitive identity. F06's concealed-cargo tooltip remains deferred
+until a UI exists, as issue #55 and FINDINGS require.
 
 
 ## Independent #55 coverage after final Argus r2 integration
