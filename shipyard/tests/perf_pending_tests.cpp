@@ -151,34 +151,41 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
 
-  suite.run("holds stay pending at the exact source byte cap", [&] {
+  suite.run("legal holds survive the exact source byte cap", [&] {
     // Parsing expands both exponent spellings when the tree is serialized.
     constexpr std::string_view source =
-        R"({"schema":"apsis-shipyard-v3","name":"Hold","budget":1e8,)"
-        R"("decks":[{"name":"D","floors":{},"modules":[]}],)"
-        R"("nextId":1e9,"holds":[]})";
+        R"({"schema":"apsis-shipyard-v4","name":"Hold","budget":1e8,)"
+        R"("buildType":"station","loads":{"cargo":0,"jumpFuel":1,"sublightFuel":1},)"
+        R"("decks":[{"name":"Main","floors":{"1,2":true,"2,2":true,"3,2":true,"4,2":true,)"
+        R"("1,3":true,"2,3":true,"3,3":true,"4,3":true,"5,3":true},"modules":[)"
+        R"({"id":1,"type":"airlock","x":1,"y":2,"r":1},)"
+        R"({"id":2,"type":"cockpit","x":2,"y":2,"r":0},)"
+        R"({"id":3,"type":"microReactor","x":3,"y":2,"r":0},)"
+        R"({"id":4,"type":"microLifeSupport","x":4,"y":2,"r":0},)"
+        R"({"id":5,"type":"ladder","x":5,"y":3,"r":0}]},)"
+        R"({"name":"Catwalk","floors":{"5,3":true},"modules":[)"
+        R"({"id":6,"type":"ladder","x":5,"y":3,"r":0}]}],)"
+        R"("nextId":1e9,"migrationNotes":[],)"
+        R"("holds":[{"x":5,"y":3,"w":1,"h":2,"firstDeck":0,"lastDeck":1}]})";
+    require(canonical_json(Json::parse(source)).size() > source.size(),
+            "The fixture must expand when serialized after parsing");
     const auto unrestricted = perf(source, active, schema);
-    const auto &issues = unrestricted.at("issues");
-    require(unrestricted.at("pass") == false &&
-                unrestricted.at("data").is_null() && issues.size() == 7,
-            "A valid hold request returns exactly the seven pending findings");
-    for (const auto number : {11, 12, 13, 14, 15, 16, 17}) {
-      const auto finding = "F" + std::to_string(number);
-      require(std::any_of(issues.begin(), issues.end(),
-                          [&](const Json &item) {
-                            return item.at("code") == "pending_" + finding &&
-                                   item.at("path") == "/holds" &&
-                                   item.at("severity") == "error";
-                          }),
-              "The hold request must report " + finding);
-    }
+    require(unrestricted.at("pass") == true &&
+                unrestricted.at("data").at("structuralPass") == true,
+            "The station and its connected two-deck hold must pass performance");
+    const auto &blueprint = unrestricted.at("data").at("definition").at("blueprint");
+    require(blueprint.at("holds") == Json::array({{{"x", 5}, {"y", 3}, {"w", 1},
+                                                 {"h", 2}, {"firstDeck", 0},
+                                                 {"lastDeck", 1}}}),
+            "Public performance retains the normalized hold and its entire span");
     require(
         perf(source, active, schema, {},
              InputLimits{.maxBytes = source.size()}) == unrestricted,
-        "An exact byte cap must apply to the source and retain pending holds");
-    require(has_issue(perf(source, active, schema, {},
-                           InputLimits{.maxBytes = source.size() - 1}),
-                      "resource_limit"),
+        "An exact byte cap must apply to the original source bytes");
+    const auto too_long = perf(source, active, schema, {},
+                               InputLimits{.maxBytes = source.size() - 1});
+    require(too_long.at("pass") == false && too_long.at("data").is_null() &&
+                has_issue(too_long, "resource_limit"),
             "A source one byte above the cap must still be rejected");
   });
 

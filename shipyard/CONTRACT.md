@@ -130,8 +130,9 @@ module does not connect otherwise separate crew routes. The explicit
 retaining local per-deck hull checks; adapters cannot select that seam. Missing floors,
 overlap, out-of-grid footprints, duplicate unique systems, carried-fit
 violations, and hold geometry faults retain specific issue codes and use the
-`invalid_blueprint` severity family. All structural severities use the active validation checks and their
-default severity; issue details identify the rule. Carried blueprints use these same checks; their
+`invalid_blueprint` severity family. All structural severities use the active
+validation checks and their default severity; issue details identify the rule.
+Carried blueprints use these same checks; their
 occupied dimensions and deck counts are checked against carrier limits without
 inventing docking rotations.
 
@@ -1106,4 +1107,3 @@ Input numbers are not rounded on import.
 
 
 </details>
-
