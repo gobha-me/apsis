@@ -41,8 +41,12 @@
         "required": ["name", "floors", "modules"], "additionalProperties": false
       }
     },
-    "nextId": {"type": "integer", "minimum": 1}, "migrationNotes": {"type": "array", "items": {"type": "string"}}
+    "nextId": {"type": "integer", "minimum": 1}, "migrationNotes": {"type": "array", "items": {"type": "string"}},
+    "migrationNotesDropped": {"const": true}
   },
+  "if": {"required": ["migrationNotesDropped"]},
+  "then": {"properties": {"migrationNotes": {"minItems": 1,
+    "prefixItems": [{"enum": ["Older migration notes were dropped.", "…"]}]}}},
   "required": ["schema", "name", "buildType", "budget", "loads", "decks", "nextId", "migrationNotes"],
   "additionalProperties": false
 }

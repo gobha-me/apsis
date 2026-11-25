@@ -861,7 +861,9 @@ note-length cap cannot fit it, reserved `…` has the same meaning and a full
 structured warning explains the drop. A note-count cap of one retains only the
 notice. Ordinary note type, controls and individual length are checked before
 culling, including entries that will be evicted. Duplicate ordinary notes are
-preserved; duplicate reserved notices canonicalize. The warning details name
+preserved. The optional v4 `migrationNotesDropped: true` field marks only the
+first entry as a generated notice. Matching text elsewhere, or in a list without
+that field, remains ordinary note text. The warning details name
 `limit`, ordinary `dropped` and ordinary `retained` counts. Stable exported lists
 reimport without another cull, duplicate notice or migration change. Generated
 ordinary notes that exceed the active text limit remain in the report with a

@@ -68,16 +68,18 @@ void stable(const Result<ImportedDefinition> &result, const RulesSnapshot &activ
 
 Result<ImportedDefinition> expect(Json source, const Json &expected,
                                   const RulesSnapshot &active,
-                                  const SchemaSet &schema) {
+                                  const SchemaSet &schema, bool has_notice = false) {
   const auto result = import_definition(source.dump(), active, schema);
   require(result.ok(), "Ordinary count overflow must not reject a valid source");
   source["migrationNotes"] = expected;
+  if (has_notice) source["migrationNotesDropped"] = true;
   require(result.value->definition.at("blueprint") == source,
           "Only the exact independently expected notes may change");
   require(expected.size() <= active.data().at("limits").at("maxMigrationNotes").get<std::size_t>(),
           "The history notice consumes one slot inside the active cap");
   auto no_notes = source;
   no_notes["migrationNotes"] = Json::array();
+  no_notes.erase("migrationNotesDropped");
   const auto bare = import_definition(no_notes.dump(), active, schema);
   require(bare.ok() && bare.value->definition.at("derived") == result.value->definition.at("derived"),
           "History retention must not alter material, IDs, loads or direct totals");
@@ -94,7 +96,8 @@ int main() {
 
   suite.run("exact cap and below-cap ordinary notes retain order and duplicates", [&] {
     for (const auto &notes : {Json::array(), Json::array({"A"}),
-                              Json::array({"A", "B", "C"}), Json::array({"A", "A", "B"})}) {
+                              Json::array({"A", "B", "C"}), Json::array({"A", "A", "B"}),
+                              Json::array({"A", compact}), Json::array({notice, "A", compact})}) {
       auto source = blank();
       source["migrationNotes"] = notes;
       const auto result = expect(source, notes, three, schema);
@@ -107,43 +110,58 @@ int main() {
     auto source = blank();
     source["decks"][0]["floors"]["2,3"] = true;
     source["migrationNotes"] = Json::array({"A", "B", "C", "D"});
-    warning(expect(source, Json::array({notice, "C", "D"}), three, schema),
+    warning(expect(source, Json::array({notice, "C", "D"}), three, schema, true),
             "/migrationNotes", 3, 2, 2);
     source["migrationNotes"] = Json::array();
     for (int i = 0; i < 1000; ++i)
       source["migrationNotes"].push_back("history-" + std::to_string(i));
-    warning(expect(source, Json::array({notice, "history-998", "history-999"}), three, schema),
+    warning(expect(source, Json::array({notice, "history-998", "history-999"}), three, schema, true),
             "/migrationNotes", 3, 998, 2);
     source["migrationNotes"] = Json::array({"A", "C", "B", "B"});
-    warning(expect(source, Json::array({notice, "B", "B"}), three, schema),
+    warning(expect(source, Json::array({notice, "B", "B"}), three, schema, true),
+            "/migrationNotes", 3, 2, 2);
+    source["migrationNotes"] = Json::array({"A", "B", notice, compact});
+    warning(expect(source, Json::array({notice, notice, compact}), three, schema, true),
             "/migrationNotes", 3, 2, 2);
   });
 
   suite.run("existing notices canonicalize once and preserve evidence of lost history", [&] {
-    struct Case { Json input; Json output; int dropped; int retained; bool changed; };
-    const std::array cases{
-        Case{Json::array({notice, "C", "D"}), Json::array({notice, "C", "D"}), 0, 2, false},
-        Case{Json::array({notice, "C", "D", "E"}), Json::array({notice, "D", "E"}), 1, 2, true},
-        Case{Json::array({"A", notice, "B", "C"}), Json::array({notice, "B", "C"}), 1, 2, true},
-        Case{Json::array({notice, "A", compact, "B", notice}), Json::array({notice, "A", "B"}), 0, 2, true},
-        Case{Json::array({notice, compact, notice}), Json::array({notice}), 0, 0, true},
-        Case{Json::array({notice, "A"}), Json::array({notice, "A"}), 0, 1, false}};
-    for (const auto &test : cases) {
-      auto source = blank();
-      source["migrationNotes"] = test.input;
-      const auto result = expect(source, test.output, three, schema);
-      if (test.changed) warning(result, "/migrationNotes", 3, test.dropped, test.retained);
-      else require(warnings(result, "/migrationNotes") == 0 && result.value->migration.changes.empty(),
-                   "A canonical prior notice remains stable even with a short suffix");
-    }
+    auto source = blank();
+    source["migrationNotes"] = Json::array({"A", "B", "C", "D"});
+    const auto generated = expect(source, Json::array({notice, "C", "D"}), three, schema, true);
+    const auto &exported = generated.value->definition.at("blueprint");
+    warning(expect(exported, Json::array({notice, "D"}), policy(active, schema, 2), schema, true),
+            "/migrationNotes", 2, 1, 1);
+    warning(expect(exported, Json::array({notice}), policy(active, schema, 1), schema, true),
+            "/migrationNotes", 1, 2, 0);
+    const auto fitting = expect(exported, Json::array({notice, "C", "D"}),
+                                policy(active, schema, 4), schema, true);
+    require(fitting.value->migration.changes.empty() && warnings(fitting, "/migrationNotes") == 0,
+            "A real prior notice remains stable even with a short suffix");
+  });
+
+  suite.run("notice provenance requires the documented leading text", [&] {
+    auto source = blank();
+    source["migrationNotesDropped"] = true;
+    auto result = import_definition(source.dump(), three, schema);
+    require(!result.ok() && issue(result.issues, "schema_error", "/migrationNotes"),
+            "An empty list cannot carry dropped-note provenance");
+    source["migrationNotes"] = Json::array({"A", notice});
+    result = import_definition(source.dump(), three, schema);
+    require(!result.ok() && issue(result.issues, "schema_error", "/migrationNotes/0"),
+            "Provenance only applies to a valid notice in the first slot");
+    source["migrationNotes"] = Json::array({compact, notice});
+    result = import_definition(source.dump(), policy(active, schema, 3, 1), schema);
+    require(!result.ok() && issue(result.issues, "field_limit", "/migrationNotes/1"),
+            "An ordinary note that spells out the notice still has a text limit");
   });
 
   suite.run("caps one and two reserve a bounded history slot", [&] {
     auto source = blank();
     source["migrationNotes"] = Json::array({"A", "B", "C"});
-    warning(expect(source, Json::array({notice}), policy(active, schema, 1), schema),
+    warning(expect(source, Json::array({notice}), policy(active, schema, 1), schema, true),
             "/migrationNotes", 1, 3, 0);
-    warning(expect(source, Json::array({notice, "C"}), policy(active, schema, 2), schema),
+    warning(expect(source, Json::array({notice, "C"}), policy(active, schema, 2), schema, true),
             "/migrationNotes", 2, 2, 1);
     source["migrationNotes"] = Json::array({"A"});
     const auto result = expect(source, Json::array({"A"}), policy(active, schema, 1), schema);
@@ -156,21 +174,24 @@ int main() {
              {{35, notice}, {34, compact}, {1, compact}, {300, notice}}}) {
       auto source = blank();
       source["migrationNotes"] = Json::array({"A", "B", "C", "D"});
-      warning(expect(source, Json::array({marker, "C", "D"}), policy(active, schema, 3, length), schema),
+      warning(expect(source, Json::array({marker, "C", "D"}), policy(active, schema, 3, length), schema, true),
               "/migrationNotes", 3, 2, 2);
     }
-    for (const auto &[length, input_marker, expected_marker] :
-         std::array<std::tuple<int, const char *, const char *>, 2>{
-             {{1, notice, compact}, {35, compact, notice}}}) {
+    for (const auto &[old_length, length, input_marker, expected_marker] :
+         std::array<std::tuple<int, int, const char *, const char *>, 2>{
+             {{35, 1, notice, compact}, {1, 35, compact, notice}}}) {
       auto source = blank();
-      source["migrationNotes"] = Json::array({input_marker, "A"});
-      warning(expect(source, Json::array({expected_marker, "A"}), policy(active, schema, 3, length), schema),
-              "/migrationNotes", 3, 0, 1);
+      source["migrationNotes"] = Json::array({"A", "B", "C"});
+      const auto generated = expect(source, Json::array({input_marker, "C"}),
+                                    policy(active, schema, 2, old_length), schema, true);
+      warning(expect(generated.value->definition.at("blueprint"), Json::array({expected_marker, "C"}),
+                     policy(active, schema, 2, length), schema, true),
+              "/migrationNotes", 2, 0, 1);
     }
     auto source = blank();
     source["migrationNotes"] = Json::array({"A", "B", "\xF0\x9F\x9A\x80"});
     warning(expect(source, Json::array({compact, "\xF0\x9F\x9A\x80"}),
-                   policy(active, schema, 2, 1), schema),
+                   policy(active, schema, 2, 1), schema, true),
             "/migrationNotes", 2, 2, 1);
   });
 
@@ -186,7 +207,9 @@ int main() {
     require(result.ok(), "Real carried craft with overflowing notes must import");
     auto expected = parent;
     expected["migrationNotes"] = Json::array({notice, "P2", "P3"});
+    expected["migrationNotesDropped"] = true;
     expected["decks"][0]["modules"][0]["craft"]["migrationNotes"] = Json::array({notice, "C3", "C4"});
+    expected["decks"][0]["modules"][0]["craft"]["migrationNotesDropped"] = true;
     require(result.value->definition.at("blueprint") == expected,
             "Parent and child retain exact independent newest suffixes without other edits");
     warning(result, "/migrationNotes", 3, 2, 2);
@@ -196,12 +219,13 @@ int main() {
 
   suite.run("evicted ordinary invalid notes still reject at original input paths", [&] {
     const auto narrow = policy(active, schema, 2, 3);
-    for (const auto &invalid : {Json("long"), Json(std::string("A\n")),
+    for (const auto &invalid : {Json("long"), Json(notice), Json(std::string("A\n")),
                                 Json(std::string("A\x7F")), Json(std::string("A\0", 2)), Json(7)}) {
       auto source = blank();
       source["migrationNotes"] = Json::array({"A", "B", "C", "D", invalid, "E", "F", "G"});
       const auto result = import_definition(source.dump(), narrow, schema);
-      const auto code = invalid.is_number() ? "schema_error" : invalid == "long" ? "field_limit" : "invalid_text";
+      const auto code = invalid.is_number() ? "schema_error"
+          : (invalid == "long" || invalid == notice) ? "field_limit" : "invalid_text";
       require(!result.ok() && issue(result.issues, code, "/migrationNotes/4"),
               "Retention cannot conceal an invalid note at its original index4");
     }
@@ -276,6 +300,20 @@ int main() {
                 !text_limited.value->migration.changes.empty(),
             "Too-long automatic notes remain explained in the report without breaking ordinary text bounds");
     stable(text_limited, narrow, schema);
+  });
+
+  suite.run("an exactly fitting rule identity note survives reimport", [&] {
+    const auto exact = policy(active, schema, 3, 91);
+    const auto original = import_definition(blank().dump(), exact, schema);
+    require(original.ok(), "A current v4 wrapper must import at the exact note limit");
+    auto stale = original.value->definition;
+    stale["rulesSha256"] = std::string(64, '0');
+    const auto imported = import_definition(stale.dump(), exact, schema);
+    require(imported.ok() && imported.value->migration.rulesIdentityChanged &&
+                imported.value->definition.at("blueprint").at("migrationNotes") ==
+                    Json::array({identity_note}),
+            "The 91-character automatic note fits the 91-character limit");
+    stable(imported, exact, schema);
   });
 
   return suite.finish();

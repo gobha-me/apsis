@@ -78,30 +78,23 @@ struct Importer {
                           at(path, "migrationNotes"), Json::object()});
     }
 
-    static bool drop_notice(const Json& note) {
-        return note == "Older migration notes were dropped." || note == "\xe2\x80\xa6";
-    }
-
     void retain_notes(Json& blueprint, const std::string& path) {
         auto& notes = blueprint.at("migrationNotes");
         const auto maximum = rules.at("limits").at("maxMigrationNotes").get<std::size_t>();
-        const auto markers = static_cast<std::size_t>(std::count_if(notes.begin(), notes.end(), drop_notice));
+        const std::size_t markers = blueprint.contains("migrationNotesDropped") ? 1 : 0;
         const auto real_count = notes.size() - markers;
         if (markers != 0 || real_count > maximum) {
             // Rules require a positive cap: reserve one bounded slot for history.
             const auto keep = std::min(real_count, maximum - 1);
-            Json retained = Json::array();
-            for (auto it = notes.rbegin(); it != notes.rend() && retained.size() < keep; ++it) {
-                if (!drop_notice(*it)) retained.push_back(*it);
-            }
-            std::reverse(retained.begin(), retained.end());
             constexpr std::string_view full_notice = "Older migration notes were dropped.";
             const auto marker = detail::character_count(full_notice) <=
                 rules.at("limits").at("maxNoteLength").get<std::size_t>() ? full_notice : "\xe2\x80\xa6";
-            retained.insert(retained.begin(), Json(std::string(marker)));
+            Json retained = Json::array({std::string(marker)});
+            retained.insert(retained.end(), notes.end() - static_cast<Json::difference_type>(keep), notes.end());
             if (retained != notes) {
                 const auto dropped = real_count - keep;
                 notes = std::move(retained);
+                blueprint["migrationNotesDropped"] = true;
                 change(at(path, "migrationNotes") + ": retained newest notes and one dropped-history notice");
                 detail::add_issue(issues, {"migration_note_limit", "warning",
                     "Older migration notes were dropped; the newest notes and one notice were retained.",
@@ -162,12 +155,12 @@ struct Importer {
                 detail::add_issue(issues, error("invalid_load", "Load fractions must be between zero and one.", at(at(path, "loads"), it.key())));
             }
         }
-        auto& notes = blueprint.at("migrationNotes");
-        // Validate ordinary input notes before retention, including older notes
-        // that will be discarded. Reserved notices canonicalize to the active cap.
-        for (std::size_t i = 0; i < notes.size(); ++i) {
-            if (!drop_notice(notes[i]))
-                check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
+        const auto& notes = blueprint.at("migrationNotes");
+        // The v4 schema requires a leading notice when the provenance flag is set.
+        // Validate every ordinary note, including those later discarded.
+        const std::size_t first_ordinary = blueprint.contains("migrationNotesDropped") ? 1 : 0;
+        for (std::size_t i = first_ordinary; i < notes.size(); ++i) {
+            check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
         }
         const auto deck_count = blueprint.at("decks").size();
         if (deck_count < limits.at("minDecks").get<std::size_t>() ||
