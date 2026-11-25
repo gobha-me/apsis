@@ -61,17 +61,17 @@ int main() {
   const auto active = rules(schema);
 
   suite.run(
-      "F09 name limits count Unicode scalar values and retain exact labels",
+      "F09 name limits count grapheme clusters and retain exact labels",
       [&] {
         require(active.data()
                         .at("technicalLimits")
                         .at("maxBlueprintNameCharacters") == 80,
-                "owner-selected name cap must be 80 scalar values");
+                "Luna name cap must be 80 grapheme clusters");
         const std::vector<std::string> at_limit = {
             std::string(80, 'a'),
             repeated("\xF0\x9F\x9A\x80",
                      80),              // Non-BMP scalar, four UTF-8 bytes.
-            repeated("e\xCC\x81", 40), // Two scalars per combining sequence.
+            repeated("e\xCC\x81", 80), // One grapheme per combining sequence.
             repeated("\xC3\xA9", 80),
             " " + std::string(78, 'a') + " ",
         };

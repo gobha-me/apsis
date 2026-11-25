@@ -15,3 +15,16 @@ JSON Schema vocabulary used by the bundled Draft 2020-12 schemas, with no remote
 reference retrieval; the supported vocabulary is documented in `CONTRACT.md`.
 Python `jsonschema` 4.25.1 was used in disposable session scratch to check schema
 structure and data shapes; it is not a library or build dependency.
+
+- **utf8proc 2.12.0**, project MIT license plus Unicode-derived-data license:
+  unchanged source from [the official release commit](https://github.com/JuliaStrings/utf8proc/tree/79cdd5ab40c79afa559f689ffc13b76812dee1ac),
+  Unicode 18.0.0. The private static C library supplies extended UAX #29 grapheme
+  boundaries for blueprint and default ship/station names only. It performs no
+  normalization; generic JSON Schema, deck and note lengths remain scalar-based.
+  The full upstream `vendor/utf8proc/LICENSE.md` preserves both licenses.
+  SHA-256 of the vendored bytes:
+
+  - `utf8proc.c`: `f38438eb986ba7eedad0f2e820a70fae1aaf05197364ba0381a5e84775099ef8`.
+  - `utf8proc.h`: `08da85e820efaa3613500946c26b2dc427a07f76001ed7c16bc90f298b814c35`.
+  - `utf8proc_data.c`: `b4911d4162d216afa612317a9b981851e15d672f4d93b25f3a1eb986f8c0aedb`.
+  - `LICENSE.md`: `3b510150d34f248a221bb88e1d811238d6c6c18b51231822c42974c39bb07256`.

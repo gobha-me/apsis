@@ -3,6 +3,7 @@
 #include <openssl/evp.h>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <stdexcept>
 
@@ -52,38 +53,49 @@ void check_formula(const Json& node, const Signature& variables, const std::stri
     for (std::size_t i = 1; i < node.size(); ++i)
         check_formula(node[i], variables, path + "/" + std::to_string(i), issues, depth + 1);
 }
-double evaluate(const Json& node, const Json& vars, const std::string& path) {
-    auto fail = [&](std::string message) -> double {
-        throw detail::error("formula_error", std::move(message), path);
+std::optional<double> evaluate(const Json& node, const Json& vars, const std::string& path,
+                               std::vector<Issue>& issues) {
+    auto fail = [&](std::string message, Json details = Json::object()) -> std::optional<double> {
+        auto issue = detail::error("formula_error", std::move(message), path);
+        issue.details = std::move(details);
+        detail::add_issue(issues, std::move(issue));
+        return std::nullopt;
     };
     if (node.is_number()) return node.get<double>();
     if (node.is_string()) {
         const auto name = node.get<std::string>();
         if (!vars.contains(name) || !vars[name].is_number() || !std::isfinite(vars[name].get<double>()))
-            return fail("Formula variable is missing or not a finite number.");
+            return fail("Formula variable is missing or not a finite number.", {{"variable", name}});
         return vars[name].get<double>();
     }
-    std::vector<double> values;
-    for (std::size_t i = 1; i < node.size(); ++i)
-        values.push_back(evaluate(node[i], vars, path + "/" + std::to_string(i)));
+    std::vector<std::optional<double>> values;
+    bool complete = true;
+    // Evaluate every operand so an F20 failure cannot hide a sibling error.
+    for (std::size_t i = 1; i < node.size(); ++i) {
+        const auto value = evaluate(node[i], vars, path + "/" + std::to_string(i), issues);
+        values.push_back(value);
+        if (!value) complete = false;
+    }
     const auto op = node[0].get<std::string>();
+    // A known zero divisor is invalid even when the numerator failed.
+    if (op == "div" && values[1] == 0)
+        return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", *values[1]}});
+    if (!complete) return std::nullopt;
     double result = 0;
     if (op == "add" || op == "mul") {
         result = op == "mul" ? 1 : 0;
-        for (const auto value : values) {
-            result = op == "mul" ? result * value : result + value;
+        for (const auto& value : values) {
+            result = op == "mul" ? result * *value : result + *value;
             if (!std::isfinite(result)) return fail("Formula intermediate result is not finite.");
         }
-    } else if (op == "sub") result = values[0] - values[1];
-    else if (op == "div") {
-        if (values[1] == 0) return fail("Formula divides by zero.");
-        result = values[0] / values[1];
-    } else if (op == "floor") result = std::floor(values[0]);
+    } else if (op == "sub") result = *values[0] - *values[1];
+    else if (op == "div") result = *values[0] / *values[1];
+    else if (op == "floor") result = std::floor(*values[0]);
     else if (op == "ln") {
-        if (values[0] <= 0) return fail("Formula logarithm requires a positive operand.");
-        result = std::log(values[0]);
-    } else if (op == "min") result = *std::min_element(values.begin(), values.end());
-    else if (op == "max") result = *std::max_element(values.begin(), values.end());
+        if (*values[0] <= 0) return fail("Formula logarithm requires a positive operand.", {{"operator", "ln"}, {"operand", *values[0]}});
+        result = std::log(*values[0]);
+    } else if (op == "min") result = std::min_element(values.begin(), values.end())->value();
+    else if (op == "max") result = std::max_element(values.begin(), values.end())->value();
     else return fail("Unknown formula operator.");
     if (!std::isfinite(result)) return fail("Formula result is not finite.");
     return result;
@@ -112,6 +124,12 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
         for (const auto& [key, value] : r[section].items())
             if (value.get<double>() > safeInteger)
                 fail("/" + std::string(section) + "/" + key, "Rule exceeds the exact interoperable integer range.");
+    if constexpr (std::numeric_limits<std::size_t>::digits < std::numeric_limits<double>::digits) {
+        constexpr auto sizeLimit = static_cast<double>(std::numeric_limits<std::size_t>::max());
+        for (const auto key : {"maxDecks", "maxDeckName"})
+            if (r["limits"][key].get<double>() > sizeLimit)
+                fail("/limits/" + std::string(key), "Rule exceeds the supported size range.");
+    }
     if (r["limits"]["maxModuleId"].get<double>() >= safeInteger)
         fail("/limits/maxModuleId", "Module IDs must leave one exact integer for nextId.");
     if (r["grid"]["w"].get<double>() > safeInteger / r["grid"]["h"].get<double>())
@@ -167,7 +185,10 @@ void check_semantics(const Json& r, std::vector<Issue>& issues) {
     for (const auto key : {"shipName", "stationName", "deckName"}) {
         const auto max = key == std::string_view("deckName") ? r["limits"]["maxDeckName"].get<double>()
                             : r["technicalLimits"]["maxBlueprintNameCharacters"].get<double>();
-        if (detail::character_count(r["defaults"][key].get<std::string>()) > max)
+        const auto& name = r["defaults"][key].get_ref<const std::string&>();
+        const auto length = key == std::string_view("deckName")
+            ? detail::character_count(name) : detail::grapheme_count(name);
+        if (length > max)
             fail("/defaults/" + std::string(key), "Default name exceeds its rules limit.");
         const auto& text = r["defaults"][key].get_ref<const std::string&>();
         if (std::any_of(text.begin(), text.end(), [](unsigned char c) { return c < 32 || c == 127; }))
@@ -256,15 +277,18 @@ Result<RulesSnapshot> load_rules(std::string_view bytes, const SchemaSet& schema
 }
 namespace detail {
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name, const Json& variables) {
-    // No public performance evaluation path: only the importer calls direct
-    // total formulas. Keep F20 divisions/logarithms for #51's pending gate.
-    static const std::set<std::string, std::less<>> direct{
-        "structureMass", "dryMass", "cargoMass", "jumpFuelMass", "loadedMass"};
     const auto path = "/formulas/" + std::string(name);
-    if (!direct.contains(name))
-        return {std::nullopt, {error("unsupported_formula", "Performance evaluation belongs to #51.", path)}};
-    try { return {evaluate(rules.data()["formulas"].at(std::string(name)), variables, path), {}}; }
-    catch (const Issue& issue) { return {std::nullopt, {issue}}; }
+    if (!rules.data().at("formulas").contains(name))
+        return {std::nullopt, {error("invalid_formula", "Undefined formula.", path)}};
+    std::vector<Issue> issues;
+    std::optional<double> value;
+    try {
+        value = evaluate(rules.data().at("formulas").at(std::string(name)), variables, path, issues);
+    } catch (const IssueLimitReached&) {
+        // The shared marker already records the omitted formula diagnostics.
+    }
+    sort_issues(issues);
+    return {value, std::move(issues)};
 }
 } // namespace detail
 bool numerically_equal(double left, double right, const RulesSnapshot& rules) {
