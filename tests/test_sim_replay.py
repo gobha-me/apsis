@@ -68,9 +68,9 @@ class ReplayCorpusTests(unittest.TestCase):
 
 @unittest.skipUnless(DRIVER, "set APSIS_SIM_REPLAY_DRIVER for real-sim replays")
 class NativeReplayTests(unittest.TestCase):
-    def run_driver(self, recipe, driver=None):
+    def run_driver(self, recipe, driver=None, *, args=()):
         return subprocess.run(
-            [str(Path(driver or DRIVER).resolve())],
+            [str(Path(driver or DRIVER).resolve()), *args],
             input=recipe,
             capture_output=True,
             text=True,
@@ -123,6 +123,20 @@ class NativeReplayTests(unittest.TestCase):
                     actual["stateHashes"][-1], expected["stateHashes"][-1]
                 )
 
+    def test_verify_accepts_five_majors(self):
+        result = self.run_driver("333860 5 2\n0 0 0 0 0 0 0 0\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["majors"], 5)
+
+    def test_record_accepts_five_majors_and_rejects_six(self):
+        valid = self.run_driver("", args=("record", "333860", "5", "2", "0"))
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        self.assertEqual(valid.stdout.partition("\n")[0], "333860 5 2")
+
+        invalid = self.run_driver("", args=("record", "333860", "6", "2", "0"))
+        self.assertEqual(invalid.returncode, 2, invalid.stderr)
+        self.assertEqual(invalid.stdout, "")
+
     def test_invalid_or_unbounded_recipes_fail_without_partial_json(self):
         for recipe in (
             "",
@@ -131,6 +145,7 @@ class NativeReplayTests(unittest.TestCase):
             "4294967296 4 30\n",
             "-1 4 30\n",
             "333860 3 30\n",
+            "333860 6 2\n0 0 0 0 0 0 0 0\n",
             "333860 4 30 extra\n",
             "333860 4 30\n30 0 0 0 0 0 0 0\n",
             "333860 4 30\n-1 0 0 0 0 0 0 0\n",

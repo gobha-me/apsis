@@ -7,6 +7,7 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "pilot/pilot.hpp"
@@ -34,6 +35,21 @@ i64 signedBits(std::mt19937 &rng) {
                    : -static_cast<i64>(magnitude) - 1;
 }
 
+bool explicitInboxCase(uint32_t seed) {
+  const apsis::Action negativeKind{-1, {7}};
+  const apsis::Action firstField{1, {-1, 7}};
+  const apsis::Action secondField{1, {0, -1}};
+  const apsis::Action last{1, {0, 0}};
+  apsis::Inbox inbox;
+  for (const auto &action :
+       {last, secondField, negativeKind, firstField, secondField})
+    inbox.submit(action);
+  const std::vector expected{negativeKind, firstField, secondField,
+                             secondField, last};
+  return report(inbox.drain() == expected, "explicit-signed-order-and-duplicates",
+                seed, 0);
+}
+
 bool channelProperties(uint32_t seed, std::mt19937 &rng) {
   const std::array<i64, 7> boundaries{
       std::numeric_limits<i64>::min(), -1, 0, 1, 127, 128,
@@ -43,6 +59,7 @@ bool channelProperties(uint32_t seed, std::mt19937 &rng) {
       std::numeric_limits<int32_t>::max()};
   for (int index = 0; index < kInputCases; ++index) {
     std::vector<apsis::LogEntry> log;
+    std::vector<apsis::Action> expected;
     apsis::Inbox original, shuffled;
     for (int count = 0; count < kActionsPerCase; ++count) {
       apsis::Action action;
@@ -63,6 +80,7 @@ bool channelProperties(uint32_t seed, std::mt19937 &rng) {
         action = log.back().a;
       log.push_back({signedBits(rng), action});
       original.submit(action);
+      expected.push_back(action);
     }
     apsis::Writer writer;
     writer.vec(log);
@@ -90,12 +108,17 @@ bool channelProperties(uint32_t seed, std::mt19937 &rng) {
     shortReader.vec(partial);
     if (!report(shortReader.bad, "truncated-log-rejected", seed, index))
       return false;
+    // Order each submitted action by its signed kind and then its fields.
+    std::sort(expected.begin(), expected.end(),
+              [](const apsis::Action &a, const apsis::Action &b) {
+                return std::tie(a.kind, a.f) < std::tie(b.kind, b.f);
+              });
     std::shuffle(log.begin(), log.end(), rng);
     for (const auto &entry : log)
       shuffled.submit(entry.a);
     const auto first = original.drain(), second = shuffled.drain();
-    if (!report(first == second && first.size() == kActionsPerCase,
-                "canonical-permutation-and-duplicate-count", seed, index))
+    if (!report(first == expected && second == expected,
+                "canonical-order-and-duplicates", seed, index))
       return false;
     if (!report(original.drain().empty() && shuffled.drain().empty(),
                 "drain-clears-inbox", seed, index))
@@ -185,7 +208,8 @@ int main(int argc, char **argv) {
   } else if (argc != 1)
     return 2;
   std::mt19937 rng(seed);
-  if (!channelProperties(seed, rng) || !simulationStreams(seed, rng))
+  if (!channelProperties(seed, rng) || !explicitInboxCase(seed) ||
+      !simulationStreams(seed, rng))
     return 1;
   std::cout << "{\"passed\":true,\"seed\":" << seed
             << ",\"inputCases\":" << kInputCases

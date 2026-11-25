@@ -26,6 +26,11 @@ bool number(const std::string &text, i64 &value) {
   return error == std::errc{} && end == text.data() + text.size();
 }
 
+bool supportedMajors(i64 majors) {
+  // The generator indexes its six-entry mapSide table by major count.
+  return majors >= 4 && majors <= 5;
+}
+
 bool readRecipe(Recipe &recipe) {
   std::string line;
   bool header = false;
@@ -45,8 +50,8 @@ bool readRecipe(Recipe &recipe) {
       continue;
     if (!header) {
       if (values.size() != 3 || values[0] < 0 ||
-          values[0] > std::numeric_limits<uint32_t>::max() || values[1] < 4 ||
-          values[1] > 6 || values[2] < 2 || values[2] > 360)
+          values[0] > std::numeric_limits<uint32_t>::max() ||
+          !supportedMajors(values[1]) || values[2] < 2 || values[2] > 360)
         return false;
       recipe.seed = static_cast<uint32_t>(values[0]);
       recipe.majors = static_cast<int>(values[1]);
@@ -156,7 +161,7 @@ int record(int argc, char **argv) {
     if (!number(argv[index + 2], values[index]))
       return 2;
   if (values[0] < 0 || values[0] > std::numeric_limits<uint32_t>::max() ||
-      values[1] < 4 || values[1] > 6 || values[2] < 2 || values[2] > 360 ||
+      !supportedMajors(values[1]) || values[2] < 2 || values[2] > 360 ||
       values[3] < 0 || values[3] >= S_COUNT)
     return 2;
   World world =
