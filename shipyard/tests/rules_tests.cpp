@@ -203,6 +203,22 @@ int main(int argc, char **argv) {
   });
 
   suite.run(
+      "blueprint name limit includes the largest interoperable integer", [&] {
+        constexpr auto ceiling = 9007199254740991ULL;
+        const std::string path = "/technicalLimits/maxBlueprintNameCharacters";
+        auto changed = original;
+        auto &limit = changed[Json::json_pointer(path)];
+        limit = ceiling;
+        const auto loaded = load_rules(changed.dump(), schema_set);
+        require(loaded.ok(), "The exact integer ceiling must load: " +
+                                 Json(loaded.issues).dump());
+        require(loaded.value->data().at(Json::json_pointer(path)) == ceiling,
+                "The accepted rule retains the exact ceiling");
+        limit = ceiling + 1;
+        rejected(load_rules(changed.dump(), schema_set), path);
+      });
+
+  suite.run(
       "every formula rejects unknown operators and variables at load time "
       "(F10)",
       [&] {
