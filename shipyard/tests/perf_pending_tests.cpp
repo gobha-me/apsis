@@ -164,16 +164,18 @@ int main() {
             "A valid hold request returns exactly the seven pending findings");
     for (const auto number : {11, 12, 13, 14, 15, 16, 17}) {
       const auto finding = "F" + std::to_string(number);
-      require(std::any_of(issues.begin(), issues.end(), [&](const Json &item) {
-                return item.at("code") == "pending_" + finding &&
-                       item.at("path") == "/holds" &&
-                       item.at("severity") == "error";
-              }),
+      require(std::any_of(issues.begin(), issues.end(),
+                          [&](const Json &item) {
+                            return item.at("code") == "pending_" + finding &&
+                                   item.at("path") == "/holds" &&
+                                   item.at("severity") == "error";
+                          }),
               "The hold request must report " + finding);
     }
-    require(perf(source, active, schema, {},
-                 InputLimits{.maxBytes = source.size()}) == unrestricted,
-            "An exact byte cap must apply to the source and retain pending holds");
+    require(
+        perf(source, active, schema, {},
+             InputLimits{.maxBytes = source.size()}) == unrestricted,
+        "An exact byte cap must apply to the source and retain pending holds");
     require(has_issue(perf(source, active, schema, {},
                            InputLimits{.maxBytes = source.size() - 1}),
                       "resource_limit"),

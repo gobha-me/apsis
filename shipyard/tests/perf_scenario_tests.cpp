@@ -209,7 +209,8 @@ int main() {
     auto authored = active.data();
     authored["formulas"]["jumpCount"] = 1;
     authored["performance"]["jumpFuelPerJump"] = 2;
-    const auto epsilon = active.data().at("numeric").at("epsilon").get<double>();
+    const auto epsilon =
+        active.data().at("numeric").at("epsilon").get<double>();
     struct FuelCase {
       double charges;
       double tolerance;
@@ -221,8 +222,8 @@ int main() {
                     FuelCase{0, 2, false}}) {
       authored["numeric"]["epsilon"] = tolerance;
       const auto policy = replacement(authored, schema);
-      const auto report = perf(wren, policy, schema,
-                               LoadFractions{.jumpFuel = charges / 2.0});
+      const auto report =
+          perf(wren, policy, schema, LoadFractions{.jumpFuel = charges / 2.0});
       const auto &data = report.at("data");
       const auto &jump = data.at("performance").at("jump");
       require(report.at("pass") == true && data.at("ready") == true &&
