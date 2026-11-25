@@ -2,8 +2,8 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
-#include <initializer_list>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -82,27 +82,47 @@ struct Calculator {
         const auto& node = rules.at(Json::json_pointer(issue.path));
         if (node == "exhaustVelocity") return name == "deltaV" && exhaust_unavailable;
         const auto operation = issue.details.value("operator", std::string());
-        // Use a positive unit value to check the failing operand's dependence on eligible zero inputs.
-        // A zero independent of those inputs, such as mass * 0, stays an error.
-        const auto with_positive_inputs = [&](const Json& operand, std::initializer_list<std::string_view> inputs) {
-            auto probe = variables;
-            for (const auto input : inputs) {
-                auto& value = probe.at(input);
-                if (value == 0) value = 1.0;
-            }
-            return evaluate_formula_operand(operand, probe).value.value_or(0);
-        };
-        if (operation == "ln") {
-            return name == "deltaV" && issue.details.value("operand", -1.0) == 0 &&
-                with_positive_inputs(node[1], {"startMass", "endMass"}) > 0;
+        const bool logarithm = operation == "ln";
+        if (logarithm) {
+            if (name != "deltaV" || issue.details.at("operand") != 0) return false;
+        } else if (operation != "div") {
+            return false;
         }
-        if (operation != "div") return false;
-        const auto& denominator = node[2];
-        if (name == "acceleration" || name == "range") return with_positive_inputs(denominator, {"mass"}) != 0;
-        if (name == "deltaV") return with_positive_inputs(denominator, {"endMass"}) != 0;
-        if (name == "fuelToDryMassRatio") return with_positive_inputs(denominator, {"dryMass"}) != 0;
-        return engine_count == 0 && (name == "burnSeconds" || name == "exhaustVelocity") &&
-            with_positive_inputs(denominator, {"burnRate"}) != 0;
+
+        std::string_view input;
+        if (name == "acceleration" || name == "range") input = "mass";
+        else if (name == "fuelToDryMassRatio") input = "dryMass";
+        else if (name == "deltaV") input = "endMass";
+        else if (engine_count == 0 && (name == "burnSeconds" || name == "exhaustVelocity")) input = "burnRate";
+        else return false;
+        if (variables.at(input) != 0) return false;
+
+        // Require a finite witness that changing the eligible zero input resolves the error.
+        // A zero at one scale is inconclusive. Without a witness, keep the formula error.
+        const auto& operand = node[logarithm ? 1 : 2];
+        const bool delta_v = name == "deltaV";
+        const auto start = delta_v ? variables.at("startMass").get<double>() : 0.0;
+        const auto increments = std::array{rules.at("floorMass").get<double>(),
+            policy.at("massReference").get<double>(), 0.5, 1.0, 2.0, start};
+        return std::ranges::any_of(increments, [&](double increment) {
+            if (start == 0 && input != "burnRate") {
+                try {
+                    increment = round_computed(increment, snapshot);
+                } catch (const std::overflow_error&) {
+                    return false;
+                }
+            }
+            auto probe = variables;
+            probe.at(input) = increment;
+            if (delta_v) {
+                // For a zero-mass pair, add dry mass with no fuel. Otherwise vary
+                // end mass within the actual start mass, holding that input fixed.
+                if (start == 0) probe.at("startMass") = increment;
+                else probe.at("endMass") = start - std::max(0.0, start - increment);
+            }
+            const auto result = evaluate_formula_operand(operand, probe);
+            return result.ok() && (logarithm ? *result.value > 0 : *result.value != 0);
+        });
     }
 
     static Json metric(const std::optional<double>& value) {

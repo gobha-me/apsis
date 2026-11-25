@@ -79,15 +79,18 @@ std::optional<double> evaluate(const Json& node, const Json& vars, const std::st
     const auto op = node[0].get<std::string>();
     if (op == "div" && values[1] == 0)
         return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", *values[1]}});
-    if (!complete) return std::nullopt;
-    double result = 0;
     if (op == "add" || op == "mul") {
-        result = op == "mul" ? 1 : 0;
+        double result = op == "mul" ? 1 : 0;
         for (const auto& value : values) {
+            if (!value) return std::nullopt;
             result = op == "mul" ? result * *value : result + *value;
             if (!std::isfinite(result)) return fail("Formula intermediate result is not finite.");
         }
-    } else if (op == "sub") result = *values[0] - *values[1];
+        return result;
+    }
+    if (!complete) return std::nullopt;
+    double result = 0;
+    if (op == "sub") result = *values[0] - *values[1];
     else if (op == "div") result = *values[0] / *values[1];
     else if (op == "floor") result = std::floor(*values[0]);
     else if (op == "ln") {

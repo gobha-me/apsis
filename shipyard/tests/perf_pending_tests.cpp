@@ -12,6 +12,21 @@ bool has_issue(const Json &report, std::string_view code) {
                      [&](const Json &item) { return item.at("code") == code; });
 }
 
+const Json &formula_error_at(const Json &report, std::string_view path,
+                            std::string_view output) {
+  require(report.at("status") == "FAIL" && report.at("pass") == false &&
+              report.at("data").is_null(),
+          "Invalid arithmetic must reject calculation with null data");
+  for (const auto &entry : report.at("issues")) {
+    if (entry.at("code") == "formula_error" && entry.at("path") == path &&
+        entry.at("severity") == "error" &&
+        entry.at("details").at("outputPath") == output)
+      return entry;
+  }
+  throw std::runtime_error("Missing formula_error at " + std::string(path) +
+                           ": " + report.at("issues").dump());
+}
+
 const Json &unavailable_at(const Json &report, std::string_view path) {
   for (const auto &item : report.at("issues")) {
     if (item.at("code") == "stat_unavailable" && item.at("path") == path) {
@@ -198,6 +213,28 @@ int main() {
                    *reversed.value, schema), false);
   });
 
+  for (const auto *op : {"add", "mul"}) {
+    suite.run(std::string("Wayfarer rejects overflow in deltaV ") + op +
+                  " before unavailable exhaust velocity", [&] {
+      const auto imported = import_definition(
+          read("fixtures/v3/apsis-wayfarer-anchorage-definition-v3.json"),
+          active, schema);
+      require(imported.ok(), "Wayfarer must import normally");
+      auto changed = active.data();
+      changed["formulas"]["deltaV"] =
+          Json::array({op, 1e308, 1e308, "exhaustVelocity"});
+      const auto loaded = load_rules(canonical_json(changed), schema);
+      require(loaded.ok(), "Finite operands must load as real rules");
+      const auto report =
+          perf(canonical_json(imported.value->definition.at("blueprint")),
+               *loaded.value, schema);
+      const auto &error = formula_error_at(
+          report, "/formulas/deltaV", "/performance/sublight/deltaV");
+      require(error.at("message") == "Formula intermediate result is not finite.",
+              "F10 identifies the independently overflowing prefix");
+    });
+  }
+
   suite.run(
       "Wayfarer engine-less station preserves valid structure and F20", [&] {
         // Ordinary import accepts the historical source; perf must derive
@@ -280,6 +317,101 @@ int main() {
     const auto report = perf(canonical_json(blank_blueprint(*loaded.value)),
                              *loaded.value, schema);
     check_f20(report, true);
+  });
+
+  suite.run("zero start mass leaves deltaV unavailable", [&] {
+    auto changed = active.data();
+    changed["formulas"]["deltaV"] = Json::array({"div", 1, "startMass"});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "A start-mass division must load as real rules");
+    auto blueprint = blank_blueprint(*loaded.value);
+    const auto report = perf(canonical_json(blueprint), *loaded.value, schema);
+    require(report.at("data").is_object() && !has_issue(report, "formula_error"),
+            "Zero start mass keeps the calculated data and marks deltaV n/a");
+    output_unavailable(report, "/performance/sublight/deltaV", "deltaV");
+
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    const auto control = perf(canonical_json(blueprint), *loaded.value, schema);
+    require(control.at("data").at("performance").at("sublight").at("deltaV")
+                    .get<double>() > 0,
+            "A floor supplies positive start mass and allows deltaV calculation");
+  });
+
+  suite.run("a second zero of the divisor keeps zero-mass acceleration unavailable",
+            [&] {
+    auto changed = active.data();
+    const auto divisor =
+        Json::array({"mul", "mass", Json::array({"sub", "mass", 1})});
+    changed["formulas"]["acceleration"] = Json::array({"div", "thrust", divisor});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The acceleration expression must load as real rules");
+    auto blueprint = blank_blueprint(*loaded.value);
+    check_f20(perf(canonical_json(blueprint), *loaded.value, schema), true);
+
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    const auto control = perf(canonical_json(blueprint), *loaded.value, schema);
+    require(control.at("data").at("performance").at("acceleration") == 0,
+            "The one-floor design has a nonzero divisor and numeric zero acceleration");
+  });
+
+  suite.run("a deltaV divisor that is always zero for physical masses remains F10", [&] {
+    auto changed = active.data();
+    const auto divisor =
+        Json::array({"max", 0, Json::array({"sub", "endMass", "startMass"})});
+    changed["formulas"]["deltaV"] = Json::array({"div", 1, divisor});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The deltaV expression must load as real rules");
+    const auto check = [&](const Json &blueprint) {
+      const auto report = perf(canonical_json(blueprint), *loaded.value, schema);
+      const auto &error = formula_error_at(
+          report, "/formulas/deltaV", "/performance/sublight/deltaV");
+      require(error.at("details").at("operator") == "div" &&
+                  error.at("details").at("denominator") == 0,
+              "F10 identifies the zero divisor for physical start and end masses");
+    };
+    auto blueprint = blank_blueprint(*loaded.value);
+    check(blueprint);
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    check(blueprint);
+  });
+
+  suite.run("a divisor that is zero at the active mass precision remains F10", [&] {
+    auto changed = active.data();
+    changed["numeric"]["precision"] = 0;
+    const auto divisor = Json::array({"sub", "mass", Json::array({"floor", "mass"})});
+    changed["formulas"]["acceleration"] = Json::array({"div", 1, divisor});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "Whole-unit mass precision must load as real rules");
+    const auto report = perf(canonical_json(blank_blueprint(*loaded.value)),
+                             *loaded.value, schema);
+    formula_error_at(report, "/formulas/acceleration",
+                     "/performance/scenarios/current/acceleration");
+  });
+
+  suite.run("zero end mass leaves deltaV unavailable at positive start mass", [&] {
+    auto changed = active.data();
+    changed["formulas"]["loadedMass"] = "sublightFuelMass";
+    changed["formulas"]["deltaV"] = Json::array({"ln", "endMass"});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "Loaded mass defined by fuel must load as real rules");
+    const auto imported = import_definition(
+        read("fixtures/v3/apsis-wren-definition-v3.json"), active, schema);
+    require(imported.ok(), "Wren must import with its original rules");
+    const auto blueprint = canonical_json(imported.value->definition.at("blueprint"));
+    const auto report = perf(blueprint, *loaded.value, schema);
+    output_unavailable(report, "/performance/sublight/deltaV", "deltaV");
+    const auto &performance = report.at("data").at("performance");
+    require(performance.at("currentMass").get<double>() > 0 &&
+                performance.at("currentMass") == performance.at("sublightFuelMass"),
+            "All of the positive start mass must be fuel");
+
+    const auto divisor =
+        Json::array({"max", 0, Json::array({"sub", "endMass", "startMass"})});
+    changed["formulas"]["deltaV"] = Json::array({"ln", divisor});
+    const auto invalid = load_rules(canonical_json(changed), schema);
+    require(invalid.ok(), "The zero logarithm must reach F10 evaluation");
+    formula_error_at(perf(blueprint, *invalid.value, schema), "/formulas/deltaV",
+                     "/performance/sublight/deltaV");
   });
 
   // Decisions: Luna, under owner delegation 2026-11-23. Expectations below
