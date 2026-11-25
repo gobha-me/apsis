@@ -321,5 +321,70 @@ int main() {
             "succeeding");
   });
 
+  suite.run("a migrated carried craft stays within the source byte limit", [&] {
+    const auto deck = Json{
+        {"name", "D"}, {"floors", Json::object()}, {"modules", Json::array()}};
+    const auto craft = Json{{"schema", "apsis-shipyard-v3"},
+                            {"name", "C"},
+                            {"budget", 0},
+                            {"decks", Json::array({deck})},
+                            {"nextId", 1}};
+    auto carrier = craft;
+    carrier["name"] = "P";
+    carrier["nextId"] = 2;
+    carrier["decks"][0]["modules"].push_back({{"id", 1},
+                                              {"type", "shuttleDock"},
+                                              {"x", 0},
+                                              {"y", 0},
+                                              {"r", 0},
+                                              {"craft", craft}});
+    const auto source = canonical_json(carrier);
+    require(source.size() == 278, "The original v3 carrier fits 278 bytes");
+    const InputLimits limits{.maxBytes = source.size()};
+    const auto imported = import_definition(source, active, schema, limits);
+    require(imported.ok(), "Import accepts the exact caller-supplied byte cap");
+    const auto &normalized = imported.value->definition.at("blueprint");
+    require(canonical_json(
+                normalized.at("decks").at(0).at("modules").at(0).at("craft"))
+                    .size() > limits.maxBytes,
+            "Normalizing the child expands it beyond the original byte cap");
+
+    const auto ordinary = perf(source, active, schema);
+    require(
+        ordinary.at("data").is_object() &&
+            ordinary.at("data").at("performance").at("carriedCraft").size() ==
+                1,
+        "The carrier and child are inspectable with ordinary limits");
+    require(perf(source, active, schema, {}, limits) == ordinary,
+            "The source cap must not be reapplied to normalized craft");
+    const auto over_limit = perf(source, active, schema, {},
+                                 InputLimits{.maxBytes = source.size() - 1});
+    require(over_limit.at("data").is_null() &&
+                finding(over_limit, "resource_limit").at("severity") == "error",
+            "The source itself remains subject to the byte cap");
+  });
+
+  suite.run("a carried direct-total failure identifies the craft", [&] {
+    auto data = active.data();
+    data["formulas"]["loadedMass"] =
+        Json::array({"div", "dryMass", Json::array({"sub", "dryMass", 8.25})});
+    const auto changed = replacement(data, schema);
+    const auto source = fixture("kestrel-tender");
+    const auto imported = import_definition(source, changed, schema);
+    require(!imported.ok(),
+            "Skiff's 8.25 t dry mass makes loadedMass undefined");
+    const auto report = perf(source, changed, schema);
+    rejected_formula(report);
+    const auto &item = finding(report, "formula_error");
+    require(item.at("path") == "/formulas/loadedMass" &&
+                item.at("details").at("operator") == "div" &&
+                item.at("details").at("denominator") == 0 &&
+                item.at("details").value("childBlueprintPath", "") ==
+                    "/blueprint/decks/1/modules/10/craft",
+            "The direct-total error retains both formula and craft locations");
+    require(item == finding(Json{{"issues", imported.issues}}, "formula_error"),
+            "Standalone import exposes the same carried formula error");
+  });
+
   return suite.finish();
 }

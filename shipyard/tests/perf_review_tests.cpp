@@ -213,6 +213,53 @@ int main(int argc, char **argv) {
             "A ready drive-less Wren with two charges cannot jump");
   });
 
+  suite.run("jump readiness requires a catalogue-classified drive", [&] {
+    auto data = active.data();
+    part(data, "drive10").erase("system");
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "A ratings-only part record must load as rules");
+    const auto wren = fixture_blueprint("wren", *loaded.value, schema);
+    const auto report =
+        perf(canonical_json(wren), *loaded.value, schema, {.jumpFuel = 1});
+    const auto &jump = performance(report).at("jump");
+    require(report.at("pass") == true &&
+                report.at("data").at("ready") == true &&
+                performance(report).at("rating") == 1 &&
+                jump.at("currentJumps") == 2 && jump.at("driveCosts").empty(),
+            "Wren has positive rating and charges without a classified drive");
+    const auto &data_report = report.at("data");
+    require(data_report.at("jumpReady") == false &&
+                data_report.at("definition").at("validation").at("jumpReady") ==
+                    false,
+            "A rated design without a fitted drive cannot be jump-ready");
+  });
+
+  suite.run("jump fuel advice follows drive classification", [&] {
+    const auto source =
+        canonical_json(fixture_blueprint("wren", active, schema));
+    auto data = active.data();
+    auto &drive = part(data, "drive10");
+    drive.erase("system");
+    const auto unclassified = load_rules(canonical_json(data), schema);
+    require(unclassified.ok(), "A ratings-only part record must load as rules");
+    drive["system"] = "jumpDrive";
+    drive["effect"]["rating"] = 0;
+    const auto unrated = load_rules(canonical_json(data), schema);
+    require(unrated.ok(), "An unrated jump-drive part must load as rules");
+
+    const auto without_drive =
+        perf(source, *unclassified.value, schema, {.jumpFuel = 0});
+    const auto with_drive =
+        perf(source, *unrated.value, schema, {.jumpFuel = 0});
+    require(performance(without_drive).at("rating") == 1 &&
+                performance(with_drive).at("rating") == 0 &&
+                performance(with_drive).at("jump").at("driveCosts").size() == 1,
+            "The active catalogue separates rating from a fitted drive");
+    require(findings(without_drive, "no_jump_fuel").empty() &&
+                findings(with_drive, "no_jump_fuel").size() == 1,
+            "The warning requires a classified drive even at zero rating");
+  });
+
   suite.run("exactly one loaded jump is sufficient", [&] {
     const auto &report = reports.at("wren_one_jump");
     require(

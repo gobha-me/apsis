@@ -184,6 +184,22 @@ int main() {
     }
   });
 
+  suite.run("provisional F20 does not consume the carried warning budget", [&] {
+    constexpr std::size_t children = 6;
+    auto source = carrier(children, warning_policy);
+    source["buildType"] = "station";
+    const auto bytes = importable(source, warning_policy, schema_set);
+    const auto report = perf(bytes, warning_policy, schema_set);
+    require(report.at("pass") == true && report.at("issues").size() < 128,
+            "Actual diagnostics from six carried blanks fit the issue budget");
+    require(report.at("data").at("performance").at("carriedCraft").size() ==
+                children,
+            "Every child completes performance calculation within the budget");
+    pending(report,
+            "/performance/carriedCraft/5/performance/sublight/exhaustVelocity",
+            1);
+  });
+
   suite.run("warning-only carried traversal and public aggregation saturate",
             [&] {
     for (const auto children : {8U, 15U}) {
