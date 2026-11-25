@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <stdexcept>
 
 namespace apsis::shipyard {
 namespace {
@@ -27,9 +29,16 @@ Json envelope(const RulesSnapshot& rules, std::vector<Issue> issues, Json data) 
 Json blank_blueprint(const RulesSnapshot& rules, BlankType type) {
     const auto& active = rules.data();
     const auto& defaults = active.at("defaults");
+    constexpr std::size_t max_generated_decks = 4096;
+    constexpr std::size_t max_deck_name_bytes = 8 * 1024 * 1024;
+    const auto deck_count = active.at("limits").at("minDecks").get<std::uint64_t>();
+    const auto& deck_name = defaults.at("deckName").get_ref<const std::string&>();
+    if (deck_count > max_generated_decks || deck_name.size() > max_deck_name_bytes / deck_count) {
+        throw std::length_error("Blank blueprint exceeds the operational deck allocation limit.");
+    }
     Json decks = Json::array();
-    for (std::size_t d = 0; d < active.at("limits").at("minDecks").get<std::size_t>(); ++d) {
-        decks.push_back({{"name", defaults.at("deckName")},
+    for (std::size_t d = 0; d < deck_count; ++d) {
+        decks.push_back({{"name", deck_name},
                          {"floors", Json::object()}, {"modules", Json::array()}});
     }
     return {{"schema", active.at("schemaIds").at("blueprint")},
@@ -55,17 +64,10 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     override_load("sublightFuel", loads.sublightFuel);
     if (has_errors(issues)) return envelope(rules, std::move(issues), nullptr);
 
-    auto imported = detail::import_for_validation(bytes, rules, schemas, limits);
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits, overrides);
     if (!imported.ok()) return envelope(rules, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     issues = std::move(imported.issues);
-    if (!overrides.empty()) {
-        for (const auto& [key, value] : overrides.items()) definition["blueprint"]["loads"][key] = value;
-        // Recompute every direct total after overrides, including currentMass.
-        auto updated = import_definition(canonical_json(definition.at("blueprint")), rules, schemas, limits);
-        if (!updated.ok()) return envelope(rules, std::move(updated.issues), nullptr);
-        definition = std::move(updated.value->definition);
-    }
     std::erase_if(issues, [](const Issue& issue) {
         return issue.code == "pending_validation" || issue.code == "pending_performance" ||
                issue.code == "pending_docking";

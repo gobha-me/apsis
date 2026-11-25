@@ -539,6 +539,39 @@ int main(int argc, char **argv) {
     }
   });
 
+  suite.run("blank authoring bounds deck allocations", [&] {
+    auto data = active.data();
+    data["limits"]["minDecks"] = 4096;
+    data["limits"]["maxDecks"] = 4096;
+    data["limits"]["maxDeckName"] = 2049;
+    data["defaults"]["deckName"] = std::string(2048, 'a');
+    const auto at_limit = load_rules(canonical_json(data), schema);
+    require(at_limit.ok(), "The public rules loader must accept 4096 decks");
+    require(blank_blueprint(*at_limit.value).at("decks").size() == 4096,
+            "Blank authoring must allow both exact deck allocation limits");
+
+    const auto require_allocation_failure = [&] {
+      const auto loaded = load_rules(canonical_json(data), schema);
+      require(loaded.ok(), "The oversized minimum must be valid rules data");
+      try {
+        static_cast<void>(blank_blueprint(*loaded.value));
+      } catch (const std::length_error &) {
+        return;
+      }
+      throw std::runtime_error(
+          "Oversized blank authoring must fail with length_error");
+    };
+
+    data["limits"]["minDecks"] = 4097;
+    data["limits"]["maxDecks"] = 4097;
+    data["defaults"]["deckName"] = active.data().at("defaults").at("deckName");
+    require_allocation_failure();
+
+    data["limits"]["minDecks"] = 4096;
+    data["defaults"]["deckName"] = std::string(2049, 'a');
+    require_allocation_failure();
+  });
+
   suite.run("no-cargo advice adds ordinary and concealed capacity", [&] {
     for (const auto *name :
          {"mixed_cargo_threshold_10", "mixed_cargo_threshold_20"}) {

@@ -248,6 +248,30 @@ int main() {
             "The independent non-F20 zero divisor remains an error");
   });
 
+  suite.run("division checks a known zero divisor after an F20 operand", [&] {
+    auto data = active.data();
+    const auto inner = Json::array({"div", "thrust", "mass"});
+    data["formulas"]["acceleration"] = Json::array({"div", inner, 0});
+    const auto changed = replacement(data, schema);
+    const auto report =
+        perf(canonical_json(blank_blueprint(changed)), changed, schema);
+    rejected_formula(report);
+    const auto &item = finding(report, "formula_error");
+    require(item.at("path") == "/formulas/acceleration" &&
+                item.at("details").at("operator") == "div" &&
+                item.at("details").at("denominator") == 0,
+            "The parent division identifies its independent zero divisor");
+
+    data["formulas"]["acceleration"] = Json::array({"div", 0, inner});
+    const auto pending_rules = replacement(data, schema);
+    const auto pending = perf(canonical_json(blank_blueprint(pending_rules)),
+                              pending_rules, schema);
+    require(pending.at("data").is_object() &&
+                !pending.at("data").at("performance").contains("acceleration"),
+            "A zero numerator and unavailable divisor leave acceleration "
+            "pending");
+  });
+
   suite.run(
       "parent load overrides preserve carried craft loads and diagnostics",
       [&] {

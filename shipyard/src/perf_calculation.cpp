@@ -58,7 +58,7 @@ struct Calculator {
                 }
             }
         }
-        blank = blank && number("dryMass") == 0;
+        blank = blank && number("dryMass") == 0 && number("currentMass") == 0;
     }
 
     double number(const std::string& key) const { return totals.at(key).get<double>(); }

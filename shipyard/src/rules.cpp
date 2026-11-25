@@ -67,34 +67,34 @@ std::optional<double> evaluate(const Json& node, const Json& vars, const std::st
             return fail("Formula variable is missing or not a finite number.", {{"variable", name}});
         return vars[name].get<double>();
     }
-    std::vector<double> values;
+    std::vector<std::optional<double>> values;
     bool complete = true;
-    // Visit independent operands even after one fails. In particular an F20
-    // exclusion must never conceal an unrelated invalid sibling expression.
+    // Evaluate every operand so an F20 failure cannot hide a sibling error.
     for (std::size_t i = 1; i < node.size(); ++i) {
         const auto value = evaluate(node[i], vars, path + "/" + std::to_string(i), issues);
-        if (value) values.push_back(*value);
-        else complete = false;
+        values.push_back(value);
+        if (!value) complete = false;
     }
-    if (!complete) return std::nullopt;
     const auto op = node[0].get<std::string>();
+    // A known zero divisor is invalid even when the numerator failed.
+    if (op == "div" && values[1] == 0)
+        return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", *values[1]}});
+    if (!complete) return std::nullopt;
     double result = 0;
     if (op == "add" || op == "mul") {
         result = op == "mul" ? 1 : 0;
-        for (const auto value : values) {
-            result = op == "mul" ? result * value : result + value;
+        for (const auto& value : values) {
+            result = op == "mul" ? result * *value : result + *value;
             if (!std::isfinite(result)) return fail("Formula intermediate result is not finite.");
         }
-    } else if (op == "sub") result = values[0] - values[1];
-    else if (op == "div") {
-        if (values[1] == 0) return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", values[1]}});
-        result = values[0] / values[1];
-    } else if (op == "floor") result = std::floor(values[0]);
+    } else if (op == "sub") result = *values[0] - *values[1];
+    else if (op == "div") result = *values[0] / *values[1];
+    else if (op == "floor") result = std::floor(*values[0]);
     else if (op == "ln") {
-        if (values[0] <= 0) return fail("Formula logarithm requires a positive operand.", {{"operator", "ln"}, {"operand", values[0]}});
-        result = std::log(values[0]);
-    } else if (op == "min") result = *std::min_element(values.begin(), values.end());
-    else if (op == "max") result = *std::max_element(values.begin(), values.end());
+        if (*values[0] <= 0) return fail("Formula logarithm requires a positive operand.", {{"operator", "ln"}, {"operand", *values[0]}});
+        result = std::log(*values[0]);
+    } else if (op == "min") result = std::min_element(values.begin(), values.end())->value();
+    else if (op == "max") result = std::max_element(values.begin(), values.end())->value();
     else return fail("Unknown formula operator.");
     if (!std::isfinite(result)) return fail("Formula result is not finite.");
     return result;

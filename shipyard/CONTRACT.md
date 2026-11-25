@@ -192,9 +192,9 @@ v3/v4 blueprint or definition inputs as import, normalizes with active rules,
 and runs the existing structural checks. Imported `derived`, `validation`, and
 embedded `rules` never supply calculation inputs. Optional `cargo`, `jumpFuel`,
 and `sublightFuel` overrides must be finite fractions in [0, 1]; omitted fields
-retain blueprint loads. Overrides affect only the requested design's current
-loads. Carried craft retain their own current loads; empty/half/full scenario
-fractions come from the active rules.
+retain blueprint loads. Overrides are applied to the normalized root before
+direct totals are calculated. Carried craft retain their own current loads.
+The empty, half, and full scenario fractions come from the active rules.
 
 Carried craft performance is evaluated recursively and exposed in
 `performance.carriedCraft`. Nested issues retain active severities and identify
@@ -230,17 +230,20 @@ zero-thrust/no-drive values remain numeric results.
 
 `blank_blueprint(rules)` creates a ship using active defaults and minimum deck
 count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly.
+Both throw `std::length_error` before allocating decks if generation would
+exceed 4096 decks or 8 MiB of UTF-8 deck names in total. These operational
+bounds apply only to blank generation.
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
 ordinary structural issues remain inspectable. Holds still return pending
 F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
 
-The independent tests session should cover all four scenarios, load overrides,
-carried loads and child-specific formula failures, all five explicit drive prices,
-active severity changes, separate
-ready/jumpReady/range outcomes, every F20 omission/dependency, and F10 rejection
-including a non-F20 sibling beside an F20 expression. Preserve the five v3
-goldens and compare only their rules-defined values; F24 records v4 differences.
+The five independent performance suites cover all four scenarios, load
+overrides, carried loads and child-specific formula failures, all five explicit
+drive prices, active severity changes, separate ready/jumpReady/range outcomes,
+every F20 omission and dependency, and F10 rejection when an expression has
+both F20 and non-F20 errors. They compare the rules-defined values of the five
+preserved v3 goldens. F24 records v4 differences.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
