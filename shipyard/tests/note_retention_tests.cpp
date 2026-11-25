@@ -297,18 +297,27 @@ int main() {
     stable(text_limited, narrow, schema);
   });
 
-  suite.run("a stale wrapper retains a fresh rule identity note despite an older match", [&] {
+  suite.run("a stale wrapper ensures the rule identity explanation survives retention", [&] {
     const auto original = import_definition(blank().dump(), three, schema);
     require(original.ok(), "A current v4 wrapper must be available");
     auto stale = original.value->definition;
     stale["rulesSha256"] = std::string(64, '0');
-    stale["blueprint"]["migrationNotes"] = Json::array({identity_note, "A", "B", "C"});
-    const auto imported = import_definition(stale.dump(), three, schema);
-    require(imported.ok() && imported.value->migration.rulesIdentityChanged &&
-                imported.value->definition.at("blueprint").at("migrationNotes") ==
-                    Json::array({notice, "C", identity_note}),
-            "The current rule change keeps its explanation in the newest slot");
-    stable(imported, three, schema);
+    const std::array cases{
+        std::pair{Json::array({identity_note, "A", "B", "C"}),
+                  Json::array({notice, "C", identity_note})},
+        std::pair{Json::array({identity_note, "A", "B"}),
+                  Json::array({identity_note, "A", "B"})},
+        std::pair{Json::array({"A", "B", identity_note, "C"}),
+                  Json::array({notice, identity_note, "C"})},
+    };
+    for (const auto &[notes, expected] : cases) {
+      stale["blueprint"]["migrationNotes"] = notes;
+      const auto imported = import_definition(stale.dump(), three, schema);
+      require(imported.ok() && imported.value->migration.rulesIdentityChanged &&
+                  imported.value->definition.at("blueprint").at("migrationNotes") == expected,
+              "The current rule change keeps its explanation after retention: " + notes.dump());
+      stable(imported, three, schema);
+    }
   });
 
   suite.run("an exactly fitting rule identity note survives reimport", [&] {

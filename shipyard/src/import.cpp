@@ -390,8 +390,15 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         if (importer.report.rulesIdentityChanged) {
             importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
             if (!has_errors(importer.issues)) {
-                // This event is newer than any matching note in the input.
-                importer.add_note(blueprint, "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.", blueprint_path);
+                const auto& notes = blueprint.at("migrationNotes");
+                const auto maximum = rules.data().at("limits").at("maxMigrationNotes").get<std::size_t>();
+                // On overflow, one slot belongs to the notice and only the suffix will survive.
+                const auto keep = notes.size() > maximum ? maximum - 1 : notes.size();
+                const auto first_retained = notes.end() - static_cast<Json::difference_type>(keep);
+                const std::string note = "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.";
+                if (std::find(first_retained, notes.end(), note) == notes.end()) {
+                    importer.add_note(blueprint, note, blueprint_path);
+                }
             }
         }
         if (has_errors(importer.issues)) {

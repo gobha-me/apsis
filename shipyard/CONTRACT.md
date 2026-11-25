@@ -91,6 +91,8 @@ in their original order and reserves the first slot for a dropped-history
 notice. A cap of one keeps only the notice. Ordinary input notes are checked
 for type, controls, and the active `maxNoteLength` before any cull. Retained
 ordinary notes preserve their text and duplicates.
+When active rules replace a stale rule identity, import appends the explanation
+if the same note would otherwise be absent from the retained list.
 
 The optional v4 blueprint field `migrationNotesDropped` accepts only `true`
 and requires the first note to be `Older migration notes were dropped.` or `…`.
