@@ -38,9 +38,9 @@ Json deck(std::string name, std::optional<bool> generated, int id, int x) {
 
 Json source(const RulesSnapshot &active, const SchemaSet &schema) {
   auto result = blank_blueprint(active);
-  result["decks"] = Json::array({deck("Deck 1", true, 11, 2),
-                                 deck("Deck 4", std::nullopt, 27, 7),
-                                 deck("Deck 3", true, 43, 12)});
+  result["decks"] = Json::array({deck("Main deck 1", true, 11, 2),
+                                 deck("Main deck 4", std::nullopt, 27, 7),
+                                 deck("Main deck 3", true, 43, 12)});
   result["nextId"] = 90;
   return normalized(result, active, schema);
 }
@@ -118,6 +118,15 @@ RulesSnapshot changed_rules(Json data, const SchemaSet &schema) {
   require(result.ok(), "Authored rules must load: " + diagnostics.dump());
   return std::move(*result.value);
 }
+
+void rejected_blank(const RulesSnapshot &active) {
+  try {
+    static_cast<void>(blank_blueprint(active));
+  } catch (const std::length_error &) {
+    return;
+  }
+  throw std::runtime_error("Blank authoring must fail with length_error");
+}
 } // namespace
 
 int main() {
@@ -154,7 +163,7 @@ int main() {
       "F05 blank sources name every active minimum deck by its level", [&] {
         auto data = active.data();
         data["limits"]["minDecks"] = 3;
-        data["defaults"]["deckNamePrefix"] = "Level %{n} ";
+        data["defaults"]["deckName"] = "Level %{n}";
         const auto custom = changed_rules(data, schema);
         for (const auto type : {BlankType::ship, BlankType::station}) {
           const auto blueprint = blank_blueprint(custom, type);
@@ -174,19 +183,16 @@ int main() {
         }
       });
 
-  suite.run(
-      "F05 older v4 rules use the documented literal name prefix fallback",
-      [&] {
-        auto data = active.data();
-        data["defaults"].erase("deckNamePrefix");
-        data["defaults"]["deckName"] = " Legacy ";
-        const auto legacy = changed_rules(data, schema);
-        auto blueprint = blank_blueprint(legacy);
-        labels(blueprint, {" Legacy  1"});
-        blueprint =
-            edited(insert_deck(canonical_json(blueprint), 0, legacy, schema));
-        labels(blueprint, {" Legacy  1", " Legacy  2"});
-      });
+  suite.run("F05 custom rules use the literal default deck label", [&] {
+    auto data = active.data();
+    data["defaults"]["deckName"] = " Legacy ";
+    const auto legacy = changed_rules(data, schema);
+    auto blueprint = blank_blueprint(legacy);
+    labels(blueprint, {" Legacy  1"});
+    blueprint =
+        edited(insert_deck(canonical_json(blueprint), 0, legacy, schema));
+    labels(blueprint, {" Legacy  1", " Legacy  2"});
+  });
 
   suite.run(
       "F05 insertion at front middle and end renumbers only automatic decks",
@@ -195,10 +201,13 @@ int main() {
         for (const std::size_t index : {0U, 1U, 3U}) {
           const auto result = edited(
               insert_deck(canonical_json(original), index, active, schema));
-          const auto expected =
-              index == 0   ? Json{"Deck 1", "Deck 2", "Deck 4", "Deck 4"}
-              : index == 1 ? Json{"Deck 1", "Deck 2", "Deck 4", "Deck 4"}
-                           : Json{"Deck 1", "Deck 4", "Deck 3", "Deck 4"};
+          const auto expected = index == 0 ? Json{"Main deck 1", "Main deck 2",
+                                                  "Main deck 4", "Main deck 4"}
+                                : index == 1
+                                    ? Json{"Main deck 1", "Main deck 2",
+                                           "Main deck 4", "Main deck 4"}
+                                    : Json{"Main deck 1", "Main deck 4",
+                                           "Main deck 3", "Main deck 4"};
           labels(result, expected);
           require(result.at("decks")[index].at("nameGenerated") == true &&
                       result.at("decks")[index].at("floors").empty() &&
@@ -214,7 +223,7 @@ int main() {
   suite.run(
       "F05 explicit inserted names are never inferred from their spelling",
       [&] {
-        for (const auto &name : {std::string("Deck 1"), std::string(""),
+        for (const auto &name : {std::string("Main deck 1"), std::string(""),
                                  std::string("  Operations  ")}) {
           auto blueprint =
               edited(insert_deck(canonical_json(blank_blueprint(active)), 0,
@@ -224,7 +233,7 @@ int main() {
               "An explicitly supplied name cannot have generated ownership");
           blueprint = edited(
               move_deck(canonical_json(blueprint), 0, 1, active, schema));
-          labels(blueprint, {"Deck 1", name});
+          labels(blueprint, {"Main deck 1", name});
         }
       });
 
@@ -233,7 +242,7 @@ int main() {
         const auto original = source(active, schema);
         const auto down =
             edited(move_deck(canonical_json(original), 0, 2, active, schema));
-        labels(down, {"Deck 4", "Deck 2", "Deck 3"});
+        labels(down, {"Main deck 4", "Main deck 2", "Main deck 3"});
         contents(down.at("decks")[0], original.at("decks")[1]);
         contents(down.at("decks")[1], original.at("decks")[2]);
         contents(down.at("decks")[2], original.at("decks")[0]);
@@ -255,9 +264,9 @@ int main() {
         for (const std::size_t index : {0U, 1U, 2U}) {
           const auto result = edited(
               remove_deck(canonical_json(original), index, active, schema));
-          labels(result, index == 0   ? Json{"Deck 4", "Deck 2"}
-                         : index == 1 ? Json{"Deck 1", "Deck 2"}
-                                      : Json{"Deck 1", "Deck 4"});
+          labels(result, index == 0   ? Json{"Main deck 4", "Main deck 2"}
+                         : index == 1 ? Json{"Main deck 1", "Main deck 2"}
+                                      : Json{"Main deck 1", "Main deck 4"});
           for (std::size_t old = 0, now = 0; old < 3; ++old)
             if (old != index)
               contents(result.at("decks")[now++], original.at("decks")[old]);
@@ -269,8 +278,8 @@ int main() {
       "F05 explicit rename clears ownership even for the current label", [&] {
         auto blueprint = source(active, schema);
         const auto original = blueprint;
-        blueprint = edited(rename_deck(canonical_json(blueprint), 0, "Deck 1",
-                                       active, schema));
+        blueprint = edited(rename_deck(canonical_json(blueprint), 0,
+                                       "Main deck 1", active, schema));
         unchanged_metadata(blueprint, original);
         for (std::size_t index = 0; index < original.at("decks").size();
              ++index)
@@ -279,17 +288,17 @@ int main() {
                 "Renaming to identical text still makes the label explicit");
         blueprint =
             edited(move_deck(canonical_json(blueprint), 0, 2, active, schema));
-        labels(blueprint, {"Deck 4", "Deck 2", "Deck 1"});
+        labels(blueprint, {"Main deck 4", "Main deck 2", "Main deck 1"});
         blueprint = edited(rename_deck(canonical_json(blueprint), 2,
                                        std::nullopt, active, schema));
         contents(blueprint.at("decks")[2], original.at("decks")[0]);
         unchanged_metadata(blueprint, original);
-        labels(blueprint, {"Deck 4", "Deck 2", "Deck 3"});
+        labels(blueprint, {"Main deck 4", "Main deck 2", "Main deck 3"});
         require(blueprint.at("decks")[2].at("nameGenerated") == true,
                 "Null optional rename restores generated ownership");
         blueprint =
             edited(move_deck(canonical_json(blueprint), 2, 0, active, schema));
-        labels(blueprint, {"Deck 1", "Deck 4", "Deck 3"});
+        labels(blueprint, {"Main deck 1", "Main deck 4", "Main deck 3"});
       });
 
   suite.run(
@@ -297,8 +306,8 @@ int main() {
       [&] {
         auto blueprint = source(active, schema);
         blueprint["decks"][0]["name"] = "Old automatic label";
-        blueprint["decks"][1]["name"] = "Deck 1";
-        blueprint["decks"][2]["name"] = "Deck 2";
+        blueprint["decks"][1]["name"] = "Main deck 1";
+        blueprint["decks"][2]["name"] = "Main deck 2";
         blueprint["decks"][2]["nameGenerated"] = false;
         const auto imported =
             import_definition(canonical_json(blueprint), active, schema);
@@ -312,7 +321,7 @@ int main() {
                     canonical_json(reimported.value->definition) == bytes,
                 "Export/reimport must preserve every provenance state exactly");
         const auto moved = edited(move_deck(bytes, 2, 0, active, schema));
-        labels(moved, {"Deck 2", "Deck 2", "Deck 1"});
+        labels(moved, {"Main deck 2", "Main deck 2", "Main deck 1"});
         require(moved.at("decks")[0].at("nameGenerated") == false &&
                     moved.at("decks")[1].at("nameGenerated") == true &&
                     !moved.at("decks")[2].contains("nameGenerated"),
@@ -346,7 +355,7 @@ int main() {
         const auto inserted =
             edited(insert_deck(canonical_json(moved), 1, active, schema));
         labels(inserted,
-               {"Flight deck", "Deck 2", "Engineering", "Cargo deck"});
+               {"Flight deck", "Main deck 2", "Engineering", "Cargo deck"});
         require(edited(remove_deck(canonical_json(inserted), 1, active,
                                    schema)) == moved,
                 "An inserted then removed deck must not alter historical "
@@ -394,12 +403,12 @@ int main() {
                  "deck_limit");
         blueprint =
             edited(insert_deck(canonical_json(blueprint), 2, bounded, schema));
-        labels(blueprint, {"Deck 1", "Deck 2", "Deck 3"});
+        labels(blueprint, {"Main deck 1", "Main deck 2", "Main deck 3"});
         rejected(insert_deck(canonical_json(blueprint), 1, bounded, schema),
                  "deck_limit");
         blueprint =
             edited(remove_deck(canonical_json(blueprint), 1, bounded, schema));
-        labels(blueprint, {"Deck 1", "Deck 2"});
+        labels(blueprint, {"Main deck 1", "Main deck 2"});
       });
 
   suite.run(
@@ -436,29 +445,101 @@ int main() {
                 "The exact input-byte boundary must remain valid");
       });
 
+  suite.run("F05 tight label limits preserve the entire level", [&] {
+    auto data = active.data();
+    data["limits"]["minDecks"] = 9;
+    data["limits"]["maxDecks"] = 10;
+    data["limits"]["maxDeckName"] = 1;
+    data["defaults"]["deckName"] = "X";
+    const auto tight = changed_rules(data, schema);
+    const auto nine = blank_blueprint(tight);
+    labels(nine, {"1", "2", "3", "4", "5", "6", "7", "8", "9"});
+    const auto nine_bytes = canonical_json(nine);
+    const auto explicit_tenth =
+        edited(insert_deck(nine_bytes, 9, tight, schema, "X"));
+    const auto ten_bytes = canonical_json(explicit_tenth);
+    const auto require_level_error = [](const Result<Json> &result) {
+      rejected(result, "field_limit");
+      require(issue(result.issues, "field_limit", "/blueprint/decks/9/name"),
+              "The two-digit level must fail at the tenth deck name");
+    };
+    require_level_error(insert_deck(nine_bytes, 9, tight, schema));
+    require_level_error(move_deck(ten_bytes, 8, 9, tight, schema));
+    require_level_error(rename_deck(ten_bytes, 9, std::nullopt, tight, schema));
+
+    data["limits"]["minDecks"] = 10;
+    rejected_blank(changed_rules(data, schema));
+
+    data["limits"]["maxDeckName"] = 48;
+    data["defaults"]["deckName"] = std::string(47, 'X');
+    const auto indexed = blank_blueprint(changed_rules(data, schema));
+    require(indexed.at("decks")[8].at("name") == std::string(46, 'X') + " 9" &&
+                indexed.at("decks")[9].at("name") ==
+                    std::string(45, 'X') + " 10",
+            "One- and two-digit levels both use the full character budget");
+
+    data["defaults"]["deckName"] = "";
+    const auto empty_stem = blank_blueprint(changed_rules(data, schema));
+    require(empty_stem.at("decks")[0].at("name") == "1" &&
+                empty_stem.at("decks")[9].at("name") == "10",
+            "An empty default label produces a level without a separator");
+  });
+
   suite.run(
-      "F05 generated prefix limits are checked through public rules loading",
-      [&] {
+      "F05 blank authoring bounds deck and encoded name allocations", [&] {
         auto data = active.data();
-        const auto limit =
-            data.at("limits").at("maxDeckName").get<std::size_t>();
-        data["defaults"]["deckNamePrefix"] = std::string(limit - 1, 'P');
-        const auto boundary = changed_rules(data, schema);
-        require(blank_blueprint(boundary)
-                        .at("decks")[0]
-                        .at("name")
-                        .get<std::string>()
-                        .size() == limit,
-                "A generated label at the active limit must be accepted");
-        for (const auto &bad :
-             {std::string(limit, 'P'), std::string("Bad\nprefix ")}) {
-          data["defaults"]["deckNamePrefix"] = bad;
-          const auto result = load_rules(canonical_json(data), schema);
-          require(!result.ok() && !result.issues.empty(),
-                  "Invalid prefixes must fail before authoring can emit "
-                  "invalid names");
-        }
+        data["limits"]["minDecks"] = 4096;
+        data["limits"]["maxDecks"] = 4096;
+        data["limits"]["maxDeckName"] = 1027;
+        std::string stem;
+        for (int count = 0; count < 1019; ++count)
+          stem += "\xc3\xa9";
+        stem += "\"\\aaaa";
+        data["defaults"]["deckName"] = stem;
+        const auto blueprint = blank_blueprint(changed_rules(data, schema));
+        const auto &decks = blueprint.at("decks");
+        require(decks.size() == 4096 &&
+                    decks.front().at("name") == stem + " 1" &&
+                    decks.back().at("name") ==
+                        stem.substr(0, stem.size() - 3) + " 4096",
+                "Blank generation reaches the operational deck limit with "
+                "indexed names");
+        std::size_t encoded = 0;
+        for (const auto &item : decks)
+          encoded += canonical_json(item.at("name")).size() - 2;
+        require(encoded == 8 * 1024 * 1024,
+                "Blank generation accepts exactly eight MiB of encoded name "
+                "content");
+
+        // The extra byte makes each encoded name too large in aggregate even
+        // though the unescaped labels alone would still fit.
+        data["limits"]["maxDeckName"] = 1028;
+        data["defaults"]["deckName"] = stem + "a";
+        rejected_blank(changed_rules(data, schema));
+
+        data["limits"]["minDecks"] = 4097;
+        data["limits"]["maxDecks"] = 4097;
+        data["defaults"]["deckName"] =
+            active.data().at("defaults").at("deckName");
+        rejected_blank(changed_rules(data, schema));
       });
+
+  suite.run("F05 the allocation bound counts each level's encoded width", [&] {
+    auto data = active.data();
+    data["limits"]["minDecks"] = 1024;
+    data["limits"]["maxDecks"] = 1024;
+    data["limits"]["maxDeckName"] = 8193;
+    data["defaults"]["deckName"] = std::string(8188, 'X');
+    const auto blueprint = blank_blueprint(changed_rules(data, schema));
+    const auto &decks = blueprint.at("decks");
+    std::size_t encoded = 0;
+    for (const auto &item : decks)
+      encoded += canonical_json(item.at("name")).size() - 2;
+    // Treating every suffix as four digits would exceed the cap by 1024
+    // bytes. The shorter suffixes collectively save 1107 bytes.
+    require(decks.size() == 1024 && encoded == 8 * 1024 * 1024 - 83,
+            "Mixed-width levels must use their cumulative encoded length");
+  });
 
   suite.run("F20 authoring a blank retains structured pending omissions", [&] {
     const auto result =

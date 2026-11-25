@@ -40,17 +40,10 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     override_load("sublightFuel", loads.sublightFuel);
     if (has_errors(issues)) return envelope(rules, std::move(issues), nullptr);
 
-    auto imported = detail::import_for_validation(bytes, rules, schemas, limits);
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits, overrides);
     if (!imported.ok()) return envelope(rules, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     issues = std::move(imported.issues);
-    if (!overrides.empty()) {
-        for (const auto& [key, value] : overrides.items()) definition["blueprint"]["loads"][key] = value;
-        // Recompute every direct total after overrides, including currentMass.
-        auto updated = import_definition(canonical_json(definition.at("blueprint")), rules, schemas, limits);
-        if (!updated.ok()) return envelope(rules, std::move(updated.issues), nullptr);
-        definition = std::move(updated.value->definition);
-    }
     std::erase_if(issues, [](const Issue& issue) {
         return issue.code == "pending_validation" || issue.code == "pending_performance" ||
                issue.code == "pending_docking";
