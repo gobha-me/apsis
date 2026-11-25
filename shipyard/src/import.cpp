@@ -137,6 +137,7 @@ struct Importer {
             deck_count > limits.at("maxDecks").get<std::size_t>()) {
             detail::add_issue(issues, error("deck_limit", "Deck count exceeds the active rules limits.", at(path, "decks")));
         }
+        check_holds(blueprint, path);
         const auto width = rules.at("grid").at("w").get<std::uint64_t>();
         const auto height = rules.at("grid").at("h").get<std::uint64_t>();
         const auto max_id = limits.at("maxModuleId").get<std::uint64_t>();
@@ -249,6 +250,7 @@ struct Importer {
         bool no_modules = true, has_engine = false;
         double burn_rate = 0;
         std::uint64_t min_x = rules.at("grid").at("w"), min_y = rules.at("grid").at("h"), max_x = 0, max_y = 0;
+        bool has_geometry = false;
         for (std::size_t d = 0; d < blueprint.at("decks").size(); ++d) {
             const auto& deck = blueprint.at("decks")[d];
             add("floorCount", static_cast<double>(deck.at("floors").size()));
@@ -258,6 +260,7 @@ struct Importer {
                 const auto* start = it.key().data();
                 std::from_chars(start, start + comma, x);
                 std::from_chars(start + comma + 1, start + it.key().size(), y);
+                has_geometry = true;
                 min_x = std::min(min_x, x); min_y = std::min(min_y, y);
                 max_x = std::max(max_x, x); max_y = std::max(max_y, y);
             }
@@ -295,6 +298,16 @@ struct Importer {
                 }
             }
         }
+        if (const auto holds = blueprint.find("holds"); holds != blueprint.end()) {
+            for (const auto& hold : *holds) {
+                const auto x = hold.at("x").get<std::uint64_t>();
+                const auto y = hold.at("y").get<std::uint64_t>();
+                has_geometry = true;
+                min_x = std::min(min_x, x); min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x + hold.at("w").get<std::uint64_t>() - 1);
+                max_y = std::max(max_y, y + hold.at("h").get<std::uint64_t>() - 1);
+            }
+        }
         add("cost", number("floorCount") * rules.at("floor").at("cost").get<double>());
         values["structureMass"] = round_computed(formula("structureMass", {{"floorCount", values.at("floorCount")}, {"floorMass", rules.at("floor").at("mass")}}, path), snapshot);
         for (const auto* key : {"componentMass", "carriedMass", "carriedCurrentMass", "carriedDryMass"}) values[key] = round_computed(number(key), snapshot);
@@ -311,7 +324,7 @@ struct Importer {
             {"carriedLoadMass", number("carriedCurrentMass") - number("carriedDryMass")}}, path), snapshot);
         const auto cell_size = rules.at("cellSizeM").get<double>();
         values["areaM2"] = number("floorCount") * cell_size * cell_size;
-        if (number("floorCount") > 0) {
+        if (has_geometry) {
             values["widthM"] = static_cast<double>(max_x - min_x + 1) * cell_size;
             values["lengthM"] = static_cast<double>(max_y - min_y + 1) * cell_size;
         }
@@ -347,6 +360,36 @@ struct Importer {
     } catch (const std::overflow_error&) {
         add_total_issue(error("nonfinite_total", "A direct total exceeds the numeric rounding range.", "/derived"), path);
         throw FormulaFailure{};
+    }
+
+    void check_holds(const Json& blueprint, const std::string& path) {
+        const auto records = blueprint.find("holds");
+        if (records == blueprint.end()) return;
+        const auto gw = rules.at("grid").at("w").get<std::uint64_t>();
+        const auto gh = rules.at("grid").at("h").get<std::uint64_t>();
+        const auto decks = blueprint.at("decks").size();
+        const auto minimum = rules.value("holds", Json{{"minDecks", 2}}).at("minDecks").get<std::uint64_t>();
+        for (std::size_t i = 0; i < records->size(); ++i) {
+            const auto& hold = records->at(i);
+            const auto location = at(at(path, "holds"), std::to_string(i));
+            const auto x = hold.at("x").get<std::uint64_t>();
+            const auto y = hold.at("y").get<std::uint64_t>();
+            const auto w = hold.at("w").get<std::uint64_t>();
+            const auto h = hold.at("h").get<std::uint64_t>();
+            if (w > gw || x > gw - w || h > gh || y > gh - h) {
+                detail::add_issue(issues, {"hold_bounds", "error",
+                    "Hold rectangle exceeds the active grid.", location,
+                    {{"gridWidth", gw}, {"gridHeight", gh}}});
+            }
+            const auto first = hold.at("firstDeck").get<std::uint64_t>();
+            const auto last = hold.at("lastDeck").get<std::uint64_t>();
+            const auto steps = minimum - 1;
+            if (last < steps || first > last - steps || last >= decks) {
+                detail::add_issue(issues, {"hold_span", "error",
+                    "Hold span must cover at least the rule-defined minimum and remain inside this design.", location,
+                    {{"firstDeck", first}, {"lastDeck", last}, {"minimum", minimum}, {"deckCount", decks}}});
+            }
+        }
     }
 };
 } // namespace
@@ -402,7 +445,7 @@ Result<ImportedDefinition> detail::import_parsed_definition(const Json& input,
         if (!performance_totals) {
             detail::add_issue(importer.issues, {"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
             detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
-            detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
+            detail::add_issue(importer.issues, {"pending_docking", "warning", "Port docking alignment awaits the F21 convention.", "/derived", {{"issue", 50}, {"findings", {"F21"}}}});
         }
         sort_issues(importer.issues);
         Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},

@@ -86,20 +86,22 @@ and Wayfarer Anchorage must structurally pass. Rustbucket must fail with
 normalization must preserve its geometry. Structural success leaves complete
 readiness and jump readiness unset, as required by F23.
 
-`shipyard-pending` checks requested holds through `validate` and `dock`, including
-nested carried craft: F11–F17 must be structured blocking issues with null data,
-without guessed hold totals or ordinary missing-floor errors. Blank ship and
-station imports succeed with `pending_F20`; structural validation may still
-report missing required systems. Wayfarer structurally passes with that warning.
-Excluded performance values are absent rather than numeric substitutes.
+`shipyard-pending` checks that empty hold lists preserve ordinary structural
+and docking results, including for carried craft, and that invalid hold spans
+return structured errors. `shipyard-holds` covers nonempty hold records,
+including their structure and performance. `shipyard-loader_regression` checks
+that F21 is the sole pending docking finding in both direct import issue lists.
+Blank ship and station imports succeed with `pending_F20`. Structural
+validation may still report missing required systems. Wayfarer structurally
+passes with that warning. Excluded performance values are absent.
 
 Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
 visitor wider than the former v3 cap without a size-envelope failure. Multiple
 compatible exterior airlocks are counted without selecting one. These cases
 remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
-overall FAIL: alignment has not been certified. Hangar tests distinguish a
-definite unrotated fit, a definite oversize error, and a fit possible only after
-rotation (`pending_F19`), while retaining active dimensions and deck limits.
+overall FAIL while alignment awaits F21. Hangar tests cover unrotated and swapped
+cardinal fits, exact dimension boundaries, rejection of oblique-only fits, and
+the active visitor deck limit.
 
 ## Per-check fault coverage
 
@@ -172,9 +174,8 @@ The r2 public-API suites extend the reviewed fault coverage:
 - `shipyard-structure_r2`: command-origin hull flood (N02), bottom-first
   bridge service selection (N03), missing-command reachability (N06), and
   local hull connectivity with crew routes disabled (N07).
-- `shipyard-hangar_r2`: rotation-proof minimum-span and diagonal rejection,
-  inclusive boundaries, Skiff 6x10 in 8x8 and a 2x10 visitor in 9x9 remaining
-  pending F19, plus Wren in 10x40 to distinguish the N14 orientation fault.
+- `shipyard-hangar_r2` covers exact unrotated and swapped fit boundaries and
+  rejects Skiff 6×10 in 8×8, a 2×10 visitor in 9×9, and Wren in 10×40.
 - `shipyard-validator_r2_cap`: carried-craft terminal truncation (N10),
   combined below-cap designs (N16), and marker retention with structural
   reporting disabled (N15). The public combined result has 124 overlaps,
@@ -224,10 +225,10 @@ The font hash is checked for valid SHA-256 form and stable identity across
 options, without claiming an independently approved glyph-byte golden.
 
 Rustbucket must retain its missing-airlock and three unreachable-module errors
-and return no artifacts. Requested holds retain blocking structured F11–F17;
-Wayfarer's structured `pending_F20` survives rendering without performance
-stand-ins. F19/F21 remain pending in the existing docking suites. No pending
-game decision is resolved here. Bounds cover invalid dimensions, resolution,
+and return no artifacts. Hold tests check span records, deck outlines, and
+border and background pixels when a hold is too short for its label.
+Wayfarer retains its structured `pending_F20` advisory. Bounds cover invalid
+dimensions, resolution,
 raised hard caps, lowered deck/dimension/pixel/output limits, exact and one-below
 byte/pixel/input boundaries, parser failures, maximum panel dimensions, and a
 three-deck render at 99.98% of the hard pixel cap. Every failed render must
@@ -240,11 +241,8 @@ The following excerpt is preserved verbatim from the pre-merge documentation to
 retain every historical F18 entry and its text. The current **Per-check fault
 coverage** section above is authoritative for reviewed evidence; its concrete
 fault regressions supersede the historical toggle-only evidence and old Mull
-deferral below. The reviewed F19 behavior above (definite unrotated fit, definite
-oversize, and rotation-only `pending_F19`) is authoritative. Any earlier blanket
-F19 deferral remains historical and does not change current expectations. The
-excerpt records the earlier session; it does not claim a current mutation score
-or defer the current reviewed fault coverage.
+deferral below. The cardinal fit coverage above reflects the resolved F19
+decision. The excerpt records the earlier session and its mutation evidence.
 
 Historical F19 context accompanying the original F18 evidence:
 
@@ -574,6 +572,17 @@ schema, import, formula-loading, and rules-loading paths. A saturated list keeps
 documented limit and suppression details. `shipyard-loader_regression` checks
 engine-equipped canonical ships, grid capacity, and embedded-rule identity.
 
+
+`shipyard-perf_issue_cap` uses authored warning-policy rules and bounded
+blueprints through the real `load_rules`, `import_definition`, and `perf` APIs.
+It covers warning-only carried-craft amplification, the public result limit,
+127-versus-128 independent F20 formula evaluations, and a saturated child whose
+truncation marker must remain a structured root error. Below-cap controls retain
+ordinary advisories, structured `pending_F20`, and absent excluded metrics.
+Saturated performance must fail with null data and at most 128 issues including
+exactly one marker. Default parser, grid, deck, carrier and formula-arity limits
+remain active; no fixture or golden is changed.
+
 ## Mutation baseline after merging reviewed main
 
 Reviewed main `efe5fd82992f07bf29b5cc076931681bd0cf5c4a` (including the #63
@@ -899,6 +908,69 @@ The r2 public-API suites extend the reviewed fault coverage:
 
 The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
 the inherited linear SAX parser keeps those calls below existing watchdogs.
+
+</details>
+
+## Historical archive: superseded F18 evidence
+
+The following excerpt is preserved verbatim from the pre-merge documentation to
+retain every historical F18 entry and its text. The current **Per-check fault
+coverage** section above is authoritative for reviewed evidence; its concrete
+fault regressions supersede the historical toggle-only evidence and old Mull
+deferral below. The current tests use the resolved cardinal hangar fit under
+F19. The excerpt records the earlier session and its mutation evidence.
+
+Historical F19 context accompanying the original F18 evidence:
+
+Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
+visitor wider than the former v3 cap without a size-envelope failure. Multiple
+compatible exterior airlocks are counted without selecting one. These cases
+remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
+overall FAIL: alignment has not been certified. Hangar width/length fit remains
+null with `pending_F19`; tests retain rule-defined dimensions and enforce the
+settled deck cap without deciding permitted rotations.
+
+## F18 disable-toggle mutation evidence
+
+`shipyard-dock` has a separate case for each check and asserts both sides of
+each toggle. A valid baseline controls the authored fault. Only the named
+option changes between calls; all other options retain their true defaults.
+Disabling (b) or (d) must also suppress the selected target's duplicate finding
+inside (a), as CONTRACT.md specifies. Visitor-airlock access/clearance remain
+under (a), at active rule severities, without duplicate failures under (c).
+
+| Check | Option | Fault | Enabled-only assertion | Same assertion with only that option disabled | Invocation on `shipyard-dock-tests` |
+| --- | --- | --- | --- | --- | --- |
+| (a) Structural | `structural` | Reactor footprint lacks a floor | Green (exit 0): `missing_floor` caught, (a) FAIL | Red (exit 1): finding missing, (a) DISABLED | `--enabled-only a`, then append `--disable a` |
+| (b) Station crew access | `portReachability` | Nonwalkable seats surround the selected port | Green (exit 0): `dock_port_unreachable` caught, (b) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (b) DISABLED | `--enabled-only b`, then append `--disable b` |
+| (c) Matching airlock | `matchingAirlock` | Visitor airlock has an incompatible interface | Green (exit 0): `dock_no_matching_airlock` caught, (c) FAIL | Red (exit 1): finding missing, (c) DISABLED | `--enabled-only c`, then append `--disable c` |
+| (d) Approach | `approachClearance` | Connected hull obstructs the selected port's approach | Green (exit 0): `dock_blocked_approach` caught, (d) FAIL | Red (exit 1): finding missing, selected duplicate suppressed, (d) DISABLED | `--enabled-only d`, then append `--disable d` |
+
+The table concerns the fault-specific assertion, not overall dock status:
+F21 still blocks compatible candidates when other checks are disabled. The
+ordinary CTest suite stays green by explicitly asserting that enabled catches
+the fault and disabled misses it. No validator implementation is replaced.
+
+After the build above, a reviewer can run the identical enabled-only assertions
+and see each go red by flipping its own option:
+
+```sh
+for check in a b c d; do
+  build/shipyard/shipyard-dock-tests --enabled-only "$check"
+  build/shipyard/shipyard-dock-tests --enabled-only "$check" --disable "$check"
+done
+```
+
+For each check the first invocation exits 0 and the second exits 1 with a
+`FAIL` diagnostic. The normal executable without arguments asserts both sides
+and exits 0. These eight invocations are the session's mutation evidence.
+
+Mull is deferred as a follow-up. This session uses the prescribed g++-13 build
+and public option toggles; a separate LLVM-instrumented build and mutation run
+would add toolchain/build work within the bounded scratch and session budget.
+Mull is not added to CI. The existing CTest step runs every suite, including
+`shipyard-formula-nesting`, without workflow changes. The v3 goldens remain
+byte-identical.
 
 
 <details>

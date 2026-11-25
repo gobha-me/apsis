@@ -176,7 +176,7 @@ int main() {
             "definite unrotated fit must leave only alignment uncertified");
   });
 
-  suite.run("S2 only a fit requiring rotation remains pending_F19", [&] {
+  suite.run("S2 swapped cardinal fit is definite without pending_F19", [&] {
     const auto narrow = with_hangar_limits(active, schema, 12, 8);
     const auto report =
         dock(anchorage.dump(), 1, 15, skiff.dump(), narrow, schema);
@@ -186,11 +186,11 @@ int main() {
                 hangar.at("maxWidthM") == 12 &&
                 hangar.at("maxLengthM") == 8,
             "Skiff must fit only after exchanging width and length");
-    require(hangar.at("widthLengthFit").is_null() &&
-                has_issue(report, "pending_F19") &&
+    require(hangar.at("widthLengthFit") == true &&
+                !has_issue(report, "pending_F19") &&
                 report.at("data").at("pending") == true &&
                 report.at("pass") == false,
-            "a rotation-only fit must remain uncertified until F19 is settled");
+            "Luna cardinal fit is decided; only the independent F21 remains pending");
   });
 
   suite.run("S2 Wren exceeds both hangar orientations with a size error", [&] {

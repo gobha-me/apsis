@@ -30,25 +30,10 @@ Json imported(std::string_view name, const RulesSnapshot &active,
   return result.value->definition;
 }
 
-void pending_holds(const Json &report, std::string_view operation,
-                   const std::string &path) {
-  require(
-      report.at("operation") == operation && report.at("status") == "FAIL" &&
-          report.at("pass") == false && report.at("data").is_null(),
-      "Holds must block with null data, without guessed totals or traversal");
-  require(report.at("issues").size() == 7,
-          "Only the seven pending hold findings may be assigned");
-  for (const auto *finding :
-       {"F11", "F12", "F13", "F14", "F15", "F16", "F17"}) {
-    const auto &item = find_issue(report, "pending_" + std::string(finding));
-    require(item.at("severity") == "error" && item.at("path") == path &&
-                item.at("details").at("finding") == finding &&
-                item.at("details").at("issue") == 60 &&
-                !item.at("message").get<std::string>().empty(),
-            "Hold findings need structured pending identity and source path");
-  }
-  require(!has_issue(report, "missing_floor"),
-          "A requested hold opening must not become an ordinary floor fault");
+void no_pending_holds(const Json &report) {
+  for (const auto *finding : {"F11", "F12", "F13", "F14", "F15", "F16", "F17"})
+    require(!has_issue(report, "pending_" + std::string(finding)),
+            "Luna, under owner delegation 2026-11-23: holds are decided");
 }
 
 void no_excluded_values(const Json &derived) {
@@ -139,7 +124,7 @@ RulesSnapshot rotation_only_hangar(const RulesSnapshot &active,
                                    const SchemaSet &schema) {
   auto changed = active.data();
   // Wren is 20x34 m. A real rules snapshot with a 34x20 m hangar isolates
-  // the unresolved rotation case; default 10x18 m definite oversize is covered
+  // the decided cardinal rotation case; default 10x18 m definite oversize is covered
   // separately in dock_regression_tests.cpp with a required size error.
   for (auto &part : changed["parts"])
     if (part.at("id") == "stationHangar") {
@@ -159,68 +144,93 @@ int main() {
   const auto wren = imported("wren", active, schema);
   Suite suite;
 
-  suite.run(
-      "requested holds remain pending F11-F17 in direct and wrapped input",
-      [&] {
-        auto blueprint = wren.at("blueprint");
-        // Only request the feature: no unapproved hold record shape is
-        // invented.
-        blueprint["holds"] = Json::array();
-        blueprint["decks"][0]["floors"].erase("12,3");
-        pending_holds(validate(blueprint.dump(), active, schema), "validate",
-                      "/holds");
-        auto wrapped = wren;
-        wrapped["blueprint"] = blueprint;
-        pending_holds(validate(wrapped.dump(), active, schema), "validate",
-                      "/blueprint/holds");
-        pending_holds(dock(host.dump(), 1, 14, wrapped.dump(), active, schema),
-                      "dock", "/visitor/blueprint/holds");
-        auto host_request = host;
-        host_request["blueprint"]["holds"] = Json::array();
-        pending_holds(
-            dock(host_request.dump(), 1, 14, wren.dump(), active, schema),
-            "dock", "/host/blueprint/holds");
-      });
+  suite.run("empty holds preserve direct, wrapped and docking floor faults", [&] {
+    auto blueprint = wren.at("blueprint");
+    blueprint["holds"] = Json::array();
+    const auto empty = validate(blueprint.dump(), active, schema);
+    require(empty.at("pass") == true, "Empty holds are an accepted no-op");
+    no_pending_holds(empty);
+    blueprint["decks"][0]["floors"].erase("12,3");
+    const auto direct = validate(blueprint.dump(), active, schema);
+    require(!direct.at("data").is_null() && has_issue(direct, "missing_floor"),
+            "Empty metadata must not excuse a real module support floor");
+    no_pending_holds(direct);
+    auto wrapped = wren;
+    wrapped["blueprint"] = blueprint;
+    const auto checked = validate(wrapped.dump(), active, schema);
+    require(checked.at("issues") == direct.at("issues"),
+            "Wrapped and direct floor faults remain identical");
+    const auto docked = dock(host.dump(), 1, 14, wrapped.dump(), active, schema);
+    require(has_issue(docked, "missing_floor") && !docked.at("data").is_null(),
+            "Visitor floor faults still reach real docking structure checks");
+    no_pending_holds(docked);
+    auto host_request = host;
+    host_request["blueprint"]["holds"] = Json::array();
+    const auto host_checked = dock(host_request.dump(), 1, 14, wren.dump(), active, schema);
+    require(host_checked.at("issues") == dock(host.dump(), 1, 14, wren.dump(), active, schema).at("issues"),
+            "An empty host hold list adds no docking finding");
+    no_pending_holds(host_checked);
+  });
 
-  suite.run(
-      "hold findings deduplicate both docking inputs at F11 and F17 endpoints",
-      [&] {
-        auto host_request = host;
-        host_request["blueprint"]["holds"] = Json::array();
-        auto visitor_request = wren;
-        visitor_request["blueprint"]["holds"] = Json::array();
-        const auto report = dock(host_request.dump(), 1, 14,
-                                 visitor_request.dump(), active, schema);
-        // Both imports emit the same seven pending findings. Docking retains
-        // their first (host) path once each, including both range endpoints.
-        pending_holds(report, "dock", "/host/blueprint/holds");
-        for (const auto *code : {"pending_F11", "pending_F17"})
-          require(std::count_if(report.at("issues").begin(),
-                                report.at("issues").end(),
-                                [&](const Json &item) {
-                                  return item.at("code") == code;
-                                }) == 1,
-                  "Both inclusive endpoint findings must occur exactly once");
-      });
+  suite.run("empty holds on both docking inputs preserve control and decided endpoints", [&] {
+    auto host_request = host;
+    host_request["blueprint"]["holds"] = Json::array();
+    auto visitor_request = wren;
+    visitor_request["blueprint"]["holds"] = Json::array();
+    const auto control = dock(host.dump(), 1, 14, wren.dump(), active, schema);
+    const auto report = dock(host_request.dump(), 1, 14,
+                             visitor_request.dump(), active, schema);
+    // Luna, under owner delegation 2026-11-23: empty declarations are no-ops.
+    require(report == control && report.at("data").is_object(),
+            "Both empty hold lists retain the complete ordinary docking result and inspectable data");
+    no_pending_holds(report);
+    for (const auto *code : {"pending_F11", "pending_F17"})
+      require(std::count_if(report.at("issues").begin(), report.at("issues").end(),
+                            [&](const Json &item) { return item.at("code") == code; }) == 0,
+              "Both resolved inclusive endpoint findings must be absent");
+    const Json invalid_hold = {{"x", 0}, {"y", 0}, {"w", 1}, {"h", 1},
+                               {"firstDeck", 0}, {"lastDeck", 0}};
+    for (const bool host_side : {true, false}) {
+      auto invalid_host = host_request;
+      auto invalid_visitor = visitor_request;
+      auto &bad_blueprint = host_side ? invalid_host["blueprint"] : invalid_visitor["blueprint"];
+      bad_blueprint["holds"] = Json::array({invalid_hold});
+      const auto invalid = dock(invalid_host.dump(), 1, 14,
+                                invalid_visitor.dump(), active, schema);
+      const auto &fault = find_issue(invalid, "hold_span");
+      require(invalid.at("pass") == false && invalid.at("data").is_null() &&
+                  fault.at("severity") == "error" &&
+                  fault.at("path") == (host_side ? "/host/blueprint/holds/0" : "/visitor/blueprint/holds/0") &&
+                  fault.at("details").at("minimum") == 2,
+              "Real invalid spans retain the exact host/visitor source paths under the settled minimum");
+      no_pending_holds(invalid);
+    }
+  });
 
-  suite.run(
-      "nested carried hold requests block validate and both dock inputs", [&] {
-        auto carrier = blank();
-        auto craft = blank();
-        craft["holds"] = Json::array();
-        auto berth = module(1, "shuttleDock", 0, 0, 0);
-        berth["craft"] = craft;
-        carrier["decks"][0]["modules"].push_back(berth);
-        carrier["nextId"] = 2;
-        const std::string path = "/decks/0/modules/0/craft/holds";
-        pending_holds(validate(carrier.dump(), active, schema), "validate",
-                      path);
-        pending_holds(dock(host.dump(), 1, 14, carrier.dump(), active, schema),
-                      "dock", "/visitor" + path);
-        carrier["buildType"] = "station";
-        pending_holds(dock(carrier.dump(), 0, 1, wren.dump(), active, schema),
-                      "dock", "/host" + path);
-      });
+  suite.run("nested empty holds preserve ordinary carried-craft findings", [&] {
+    auto carrier = blank();
+    auto craft = blank();
+    auto berth = module(1, "shuttleDock", 0, 0, 0);
+    berth["craft"] = craft;
+    carrier["decks"][0]["modules"].push_back(berth);
+    carrier["nextId"] = 2;
+    const auto baseline = validate(carrier.dump(), active, schema);
+    const auto visitor_baseline = dock(host.dump(), 1, 14, carrier.dump(), active, schema);
+    carrier["decks"][0]["modules"][0]["craft"]["holds"] = Json::array();
+    const auto checked = validate(carrier.dump(), active, schema);
+    require(checked.at("issues") == baseline.at("issues") && !checked.at("data").is_null(),
+            "Nested empty holds preserve every ordinary structural finding");
+    no_pending_holds(checked);
+    const auto visitor_checked = dock(host.dump(), 1, 14, carrier.dump(), active, schema);
+    require(visitor_checked.at("issues") == visitor_baseline.at("issues"),
+            "Nested visitor no-op leaves docking findings unchanged");
+    no_pending_holds(visitor_checked);
+    carrier["buildType"] = "station";
+    const auto host_checked = dock(carrier.dump(), 0, 1, wren.dump(), active, schema);
+    require(host_checked.at("data").is_null() && has_issue(host_checked, "invalid_docking_target"),
+            "A carried berth still is not a station docking target");
+    no_pending_holds(host_checked);
+  });
 
   suite.run(
       "blank ships and stations retain F20 pending without numeric substitutes",
@@ -315,26 +325,23 @@ int main() {
       });
 
   suite.run(
-      "rotation-only hangar fit remains uncertified with matching check disabled",
+      "rotation-only hangar fits with matching check disabled",
       [&] {
         const auto rotation_rules = rotation_only_hangar(active, schema);
         DockOptions options;
         options.matchingAirlock = false;
         const auto report =
             dock(host.dump(), 1, 15, wren.dump(), rotation_rules, schema, options);
-        require(report.at("pass") == false &&
-                    report.at("data").at("pending") == true,
-                "Disabling F21 must not bypass the unresolved hangar fit");
+        require(report.at("pass") == true &&
+                    report.at("data").at("pending") == false,
+                "Luna cardinal rotation certifies the swapped fit with c disabled");
         const auto &hangar = report.at("data").at("hangar");
-        const auto &issue = find_issue(report, "pending_F19");
-        require(issue.at("severity") == "warning" &&
-                    issue.at("details").at("finding") == "F19" &&
-                    hangar.at("widthLengthFit").is_null() &&
+        require(!has_issue(report, "pending_F19") &&
+                    hangar.at("widthLengthFit") == true &&
                     hangar.at("visitorWidthM") == 20 &&
                     hangar.at("visitorLengthM") == 34 &&
                     hangar.at("deckCountFits") == true,
-                "F19 leaves width/length fit null, rather than guessing "
-                "allowed rotations");
+                "Luna four right-angle facings include the swapped envelope");
         for (const auto &part : rotation_rules.data().at("parts"))
           if (part.at("id") == "stationHangar") {
             for (const auto *key : {"maxWidthM", "maxLengthM", "maxDecks"})
@@ -347,7 +354,7 @@ int main() {
       });
 
   suite.run(
-      "hangar enforces the settled deck cap while F19 and F21 stay pending",
+      "hangar enforces deck cap independently of decided cardinal fit",
       [&] {
         const auto rotation_rules = rotation_only_hangar(active, schema);
         auto visitor = wren.at("blueprint");
@@ -371,10 +378,10 @@ int main() {
                 issue.at("details").at("actual") == 3 &&
                 issue.at("details").at("maximum") == hangar.at("maxDecks") &&
                 hangar.at("deckCountFits") == false &&
-                hangar.at("widthLengthFit").is_null() &&
-                has_issue(report, "pending_F19") &&
+                hangar.at("widthLengthFit") == true &&
+                !has_issue(report, "pending_F19") &&
                 has_issue(report, "pending_F21"),
-            "The known deck limit must be enforced without settling F19/F21");
+            "Deck cap remains blocking with decided F19 and independent pending F21");
       });
 
   return suite.finish();

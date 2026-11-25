@@ -72,13 +72,13 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     auto structure = detail::inspect_structure(definition.at("blueprint"), rules);
     const bool structural_pass = !has_errors(structure.issues);
     const auto append = [&](const std::vector<Issue>& additions) {
-        const Issue* truncated = nullptr;
+        const Issue* terminal = nullptr;
         for (const auto& issue : additions) {
-            if (issue.code == "issues_truncated") truncated = &issue;
+            if (detail::terminal_structure_issue(issue)) terminal = &issue;
             else detail::add_issue(issues, issue);
         }
-        if (truncated) {
-            detail::add_issue(issues, *truncated);
+        if (terminal) {
+            detail::add_issue(issues, *terminal);
             throw detail::IssueLimitReached{};
         }
     };

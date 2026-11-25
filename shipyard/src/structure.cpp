@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <compare>
 #include <deque>
 #include <map>
 #include <optional>
@@ -15,11 +16,35 @@ using Coordinate = std::int64_t;
 using Cell = std::pair<Coordinate, Coordinate>;
 using Node = std::tuple<std::size_t, Coordinate, Coordinate>;
 using Cells = std::set<Cell>;
+using ComponentLabels = std::map<Cell, std::size_t>;
+
+constexpr std::size_t max_hold_work = 1'000'000;
+struct HoldWorkLimitReached {
+    std::string path;
+};
+
+struct HoldWork {
+    std::size_t remaining = max_hold_work;
+
+    void charge(std::size_t units, const std::string& path) {
+        if (std::min(units, remaining) != units) throw HoldWorkLimitReached{path};
+        remaining -= units;
+    }
+};
 
 constexpr Cell neighbors[] = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
 
+void enqueue_neighbors(Cell cell, std::deque<Cell>& queue, auto can_enqueue) {
+    for (const auto& [dx, dy] : neighbors) {
+        const Cell next{cell.first + dx, cell.second + dy};
+        if (can_enqueue(next)) queue.push_back(next);
+    }
+}
+
 struct Rectangle {
     Coordinate x, y, w, h;
+    auto operator<=>(const Rectangle&) const = default;
+
     bool contains(Cell c) const {
         return c.first >= x && c.first < x + w &&
                c.second >= y && c.second < y + h;
@@ -43,6 +68,23 @@ bool adjacent(const Rectangle& rectangle, Cell cell) {
             cell.first >= rectangle.x && cell.first < rectangle.x + rectangle.w);
 }
 
+ComponentLabels label_walkways(const Cells& walkable) {
+    ComponentLabels labels;
+    for (const auto& cell : walkable) {
+        const auto component = labels.size();
+        if (!labels.emplace(cell, component).second) continue;
+        std::deque<Cell> queue{cell};
+        while (!queue.empty()) {
+            const auto current = queue.front();
+            queue.pop_front();
+            enqueue_neighbors(current, queue, [&](Cell next) {
+                return walkable.contains(next) && labels.emplace(next, component).second;
+            });
+        }
+    }
+    return labels;
+}
+
 Cell parse_cell(std::string_view key) {
     Cell result;
     const auto comma = key.find(',');
@@ -62,7 +104,8 @@ std::string severity_rule(const std::string& code) {
     // Occupancy/shape faults share the rules' invalid_blueprint severity while
     // retaining precise, machine-readable issue codes for clients.
     if (code == "module_out_of_bounds" || code == "missing_floor" ||
-        code == "module_overlap" || code == "unique_system" || code == "carried_fit") {
+        code == "module_overlap" || code == "unique_system" || code == "carried_fit" ||
+        code == "hold_open_column" || code == "hold_access" || code == "hold_hangar_overlap") {
         return "invalid_blueprint";
     }
     return code;
@@ -102,10 +145,9 @@ bool has_errors(const std::vector<Issue>& issues) {
         return issue.severity == "error";
     });
 }
-} // namespace
-
 StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& snapshot,
-                                  const std::string& path, ValidationOptions options) {
+                                  const std::string& path, ValidationOptions options,
+                                  HoldWork& hold_work) {
     const auto& rules = snapshot.data();
     const auto& decks = blueprint.at("decks");
     const auto grid_width = rules.at("grid").at("w").get<Coordinate>();
@@ -198,10 +240,7 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                 remainder.erase(remainder.begin());
                 while (!queue.empty()) {
                     const auto cell = queue.front(); queue.pop_front();
-                    for (const auto& [dx, dy] : neighbors) {
-                        const Cell next{cell.first + dx, cell.second + dy};
-                        if (remainder.erase(next) != 0) queue.push_back(next);
-                    }
+                    enqueue_neighbors(cell, queue, [&](Cell next) { return remainder.erase(next) != 0; });
                 }
             }
             // The explicit crew-route test seam retains local hull checks. The
@@ -220,6 +259,96 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                     }
                 }
                 if (can_walk) walkable[d].insert(cell);
+            }
+        }
+
+        struct HoldChecks {
+            bool closed_column = false;
+            bool access = false;
+            std::vector<std::size_t> overlaps;
+        };
+        std::map<std::tuple<Rectangle, std::size_t, std::size_t>, HoldChecks> holds;
+        std::vector<std::vector<const Rectangle*>> deck_holds;
+        if (const auto records = blueprint.find("holds"); records != blueprint.end() && !records->empty()) {
+            const auto holds_path = path + "/holds";
+            hold_work.charge(records->size(), holds_path);
+            deck_holds.resize(decks.size());
+            std::vector<std::optional<ComponentLabels>> components_by_deck(decks.size());
+            for (std::size_t i = 0; i < records->size(); ++i) {
+                const auto& record = records->at(i);
+                const Rectangle rectangle{record.at("x").get<Coordinate>(), record.at("y").get<Coordinate>(),
+                                          record.at("w").get<Coordinate>(), record.at("h").get<Coordinate>()};
+                const auto first = record.at("firstDeck").get<std::size_t>();
+                const auto last = record.at("lastDeck").get<std::size_t>();
+                const auto [position, inserted] = holds.try_emplace({rectangle, first, last});
+                auto& checks = position->second;
+                if (inserted) {
+                    Cells covered;
+                    std::vector<std::set<std::size_t>> routes;
+                    for (auto d = first; d <= last; ++d) {
+                        // Charge sparse floor scans and all module comparisons, including
+                        // the two later face and clearance queries for each module.
+                        hold_work.charge(1, holds_path);
+                        hold_work.charge(floors[d].size(), holds_path);
+                        hold_work.charge(3 * deck_modules[d].size(), holds_path);
+                        deck_holds[d].push_back(&std::get<0>(position->first));
+                        for (const auto index : deck_modules[d]) {
+                            const auto& module = result.modules[index];
+                            if (module.part->contains("docking") &&
+                                module.part->at("docking").at("kind") == "hangar" &&
+                                intersects(rectangle, footprint(module))) {
+                                checks.overlaps.push_back(index);
+                            }
+                        }
+                        // The bottom floor is excluded. One coordinate absent from
+                        // every intervening floor plane keeps the column open.
+                        if (d != first) {
+                            hold_work.charge(floors[d].size(), holds_path);
+                            for (const auto& cell : floors[d])
+                                if (rectangle.contains(cell)) covered.insert(cell);
+                        }
+                        auto& labels = components_by_deck[d];
+                        if (!labels) {
+                            hold_work.charge(floors[d].size(), holds_path);
+                            labels = label_walkways(walkable[d]);
+                        }
+                        auto& touched = routes.emplace_back();
+                        for (const auto& [cell, component] : *labels)
+                            if (rectangle.contains(cell) || adjacent(rectangle, cell)) touched.insert(component);
+                    }
+                    checks.closed_column = covered.size() == static_cast<std::uint64_t>(rectangle.w) *
+                                                              static_cast<std::uint64_t>(rectangle.h);
+                    // The same aligned chain must connect to the hold on each deck.
+                    const auto first_ladder = ladders.lower_bound({first, 0, 0});
+                    const auto last_ladder = ladders.lower_bound({first + 1, 0, 0});
+                    checks.access = std::any_of(first_ladder, last_ladder, [&](const auto& entry) {
+                        const auto& [deck, x, y] = entry.first;
+                        for (auto d = deck; d <= last; ++d) {
+                            hold_work.charge(1, holds_path);
+                            const auto& labels = *components_by_deck[d];
+                            const auto label = labels.find({x, y});
+                            if (label == labels.end() || !routes[d - first].contains(label->second) ||
+                                !ladders.contains({d, x, y})) return false;
+                        }
+                        return true;
+                    });
+                }
+                // Duplicate geometry still has independent diagnostic paths.
+                if (checks.closed_column || !checks.access || !checks.overlaps.empty()) {
+                    const auto hold_path = holds_path + "/" + std::to_string(i);
+                    if (checks.closed_column) {
+                        issue("hold_open_column", "The hold needs one open column through every intervening floor plane.",
+                              hold_path, {{"firstDeck", first}, {"lastDeck", last}});
+                    }
+                    if (!checks.access) {
+                        issue("hold_access", "The hold needs a ladder or lift chain with a walkable route on every spanned deck.",
+                              hold_path, {{"firstDeck", first}, {"lastDeck", last}});
+                    }
+                    for (const auto index : checks.overlaps) {
+                        issue("hold_hangar_overlap", "A hold may touch a hangar but must not overlap it.",
+                              hold_path, module_details(result.modules[index]));
+                    }
+                }
             }
         }
 
@@ -319,9 +448,17 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                     break;
                 }
             }
-            module.exterior = !any_in(floors[module.deck], outward_face(module));
+            const auto inside_hold = [&](const Rectangle& rectangle) {
+                if (deck_holds.empty()) return false;
+                const auto& on_deck = deck_holds[module.deck];
+                return std::any_of(on_deck.begin(), on_deck.end(), [&](const Rectangle* hold) {
+                    return intersects(*hold, rectangle);
+                });
+            };
+            const auto face = outward_face(module);
+            module.exterior = !any_in(floors[module.deck], face) && !inside_hold(face);
             const auto clearance = approach(module, grid_width, grid_height);
-            module.clear = !any_in(floors[module.deck], clearance);
+            module.clear = !any_in(floors[module.deck], clearance) && !inside_hold(clearance);
             for (const auto other_index : deck_modules[module.deck]) {
                 const auto& other = result.modules[other_index];
                 if (other.id != module.id && intersects(clearance, footprint(other))) module.clear = false;
@@ -350,7 +487,7 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
             if (module.part->contains("carrier") && module.module->contains("craft") && !module.module->at("craft").is_null()) {
                 const auto& craft = module.module->at("craft");
                 const auto child_path = module.path + "/craft";
-                auto child = inspect_structure(craft, snapshot, child_path, options);
+                auto child = inspect_structure(craft, snapshot, child_path, options, hold_work);
                 const auto truncated = std::find_if(child.issues.begin(), child.issues.end(), [](const Issue& value) {
                     return value.code == "issues_truncated";
                 });
@@ -394,6 +531,15 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                         max_x = std::max(max_x, x); max_y = std::max(max_y, y);
                     }
                 }
+                if (const auto records = craft.find("holds"); records != craft.end()) {
+                    for (const auto& hold : *records) {
+                        const auto x = hold.at("x").get<Coordinate>();
+                        const auto y = hold.at("y").get<Coordinate>();
+                        min_x = std::min(min_x, x); min_y = std::min(min_y, y);
+                        max_x = std::max(max_x, x + hold.at("w").get<Coordinate>() - 1);
+                        max_y = std::max(max_y, y + hold.at("h").get<Coordinate>() - 1);
+                    }
+                }
                 const auto cell_size = rules.at("cellSizeM").get<double>();
                 const auto width = max_x < 0 ? 0.0 : static_cast<double>(max_x - min_x + 1) * cell_size;
                 const auto length = max_y < 0 ? 0.0 : static_cast<double>(max_y - min_y + 1) * cell_size;
@@ -420,5 +566,17 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
     }
     sort_issues(result.issues);
     return result;
+}
+} // namespace
+
+StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& snapshot,
+                                  const std::string& path, ValidationOptions options) {
+    HoldWork hold_work;
+    try {
+        return inspect_structure(blueprint, snapshot, path, options, hold_work);
+    } catch (const HoldWorkLimitReached& exceeded) {
+        return {{{"structure_resource_limit", "error", "Hold checks exceed the operational structural work limit.",
+                  exceeded.path, {{"limit", max_hold_work}}}}, {}};
+    }
 }
 } // namespace apsis::shipyard::detail

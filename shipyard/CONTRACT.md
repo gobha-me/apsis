@@ -95,11 +95,15 @@ Rustbucket or other structural faults.
 
 ## Structural validation and docking (#50)
 
+Direct import reports a `pending_docking` warning for F21 in the returned issues
+and in the definition's `validation.issues`.
+
 `validate(bytes, rules, schemas, ValidationOptions{}, InputLimits{})` accepts the
 same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
 result envelope with active rules identity, sorted structured issues, and
 `data.definition` plus migration details if normalization succeeds. Structural
-errors retain the inspectable definition unless issue collection is truncated.
+errors retain the inspectable definition unless issue collection is truncated
+or the hold-work budget is exceeded.
 `data.structuralPass` and the envelope status describe the enabled structural
 checks. Cached validation is discarded.
 `validation.ready` is false on structural failure and null on structural pass;
@@ -125,10 +129,11 @@ then left/right edges, then the top edge, matching v3 `bridgeStart`. The command
 module does not connect otherwise separate crew routes. The explicit
 `crewRoutes=false` test seam skips command-rooted cross-deck connectivity while
 retaining local per-deck hull checks; adapters cannot select that seam. Missing floors,
-overlap, out-of-grid footprints, duplicate unique systems, and carried-fit
-violations retain specific issue codes and use the `invalid_blueprint` severity
-family. All structural severities use the active validation checks and their
-default severity; issue details identify the rule. Carried blueprints use these same checks; their
+overlap, out-of-grid footprints, duplicate unique systems, carried-fit
+violations, and hold geometry faults retain specific issue codes and use the
+`invalid_blueprint` severity family. All structural severities use the active
+validation checks and their default severity; issue details identify the rule.
+Carried blueprints use these same checks; their
 occupied dimensions and deck counts are checked against carrier limits without
 inventing docking rotations.
 
@@ -151,39 +156,39 @@ one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
 than guessing visitor-deck mapping, a distance measure, reference point, or
 inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
 pending (`data.pending=true`), even though the pending issue is a warning.
-Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the exact deck limit. Unrotated fit uses
-exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
-without `pending_F19`. A definite size error requires a rotation-proof bound:
-the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
-comparison `max(w,l) > hypot(W,L) + numeric.epsilon`, where `w,l` are visitor
-dimensions and `W,L` are hangar limits. The diagonal uses the same absolute
-epsilon convention as `carried_fit`; equality or excess within epsilon does not
-establish a diagonal rejection. A visitor exceeding either bound reports
-`widthLengthFit: false` and
-`dock_hangar_size_limit` at the active docking severity (v3: error), with measured
-dimensions and limits, without `pending_F19`. Failure in both axis-aligned
-orientations alone is insufficient. Every other case that does not fit unrotated
-remains uncertified with `widthLengthFit: null` and `pending_F19`; no dock can
-pass by ignoring that pending fit. No visitor rotation or airlock picker exists.
+Ports have no size fields or envelope checks. Hangars retain the exact active
+width, length and visitor deck limits. F19 was resolved by
+Luna, under owner delegation 2026-11-23: only the four right-angle facings are
+allowed. The exact fit is `(w <= W && l <= L) || (l <= W && w <= L)`.
+An over-limit visitor receives `dock_hangar_size_limit` with measured details;
+no diagonal epsilon calculation or `pending_F19` is used.
 
-Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
-recognize a requested blueprint `holds` field (including nested carried craft).
-They schema-check a bounded copy with only those unsupported fields removed
-before emitting blocking `pending_F11` through `pending_F17` issues with null
-data, once per finding kind rather than once per hold occurrence. Schema errors
-take precedence over pending features. The original input is not normalized or
-repaired by this probe.
-They do not assign a hold schema, capacity, mass, access, or floor/traversal rule.
-In particular they never misreport the intended opening as an ordinary missing
-floor. The #49 importer and bundled schemas remain unchanged. Ordinary cargo
-modules and adjacent-deck ladders continue to work normally.
+Multi-deck holds are accepted as optional blueprint `holds` records, including
+within carried designs. [HOLDS.md](HOLDS.md) specifies the grid rectangle and
+inclusive deck span, ladder access, catwalks, common open column, no hangar
+overlap, direct cargo interfaces, span labels, and unchanged material totals.
+These are the F11–F17 decisions of
+Luna, under owner delegation 2026-11-23. Schema faults keep their ordinary
+bounded diagnostics; no unsupported-feature copy or pending-hold parser runs.
+
+Structural inspection allows up to 1,000,000 work units for hold records,
+walkable-component construction for hold access, and hold geometry checks.
+A blueprint and its entire carried-craft tree share this operational budget.
+Docking gives the host and visitor separate budgets, including when F18(a) is
+disabled. Exceeding the budget stops inspection with a
+`structure_resource_limit` error and `details.limit: 1000000`. Its path points
+to the hold list being checked, for example `/blueprint/holds` in standalone
+validation or `/host/blueprint/holds` and `/visitor/blueprint/holds` in docking.
+For a carried craft, the path includes the intervening deck, module, and
+`craft` segments. `validate`, `perf`, and `dock` return FAIL with `data: null`.
+`render` returns the same validation error with FAIL, `data: null`, and no
+artifacts.
 
 The independent tests session should exercise canonical structural outcomes,
 rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
 switch with mutation evidence, multiple compatible airlocks, ports beyond former
-size caps, hangar limits subject to F19, and all pending gates. No new tests or
-workflow steps are supplied by this implementation session.
+size caps, cardinal hangar fits and deck limits under F19, and the remaining
+pending gates.
 
 ## Performance (#51)
 
@@ -235,8 +240,9 @@ exceed 4096 decks or 8 MiB of UTF-8 deck names in total. These operational
 bounds apply only to blank generation.
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
-ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
+ordinary structural issues remain inspectable. Performance retains normalized
+hold records through load overrides and uses the actual floor and catalogue
+material described in [HOLDS.md](HOLDS.md).
 
 The five independent performance suites cover all four scenarios, load
 overrides, carried loads and child-specific formula failures, all five explicit
@@ -247,9 +253,9 @@ preserved v3 goldens. F24 records v4 differences.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
-tolerance. The `carried_fit` width/length checks and hangar's computed diagonal
-reject only when `actual > maximum + numeric.epsilon`. Hangar unrotated fit,
-minimum-side rejection, and deck limits remain exact input-bound comparisons.
+tolerance. The `carried_fit` width/length checks reject only when
+`actual > maximum + numeric.epsilon`. Hangar width and length in both cardinal
+orientations and visitor deck limits use exact input-bound comparisons.
 Input bounds, IDs, coordinates, versions, and counts are exact: epsilon never
 admits an over-limit input. Computed masses are rounded at the
 reference's direct-total boundaries to `numeric.precision` decimal places
@@ -282,15 +288,16 @@ geometry, bundled font, zero allowed pixel variance, hashes, safe deck filenames
 fixed ZIP order/timestamps, and bounded operational options. Rendering assigns
 no performance value or unresolved game rule.
 
+
 ## Historical hangar wording before final Argus r2
 
 The following prior F19-related wording is retained verbatim as superseded
-merge evidence. The current docking section above governs: a definite size
-failure needs the rotation-proof minimum-span or diagonal bound; failure in
-both axis-aligned orientations is insufficient. No rotation rule is chosen
-by this historical excerpt.
+merge evidence. The current docking section above defines cardinal width and
+length fit.
 
 ~~~text
+
+
 Ports have no size fields or envelope checks. Hangars report active width,
 length, and deck limits and enforce the deck limit. A visitor that fits without
 rotation reports `widthLengthFit: true` without `pending_F19`. A visitor that
@@ -425,10 +432,9 @@ F19–F21.
 ## Historical numeric wording before Argus round 4
 
 The following prior hangar and numeric-comparison paragraphs are preserved
-verbatim as superseded merge evidence. The current docking and numeric sections
-above govern: input dimensions/deck counts remain exact, while the computed
-hangar diagonal uses active absolute numeric.epsilon. This records the reviewed
-comparison correction and assigns no allowed docking rotation or owner rule.
+verbatim as superseded merge evidence. The current structural validation and
+docking section defines exact cardinal width and length fit and exact visitor
+deck limits.
 
 ~~~text
 Ports have no size fields or envelope checks. Hangars report active width,
@@ -902,6 +908,8 @@ exceeds the envelope in both orientations reports `widthLengthFit: false` and
 dimensions and limits, without `pending_F19`. Only a fit requiring rotation
 remains uncertified with `pending_F19`; no dock can pass by ignoring that pending
 fit. No visitor rotation or airlock picker exists.
+~~~
+
 
 Multi-deck hold behavior is unavailable pending F11–F17. The validator and dock
 recognize a requested blueprint `holds` field (including nested carried craft).
@@ -1067,13 +1075,18 @@ F19–F21.
 </details>
 
 
+## Historical numeric wording before Argus round 4
+
+The following prior hangar and numeric-comparison paragraphs are preserved
+verbatim as superseded merge evidence. The current structural validation and
+docking section defines exact cardinal width and length fit and exact visitor
+deck limits.
+
 <details>
 <summary>Historical r2 hangar and numeric wording before r4</summary>
 
-This text is retained verbatim as merge evidence. The current r4 contract
-above governs the active epsilon on the computed diagonal; exact unrotated
-input bounds, minimum-span rejection, and deck limits remain exact. No owner
-rotation decision is assigned and no FINDINGS ID is renumbered.
+This excerpt predates the cardinal-fit decision documented in the current
+structural validation and docking section.
 
 ~~~text
 Ports have no size fields or envelope checks. Hangars report active width,
@@ -1098,6 +1111,9 @@ is 0–15; overflow is an error. Other direct totals retain binary64 arithmetic.
 Input numbers are not rounded on import.
 ~~~
 
+
+
 </details>
+
 
 </details>

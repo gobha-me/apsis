@@ -1,4 +1,4 @@
-#include "test_support.hpp"
+#include "dock_test_support.hpp"
 
 #include <apsis/shipyard/perf.hpp>
 #include <apsis/shipyard/validator.hpp>
@@ -151,35 +151,56 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
 
-  suite.run("holds stay pending at the exact source byte cap", [&] {
-    // Parsing expands both exponent spellings when the tree is serialized.
-    constexpr std::string_view source =
-        R"({"schema":"apsis-shipyard-v3","name":"Hold","budget":1e8,)"
-        R"("decks":[{"name":"D","floors":{},"modules":[]}],)"
-        R"("nextId":1e9,"holds":[]})";
-    const auto unrestricted = perf(source, active, schema);
-    const auto &issues = unrestricted.at("issues");
-    require(unrestricted.at("pass") == false &&
-                unrestricted.at("data").is_null() && issues.size() == 7,
-            "A valid hold request returns exactly the seven pending findings");
-    for (const auto number : {11, 12, 13, 14, 15, 16, 17}) {
-      const auto finding = "F" + std::to_string(number);
-      require(std::any_of(issues.begin(), issues.end(),
-                          [&](const Json &item) {
-                            return item.at("code") == "pending_" + finding &&
-                                   item.at("path") == "/holds" &&
-                                   item.at("severity") == "error";
-                          }),
-              "The hold request must report " + finding);
+  suite.run("performance preserves an upper hold at the compact source limit", [&] {
+    auto station = dock_test::base("station");
+    station["budget"] = 100000000;
+    dock_test::add_module(station, "ladder", 7, 6);
+    for (const auto *name : {"Access", "Mezzanine"}) {
+      const auto ladder = station.at("nextId").get<int>();
+      station["nextId"] = ladder + 1;
+      station["decks"].push_back(
+          {{"name", name}, {"floors", {{"7,6", true}, {"8,6", true}}},
+           {"modules", Json::array({{{"id", ladder}, {"type", "ladder"},
+                                     {"x", 7}, {"y", 6}, {"r", 0}}})}});
     }
+    station["holds"] = Json::array({{{"x", 8}, {"y", 6}, {"w", 2}, {"h", 2},
+                                     {"firstDeck", 1}, {"lastDeck", 2}}});
+    auto source = canonical_json(station);
+    constexpr std::string_view budget = R"("budget":100000000)";
+    const auto budget_pos = source.find(budget);
+    require(budget_pos != std::string::npos, "The fixture must have the expected integer budget");
+    source.replace(budget_pos, budget.size(), R"("budget":1e8)");
+    const auto expanded_source = canonical_json(Json::parse(source));
+    require(expanded_source.size() > source.size(),
+            "The fixture must expand when serialized after parsing");
+    const auto unrestricted = perf(source, active, schema);
+    const auto &data = unrestricted.at("data");
+    require(unrestricted.at("pass") == true &&
+                data.at("structuralPass") == true &&
+                data.at("definition").at("blueprint") == station,
+            "Performance must retain the full passing blueprint and its upper-deck hold");
+    const auto compact_at_cap =
+        perf(source, active, schema, {}, InputLimits{.maxBytes = source.size()});
+    require(compact_at_cap == unrestricted,
+            "Reaching the compact source limit must preserve the full performance result");
     require(
-        perf(source, active, schema, {},
-             InputLimits{.maxBytes = source.size()}) == unrestricted,
-        "An exact byte cap must apply to the source and retain pending holds");
-    require(has_issue(perf(source, active, schema, {},
-                           InputLimits{.maxBytes = source.size() - 1}),
-                      "resource_limit"),
-            "A source one byte above the cap must still be rejected");
+        perf(expanded_source, active, schema, {},
+             InputLimits{.maxBytes = expanded_source.size()}) == unrestricted,
+        "The expanded spelling must produce the same report at its own cap");
+    const auto check_rejection = [&](std::string_view bytes, std::size_t cap) {
+      const auto report =
+          perf(bytes, active, schema, {}, InputLimits{.maxBytes = cap});
+      const auto &issues = report.at("issues");
+      require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                  report.at("data").is_null() && issues.size() == 1,
+              "An over-cap source must fail before structural evaluation");
+      const auto &issue = issues.at(0);
+      require(issue.at("code") == "resource_limit" &&
+                  issue.at("severity") == "error" && issue.at("path") == "",
+              "The structured byte-limit error must identify the input root");
+    };
+    check_rejection(source, source.size() - 1);
+    check_rejection(expanded_source, source.size());
   });
 
   suite.run(

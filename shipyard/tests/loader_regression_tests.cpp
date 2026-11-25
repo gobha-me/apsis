@@ -41,6 +41,29 @@ int main() {
     });
   }
 
+  suite.run("current and migrated imports carry only the F21 docking warning", [&] {
+    for (const auto &source : {blank("station").dump(),
+                              read("fixtures/v3/apsis-wren-definition-v3.json")}) {
+      const auto imported = import_definition(source, active, schema_set);
+      require(imported.ok(), "Both source versions must yield a definition");
+      const auto &exported = imported.value->definition.at("validation").at("issues");
+      auto typed_docking = Json::array();
+      auto exported_docking = Json::array();
+      for (const auto &item : imported.issues)
+        if (item.code == "pending_docking")
+          typed_docking.push_back(Json{{"path", item.path}, {"severity", item.severity},
+                                       {"findings", item.details.at("findings")}});
+      for (const auto &item : exported)
+        if (item.at("code") == "pending_docking")
+          exported_docking.push_back(Json{{"path", item.at("path")}, {"severity", item.at("severity")},
+                                          {"findings", item.at("details").at("findings")}});
+      const auto expected = Json::array({{{"path", "/derived"}, {"severity", "warning"},
+                                          {"findings", Json::array({"F21"})}}});
+      require(typed_docking == expected && exported_docking == expected,
+              "Both issue streams must retain exactly one F21 docking advisory at /derived");
+    }
+  });
+
   suite.run("module grid capacity is exact even when footprints overlap", [&] {
     auto source = blank();
     const auto capacity = active.data().at("grid").at("w").get<std::uint64_t>() *

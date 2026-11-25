@@ -28,30 +28,18 @@ Json envelope(const RulesSnapshot& rules, bool pass, std::vector<Issue> issues, 
             {"issues", std::move(issues)}, {"data", std::move(data)}};
 }
 
-bool pending_hold(const Issue& issue) {
-    return issue.code.size() == 11 && issue.code.starts_with("pending_F1") &&
-           issue.code.back() >= '1' && issue.code.back() <= '7';
-}
-
-bool truncated(const std::vector<Issue>& issues) {
-    return std::any_of(issues.begin(), issues.end(), [](const Issue& issue) {
-        return issue.code == "issues_truncated";
-    });
+bool has_terminal_issue(const std::vector<Issue>& issues) {
+    return std::any_of(issues.begin(), issues.end(), detail::terminal_structure_issue);
 }
 
 void import_issues(std::vector<Issue>& issues, const std::vector<Issue>& source,
-                   const std::string& prefix, bool hold_request = false) {
+                   const std::string& prefix) {
     const Issue* marker = nullptr;
     for (const auto& original : source) {
         // A source limit is terminal even if this operation filters some of
-        // its diagnostics. Its library-wide marker always retains path "".
-        if (original.code == "issues_truncated") { marker = &original; continue; }
+        // its diagnostics. Structural paths already name the owning input.
+        if (detail::terminal_structure_issue(original)) { marker = &original; continue; }
         if (original.code == "pending_validation" || original.code == "pending_docking") continue;
-        // Hold requests have no definition data. Keep their seven findings
-        // once per field kind, without unrelated successful-import warnings.
-        if (hold_request && original.severity != "error" && !pending_hold(original)) continue;
-        if (pending_hold(original) && std::any_of(issues.begin(), issues.end(),
-            [&](const Issue& existing) { return existing.code == original.code; })) continue;
         auto issue = original;
         issue.path = prefix + issue.path;
         detail::add_issue(issues, std::move(issue));
@@ -74,15 +62,12 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
           DockOptions options, InputLimits limits) {
     std::vector<Issue> issues;
     try {
-        // The shared import path checks schema and scalar/grid bounds before
-        // recognizing unsupported holds, once per field kind.
+        // The shared import path checks ordinary schema and scalar/grid bounds.
         auto host = detail::import_for_validation(host_bytes, rules, schemas, limits);
-        if (truncated(host.issues)) import_issues(issues, host.issues, "/host");
+        if (has_terminal_issue(host.issues)) import_issues(issues, host.issues, "/host");
         auto visitor = detail::import_for_validation(visitor_bytes, rules, schemas, limits);
-        const bool hold_request = std::any_of(host.issues.begin(), host.issues.end(), pending_hold) ||
-                                  std::any_of(visitor.issues.begin(), visitor.issues.end(), pending_hold);
-        import_issues(issues, host.issues, "/host", hold_request);
-        import_issues(issues, visitor.issues, "/visitor", hold_request);
+        import_issues(issues, host.issues, "/host");
+        import_issues(issues, visitor.issues, "/visitor");
         if (!host.ok() || !visitor.ok()) return envelope(rules, false, std::move(issues), nullptr);
 
         const auto& host_blueprint = host.value->definition.at("blueprint");
@@ -102,9 +87,9 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         }
 
         auto host_structure = detail::inspect_structure(host_blueprint, rules, "/host/blueprint");
-        if (truncated(host_structure.issues)) import_issues(issues, host_structure.issues, "");
+        if (has_terminal_issue(host_structure.issues)) import_issues(issues, host_structure.issues, "");
         auto visitor_structure = detail::inspect_structure(visitor_blueprint, rules, "/visitor/blueprint");
-        if (truncated(visitor_structure.issues)) import_issues(issues, visitor_structure.issues, "");
+        if (has_terminal_issue(visitor_structure.issues)) import_issues(issues, visitor_structure.issues, "");
         const auto target = std::find_if(host_structure.modules.begin(), host_structure.modules.end(),
             [&](const detail::ModuleState& state) {
                 return state.deck == target_deck && state.id == target_module_id;
@@ -191,13 +176,13 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         Json data = {{"target", {{"deck", target_deck}, {"moduleId", target_module_id},
                                 {"kind", kind}, {"interface", target->interface}}},
                      {"checks", std::move(checks)}};
+        bool hangar_fit = true;
         if (kind == "hangar") {
             const auto& dimensions = visitor.value->definition.at("derived");
             const auto width = dimensions.at("widthM").get<double>();
             const auto length = dimensions.at("lengthM").get<double>();
             const auto max_width = docking.at("maxWidthM").get<double>();
             const auto max_length = docking.at("maxLengthM").get<double>();
-            const auto epsilon = rules.data().at("numeric").at("epsilon").get<double>();
             const auto deck_count = visitor_blueprint.at("decks").size();
             const auto max_decks = docking.at("maxDecks").get<std::size_t>();
             data["hangar"] = {{"visitorWidthM", dimensions.at("widthM")},
@@ -209,23 +194,14 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                 detail::add_issue(issues, {"dock_hangar_deck_limit", severity, "Visitor exceeds the hangar's rule-defined deck limit.",
                                   "/visitor/blueprint/decks", {{"actual", deck_count}, {"maximum", max_decks}}});
             }
-            if (width <= max_width && length <= max_length) {
-                // An unrotated fit does not require an F19 rotation decision.
-                data["hangar"]["widthLengthFit"] = true;
-            } else if (std::min(width, length) > std::min(max_width, max_length) ||
-                       std::max(width, length) > std::hypot(max_width, max_length) + epsilon) {
-                // Minimum span and diagonal bounds rule out every rotation.
-                // Failure of both axis-aligned fits alone is inconclusive.
-                data["hangar"]["widthLengthFit"] = false;
+            hangar_fit = (width <= max_width && length <= max_length) ||
+                         (length <= max_width && width <= max_length);
+            data["hangar"]["widthLengthFit"] = hangar_fit;
+            if (!hangar_fit) {
                 detail::add_issue(issues, {"dock_hangar_size_limit", severity,
-                    "Visitor exceeds a rotation-proof bound of the hangar's width/length envelope.",
+                    "Visitor exceeds the hangar envelope in all four allowed cardinal facings.",
                     "/visitor/blueprint/decks", {{"visitorWidthM", width}, {"visitorLengthM", length},
                                               {"maxWidthM", max_width}, {"maxLengthM", max_length}}});
-            } else {
-                pending = true;
-                detail::add_issue(issues, {"pending_F19", "warning",
-                    "pending F19: allowed visitor docking rotations await Luna; hangar width/length fit is not certified.",
-                    "/visitor/blueprint/decks", {{"finding", "F19"}}});
             }
         }
         data["pending"] = pending;
@@ -233,7 +209,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         const bool failed_check = std::any_of(measured_checks.begin(), measured_checks.end(), [](const Json& value) {
             return value.at("enabled").get<bool>() && value.at("status") == "FAIL";
         });
-        const bool pass = !errors(issues) && !failed_check && !pending;
+        const bool pass = !errors(issues) && !failed_check && !pending && hangar_fit;
         return envelope(rules, pass, std::move(issues), std::move(data));
     } catch (const detail::IssueLimitReached&) {
         return envelope(rules, false, std::move(issues), nullptr);

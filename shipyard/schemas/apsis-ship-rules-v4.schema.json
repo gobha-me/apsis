@@ -26,6 +26,10 @@
       "type": "object", "properties": {"w": {"type": "integer", "minimum": 1}, "h": {"type": "integer", "minimum": 1}},
       "required": ["w", "h"], "additionalProperties": false
     },
+    "holds": {
+      "type": "object", "properties": {"minDecks": {"const": 2}},
+      "required": ["minDecks"], "additionalProperties": false
+    },
     "limits": {
       "type": "object",
       "properties": {

@@ -27,13 +27,16 @@ struct StructureReport {
     std::vector<ModuleState> modules;
 };
 
+inline bool terminal_structure_issue(const Issue& issue) {
+    return issue.code == "issues_truncated" || issue.code == "structure_resource_limit";
+}
+
 // Input has already passed import_definition's schema and rule scalar checks.
 StructureReport inspect_structure(const Json& blueprint,
                                   const RulesSnapshot& rules,
                                   const std::string& path = "/blueprint",
                                   ValidationOptions options = {});
-// Schema-check first; recognize holds only after a bounded copy without those
-// unsupported fields passes import's shape, scalar, and grid checks.
+// Validation and docking share the ordinary schema-checked importer.
 Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,

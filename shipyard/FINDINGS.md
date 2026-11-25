@@ -169,43 +169,49 @@ these unresolved F20 cases.
 
 ## F11 — Access inside a multi-deck cargo hold
 
-**Open for Luna, not guessed.** For [#60](https://github.com/gobha-me/apsis/issues/60),
-what ladder or other access rules apply inside a hold? The prototype has no
-multi-deck holds, so there is nothing to match from v3. These findings leave v3
-goldens unchanged; new rules await Luna.
+**Resolved by Luna, under owner delegation 2026-11-23.** At least one
+ladder or lift reaches every deck the hold spans. Existing adjacent-deck
+`verticalLink` ladder chains provide this access when the hold is reachable
+on every spanned deck.
 
 ## F12 — Walkability across the open space
 
-**Open for Luna, not guessed.** A hold is one volume with no floor between the
-decks it spans. What walkability rules apply across that open space, including
-edges, railings, and falls? Do not infer traversable routes from volume membership.
+**Resolved by Luna, under owner delegation 2026-11-23.** Open-space edges
+are walkable as catwalk. Actual partial floor/catwalk cells use the existing
+walkability graph; the empty column is not a crew-route shortcut. There are
+no railing or fall rules for now.
 
 ## F13 — Holds meeting or overlapping hangars
 
-**Open for Luna, not guessed.** How may a multi-deck hold meet or overlap a hangar,
-and how do hangar deck-count limits apply at that boundary or overlap?
+**Resolved by Luna, under owner delegation 2026-11-23.** Holds and hangars
+may be adjacent and never overlap. A host hold does not consume the hangar's
+visitor deck limit; actual visitor decks retain the existing independent cap.
 
 ## F14 — Partial openings versus full spans
 
-**Open for Luna, not guessed.** Can holds be partially open, or must their open
-space fully span the decks they cover? Do not invent intermediate-floor exceptions.
+**Resolved by Luna, under owner delegation 2026-11-23.** Partial floors,
+mezzanines and catwalks are allowed when one common open column spans the hold's
+full height. The first deck floor is the bottom; intervening floor planes are
+the following decks in the inclusive span. No opening is filled on import.
 
 ## F15 — Minimum and maximum hold span
 
-**Open for Luna, not guessed.** The requirement describes N >= 2 decks. What
-minimum and maximum spans should the rules allow beyond that stated shape?
+**Resolved by Luna, under owner delegation 2026-11-23.** A hold spans at
+least two decks, recorded as `holds.minDecks` in active rules, and at most the
+design's full deck count.
 
 ## F16 — Deck and level numbering across a hold
 
-**Open for Luna, not guessed.** How are decks and levels numbered across a
-multi-deck hold, including the intervening open space? Do not infer numbering
-or labels from the prototype's single-deck cargo behavior.
+**Resolved by Luna, under owner delegation 2026-11-23.** Decks retain their
+normal numbers. One hold object identifies its inclusive span, labelled for
+people as, for example, `decks 2–4`.
 
 ## F17 — Docking and airlocks at a hold
 
-**Open for Luna, not guessed.** How do docking and airlocks interact with a
-multi-deck hold? Keep hold-specific placement, access, and alignment rules pending
-Luna rather than extending existing docking rules by assumption.
+**Resolved by Luna, under owner delegation 2026-11-23.** A cargo-sized
+airlock or docking door may open directly into the hold. Existing cargo
+interfaces and catalogue footprints provide this behavior without new door
+dimensions. Existing access, outward-facing and clear-approach checks remain.
 
 ## F18 — Port-dock checks and visitor airlock
 
@@ -266,8 +272,8 @@ check is disabled, with mutation evidence and no mocking of the unit under
 test. Any matching airlock works; the tool does not pick an airlock. Ports have
 no size envelope; hangars limit
 width, length and deck count (F02). Flight docking and damage are outside the
-shipyard, on the sim side. These ordinary port checks do not answer F17's
-hold-specific question, which remains open.
+shipyard, on the sim side. The existing access, outward-facing and clear-approach
+checks also apply to the direct hold interfaces permitted by F17.
 
 Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock crew reachability and clearance,
@@ -280,29 +286,12 @@ port size envelope. Issue #50 already contains these acceptance items and remain
 
 ## F19 — Allowed docking rotations
 
-**Open for Luna, not guessed.** Which visitor rotations are allowed when
-checking hangar width/length fit? The original test-strategy phrase "allowed
-rotations after rule clarification" needs an owner rule before independent
-tests can assert permitted orientations. Do not infer quarter-turn permission
-or prohibition from the prototype; F02's port size decision does not settle
-hangar rotations.
-
-The v4 rules deliberately omit v3 `docking.allowQuarterTurn: true`
-(`fixtures/v3/apsis-rules-v3.json:85`) pending Luna. The omission encodes
-neither permission nor prohibition; F19 remains **Open for Luna, not guessed**.
-
-The implementation certifies an unrotated fit without choosing allowed docking
-rotations. A definite size error requires a rotation-proof bound:
-`min(w,l) > min(W,L)` or `max(w,l) > hypot(W,L)`, where `w,l` are visitor
-dimensions and `W,L` are hangar limits. Failure in both axis-aligned orientations
-is insufficient: a diagonal fit may still be possible. Every other case that
-does not fit unrotated remains `pending_F19`, without choosing any rotation.
-
-Round 4 numeric clarification: the computed diagonal comparison applies active
-absolute `numeric.epsilon` as documented in CONTRACT.md. Only
-`max(w,l) > hypot(W,L) + numeric.epsilon` establishes diagonal rejection;
-unrotated fit, minimum-side rejection, and deck limits remain exact. This
-clarifies the computed comparison without choosing any allowed rotation.
+**Resolved by Luna, under owner delegation 2026-11-23.** Docking permits
+the four right-angle facings only, matching the four existing cardinal rules
+rotations. Hangar width/length fits exactly when either `w <= W && l <= L`
+or `l <= W && w <= L`. Equality passes; an oblique-only fit fails with
+`dock_hangar_size_limit`. No `pending_F19` or diagonal epsilon test remains.
+The independent active-rule deck cap and port's lack of a size envelope stay.
 
 ## F20 — Zero denominators and undefined logarithms in blank and engine-less designs
 
@@ -405,17 +394,10 @@ The #49 blank-design F20 exclusions remain unchanged.
 
 The prototype required structural validity, a reachable and clear visitor
 airlock, a clear approach, the size envelope, deck limits, and station crew
-reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
-until Luna defines same-deck mapping and the distance/reference/inclusivity
-convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
-visitor fits unrotated. A visitor satisfying either rotation-proof bound from
-F19 reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
-docking severity (v3: error), including measured dimensions and limits, without
-`pending_F19`. Every other case that does not fit unrotated remains uncertified
-with `widthLengthFit: null` and `pending_F19`; the rule-defined deck cap is
-enforced. Failure in both axis-aligned orientations alone does not prove that
-the visitor exceeds the hangar. These bounds do not choose allowed rotations.
-The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
+reachability. F21 alignment still remains pending in this unit. F19 is now
+resolved by Luna, under owner delegation 2026-11-23: either cardinal width/length
+orientation passes, and every other envelope fails with measured structured
+details. The rule-defined visitor deck cap remains independent.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
@@ -430,13 +412,12 @@ switches. The public option types remain solely because existing independent
 tests exercise the real library through them; moving them would require changes
 to those test callers.
 
-Multi-deck holds remain unavailable: after schema-checking a bounded probe with
-only unsupported `holds` fields removed, a requested `holds` field returns
-structured pending F11–F17 issues once per finding kind before any guessed hold
-totals, access, traversal, or ordinary missing-floor finding. No hold schema or
-geometry is invented, and no opening is filled. The independent tests session must cover
-the public switches with mutation evidence and the remaining pending gates.
-F11–F17, F19, F20, and F21 remain Open for Luna.
+Multi-deck holds now use the optional `holds` records documented in
+[HOLDS.md](HOLDS.md). F11–F17 and F19 are resolved by
+Luna, under owner delegation 2026-11-23. Existing floor and catalogue material
+is counted once; no new volume capacity, mass or price is guessed. F20/F21
+remain pending in this unit. Earlier snapshots below retain their historical
+wording and do not supersede the resolved findings above.
 
 ## F24 — Performance implementation boundary and canonical comparison (#51)
 
@@ -487,10 +468,8 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Five independent suites cover performance. F11–F17,
-F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
-rotation, or same-deck distance convention is assigned here.
-
+Five independent suites cover performance. F20 and F21 remain pending.
+Luna resolved F11–F17 and F19 under owner delegation on 2026-11-23.
 
 ## F25 — Headless preview presentation and reference-scene boundary (#53)
 
@@ -509,10 +488,21 @@ or pixel comparison remains unavailable until the matching edited blueprint is
 identified; no missing decks, geometry, or prototype image expectations are
 invented. No preview PNG/ZIP or prototype HTML is imported as a golden.
 
+Each rendered panel retains its blueprint index and name. Each hold is one
+span-labelled manifest object with an outline on every deck it occupies and
+a compact span label where it fits. Mass, cost and capacity use the actual
+floors and catalogue material. The hold rectangle contributes to width and
+length bounds.
+
+<details>
+<summary>Historical rendering scope before the hold decisions</summary>
+
 Every rendered panel retains its blueprint index and name. This does not decide
 physical deck levels or hold numbering (F16). F11–F17, F19, F20, and F21 remain
 **Open for Luna, not guessed**. Unsupported holds remain pending through the
 existing validator, and rendering supplies no stand-in performance values.
+
+</details>
 
 ## Historical boundary notes preserved by the #63/#65 integration
 
@@ -586,10 +576,8 @@ F11–F17, F19, F20, and F21 remain Open for Luna.
 ## Historical F23 before the final Argus r2 review
 
 The complete prior reviewed F23 entry below is retained verbatim as historical
-merge evidence. The current F19/F23 entries above are authoritative: in
-particular the older two-axis-envelope wording below is superseded by the
-rotation-proof minimum-span/diagonal bounds, and terminal child truncation
-returns null data. This excerpt assigns no owner decision or current rule.
+merge evidence. The current F19 and F23 entries above define cardinal fit
+and terminal child truncation.
 No finding was renumbered.
 
 ~~~text
