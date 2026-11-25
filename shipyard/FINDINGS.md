@@ -487,10 +487,32 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Independent performance tests remain for the later tests session. F11–F17,
+Five independent suites cover performance. F11–F17,
 F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
 rotation, or same-deck distance convention is assigned here.
 
+
+## F25 — Headless preview presentation and reference-scene boundary (#53)
+
+Implementation evidence, not a new game rule or an answer to Luna. The preserved
+prototype preview manifest identifies an edited five-deck `Kestrel`, including
+two decks with zero floor plates in its stack preview. The canonical v3
+`Kestrel Tender` definition has three decks with different names and content.
+The preview is therefore not an approved image baseline for the canonical ship.
+
+The reference stack was visually inspected: it uses a shaded, textured
+orthographic scene and an exploded stack. The headless renderer deliberately
+uses integer top-down schematic panels and a vertical contact sheet, with active
+rule colors, rotated footprints, and facing. These are explicit presentation
+differences, not unexplained changes to ship geometry. A source-matched content
+or pixel comparison remains unavailable until the matching edited blueprint is
+identified; no missing decks, geometry, or prototype image expectations are
+invented. No preview PNG/ZIP or prototype HTML is imported as a golden.
+
+Every rendered panel retains its blueprint index and name. This does not decide
+physical deck levels or hold numbering (F16). F11–F17, F19, F20, and F21 remain
+**Open for Luna, not guessed**. Unsupported holds remain pending through the
+existing validator, and rendering supplies no stand-in performance values.
 
 ## Historical boundary notes preserved by the #63/#65 integration
 
@@ -503,17 +525,6 @@ descriptions do not override the reviewed behavior above. F24 remains current.
 No finding was renumbered.
 
 ~~~text
-
-## Superseded original #66 findings
-
-The following verbatim F22/F23 entries from `27b1e3b` are historical, superseded
-by the reviewed current entries above. They preserve the original text, including
-its former scope and prototype claims; they do not change the current contract.
-No F finding was renumbered.
-
-<details>
-<summary>Historical F22 and F23 text</summary>
-
 ## F22 — Loader boundary and encoding contract (#49)
 
 Implementation note, not a new game rule or an answer to any open finding.
@@ -572,28 +583,6 @@ F11–F17, F19, F20, and F21 remain Open for Luna.
 ~~~
 
 
-## F25 — Headless preview presentation and reference-scene boundary (#53)
-
-Implementation evidence, not a new game rule or an answer to Luna. The preserved
-prototype preview manifest identifies an edited five-deck `Kestrel`, including
-two decks with zero floor plates in its stack preview. The canonical v3
-`Kestrel Tender` definition has three decks with different names and content.
-The preview is therefore not an approved image baseline for the canonical ship.
-
-The reference stack was visually inspected: it uses a shaded, textured
-orthographic scene and an exploded stack. The headless renderer deliberately
-uses integer top-down schematic panels and a vertical contact sheet, with active
-rule colors, rotated footprints, and facing. These are explicit presentation
-differences, not unexplained changes to ship geometry. A source-matched content
-or pixel comparison remains unavailable until the matching edited blueprint is
-identified; no missing decks, geometry, or prototype image expectations are
-invented. No preview PNG/ZIP or prototype HTML is imported as a golden.
-
-Every rendered panel retains its blueprint index and name. This does not decide
-physical deck levels or hold numbering (F16). F11–F17, F19, F20, and F21 remain
-**Open for Luna, not guessed**. Unsupported holds remain pending through the
-existing validator, and rendering supplies no stand-in performance values.
-
 ## Historical F23 before the final Argus r2 review
 
 The complete prior reviewed F23 entry below is retained verbatim as historical
@@ -604,21 +593,6 @@ returns null data. This excerpt assigns no owner decision or current rule.
 No finding was renumbered.
 
 ~~~text
-
-
-</details>
-
-
-<details>
-<summary>Historical r1 text retained at the r2 integration</summary>
-
-The following pre-r2 text is preserved verbatim from the Mull branch. It is
-superseded by the current contract and reviewed F19/F23 rotation-proof bounds
-and terminal-truncation behavior above; it assigns no current owner decision.
-No FINDINGS IDs were renumbered.
-
-```md
-
 ## F23 — Validator implementation boundary and canonical comparison (#50)
 
 Implementation note, not a new game rule or a resolution of an open finding.
@@ -675,10 +649,6 @@ totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
 F11–F17, F19, F20, and F21 remain Open for Luna.
-
-```
-
-</details>
 ~~~
 
 

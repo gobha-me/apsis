@@ -205,6 +205,46 @@ int main() {
          "no-drive range is a legitimate zero");
   });
 
+  suite.run("jump readiness requires the active cost in loaded charges", [&] {
+    auto authored = active.data();
+    authored["formulas"]["jumpCount"] = 1;
+    authored["performance"]["jumpFuelPerJump"] = 2;
+    const auto epsilon =
+        active.data().at("numeric").at("epsilon").get<double>();
+    struct FuelCase {
+      double charges;
+      double tolerance;
+      bool enough_fuel;
+    };
+    for (const auto [charges, tolerance, enough_fuel] :
+         std::array{FuelCase{0, epsilon, false}, FuelCase{1, epsilon, false},
+                    FuelCase{2, epsilon, true}, FuelCase{1.5, 0.5, true},
+                    FuelCase{0, 2, false}}) {
+      authored["numeric"]["epsilon"] = tolerance;
+      const auto policy = replacement(authored, schema);
+      const auto report =
+          perf(wren, policy, schema, LoadFractions{.jumpFuel = charges / 2.0});
+      const auto &data = report.at("data");
+      const auto &jump = data.at("performance").at("jump");
+      require(report.at("pass") == true && data.at("ready") == true &&
+                  jump.at("current") == charges && jump.at("currentJumps") == 1,
+              "Wren stays ready and reports the authored jump count at each "
+              "load");
+      const auto &issues = report.at("issues");
+      const bool warns =
+          std::any_of(issues.begin(), issues.end(), [](const Json &item) {
+            return item.at("code") == "no_jump_fuel" &&
+                   item.at("severity") == "warning";
+          });
+      require(warns == !enough_fuel && data.at("jumpReady") == enough_fuel &&
+                  data.at("definition").at("validation").at("jumpReady") ==
+                      enough_fuel,
+              "Jump readiness must agree with loaded fuel availability at " +
+                  std::to_string(charges) + " charges with epsilon " +
+                  std::to_string(tolerance));
+    }
+  });
+
   suite.run("active perf error severity fails an otherwise valid ship", [&] {
     auto data = active.data();
     data["validation"]["checks"]["no_jump_fuel"]["severity"] = "error";
@@ -246,6 +286,43 @@ int main() {
     require(finding(report, "formula_error").at("path") ==
                 "/formulas/acceleration/2",
             "The independent non-F20 zero divisor remains an error");
+  });
+
+  suite.run("a computed zero divisor fails beside an F20 numerator", [&] {
+    auto data = active.data();
+    const auto pending_mass_division = Json::array({"div", "thrust", "mass"});
+    const auto zero = Json::array({"sub", "thrust", "thrust"});
+    const auto source = canonical_json(blank());
+    data["formulas"]["acceleration"] =
+        Json::array({"div", pending_mass_division, zero});
+    const auto changed = replacement(data, schema);
+    const auto report = perf(source, changed, schema);
+    rejected_formula(report);
+    const auto &item = finding(report, "formula_error");
+    const auto &details = item.at("details");
+    require(item.at("path") == "/formulas/acceleration" &&
+                details.at("operator") == "div" &&
+                details.at("denominator") == 0 &&
+                details.at("outputPath") ==
+                    "/performance/scenarios/current/acceleration",
+            "The outer division reports the independently evaluated zero");
+
+    data["formulas"]["acceleration"] =
+        Json::array({"div", zero, pending_mass_division});
+    const auto pending_rules = replacement(data, schema);
+    const auto pending = perf(source, pending_rules, schema);
+    require(pending.at("data").is_object() &&
+                !pending.at("data").at("performance").contains("acceleration"),
+            "The swapped operands leave acceleration pending");
+    const auto &issues = pending.at("issues");
+    require(
+        std::any_of(issues.begin(), issues.end(),
+                    [](const Json &entry) {
+                      return entry.at("code") == "pending_F20" &&
+                             entry.at("path") ==
+                                 "/performance/scenarios/current/acceleration";
+                    }),
+        "The pending diagnostic identifies current acceleration");
   });
 
   suite.run(
@@ -295,6 +372,71 @@ int main() {
                     "/blueprint/decks/1/modules/10/craft",
             "A child formula error identifies the child rather than silently "
             "succeeding");
+  });
+
+  suite.run("a migrated carried craft stays within the source byte limit", [&] {
+    const auto deck = Json{
+        {"name", "D"}, {"floors", Json::object()}, {"modules", Json::array()}};
+    const auto craft = Json{{"schema", "apsis-shipyard-v3"},
+                            {"name", "C"},
+                            {"budget", 0},
+                            {"decks", Json::array({deck})},
+                            {"nextId", 1}};
+    auto carrier = craft;
+    carrier["name"] = "P";
+    carrier["nextId"] = 2;
+    carrier["decks"][0]["modules"].push_back({{"id", 1},
+                                              {"type", "shuttleDock"},
+                                              {"x", 0},
+                                              {"y", 0},
+                                              {"r", 0},
+                                              {"craft", craft}});
+    const auto source = canonical_json(carrier);
+    require(source.size() == 278, "The original v3 carrier fits 278 bytes");
+    const InputLimits limits{.maxBytes = source.size()};
+    const auto imported = import_definition(source, active, schema, limits);
+    require(imported.ok(), "Import accepts the exact caller-supplied byte cap");
+    const auto &normalized = imported.value->definition.at("blueprint");
+    require(canonical_json(
+                normalized.at("decks").at(0).at("modules").at(0).at("craft"))
+                    .size() > limits.maxBytes,
+            "Normalizing the child expands it beyond the original byte cap");
+
+    const auto ordinary = perf(source, active, schema);
+    require(
+        ordinary.at("data").is_object() &&
+            ordinary.at("data").at("performance").at("carriedCraft").size() ==
+                1,
+        "The carrier and child are inspectable with ordinary limits");
+    require(perf(source, active, schema, {}, limits) == ordinary,
+            "The source cap must not be reapplied to normalized craft");
+    const auto over_limit = perf(source, active, schema, {},
+                                 InputLimits{.maxBytes = source.size() - 1});
+    require(over_limit.at("data").is_null() &&
+                finding(over_limit, "resource_limit").at("severity") == "error",
+            "The source itself remains subject to the byte cap");
+  });
+
+  suite.run("a carried direct-total failure identifies the craft", [&] {
+    auto data = active.data();
+    data["formulas"]["loadedMass"] =
+        Json::array({"div", "dryMass", Json::array({"sub", "dryMass", 8.25})});
+    const auto changed = replacement(data, schema);
+    const auto source = fixture("kestrel-tender");
+    const auto imported = import_definition(source, changed, schema);
+    require(!imported.ok(),
+            "Skiff's 8.25 t dry mass makes loadedMass undefined");
+    const auto report = perf(source, changed, schema);
+    rejected_formula(report);
+    const auto &item = finding(report, "formula_error");
+    require(item.at("path") == "/formulas/loadedMass" &&
+                item.at("details").at("operator") == "div" &&
+                item.at("details").at("denominator") == 0 &&
+                item.at("details").value("childBlueprintPath", "") ==
+                    "/blueprint/decks/1/modules/10/craft",
+            "The direct-total error retains both formula and craft locations");
+    require(item == finding(Json{{"issues", imported.issues}}, "formula_error"),
+            "Standalone import exposes the same carried formula error");
   });
 
   return suite.finish();

@@ -74,10 +74,12 @@ fails the result. Formula failures reject with structured errors, except the
 exact pending-F20 evaluations in DESIGN.md: those emit `pending_F20` and omit
 the values, including dependent values, without numeric substitutes. Blank
 sources use active defaults and retain their structural validation report.
+`blank_blueprint` throws `std::length_error` if generation would exceed 4096
+decks or 8 MiB of deck names in total.
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
-and canonical serialization contracts for the later independent tests.
-
+and canonical serialization contracts. The five performance suites are listed
+in [tests/README.md](tests/README.md).
 
 Include `<apsis/shipyard/render.hpp>` for the headless CPU renderer. Its
 `render` operation validates through the existing library and returns in-memory
