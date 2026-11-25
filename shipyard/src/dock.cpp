@@ -67,10 +67,13 @@ Json check(bool enabled, bool pass, Json details = Json::object()) {
             {"details", std::move(details)}};
 }
 
-std::int64_t centre_distance_twice(const detail::ModuleState& left,
-                                   const detail::ModuleState& right) {
-    return std::abs(2 * left.x + left.width - 2 * right.x - right.width) +
-        std::abs(2 * left.y + left.height - 2 * right.y - right.height);
+// The optional v4 policy requires this bound when present.
+constexpr std::int64_t maximum_distance_cells = 1;
+
+bool within_port_alignment(const detail::ModuleState& airlock, const detail::ModuleState& port) {
+    const auto dx = (2 * airlock.x + airlock.width) - (2 * port.x + port.width);
+    const auto dy = (2 * airlock.y + airlock.height) - (2 * port.y + port.height);
+    return (dx == 0 || dy == 0) && std::abs(dx) + std::abs(dy) <= 2 * maximum_distance_cells;
 }
 } // namespace
 
@@ -159,9 +162,7 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                               target->path, {{"check", "b"}, {"deck", target_deck}, {"moduleId", target_module_id}}});
         }
 
-        const auto& alignment_rules = rules.data().at("docking");
-        const auto maximum_distance = alignment_rules.contains("alignment")
-            ? alignment_rules.at("alignment").at("maxDistanceCells").get<std::uint64_t>() : std::uint64_t{1};
+        const bool port = kind == "port";
         std::size_t airlock_count = 0, interface_count = 0, exterior_count = 0;
         std::size_t same_deck_count = 0, aligned_count = 0;
         for (const auto& airlock : visitor_structure.modules) {
@@ -172,23 +173,40 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             // Reachability and clear approach remain structural (a) requirements.
             if (!airlock.exterior) continue;
             ++exterior_count;
-            if (airlock.deck != target->deck) continue;
+            if (!port || airlock.deck != target->deck) continue;
             ++same_deck_count;
-            if (static_cast<std::uint64_t>((centre_distance_twice(airlock, *target) + 1) / 2) <= maximum_distance)
-                ++aligned_count;
+            if (within_port_alignment(airlock, *target)) ++aligned_count;
         }
-        checks["c"] = check(options.matchingAirlock, aligned_count > 0,
-                            {{"airlockCount", airlock_count}, {"compatibleInterfaceCount", interface_count},
-                             {"exteriorOutwardCount", exterior_count}, {"sameDeckExteriorCount", same_deck_count},
-                             {"alignedAirlockCount", aligned_count}, {"distanceMetric", "manhattan"},
-                             {"referencePoint", "centres"}, {"maximumDistanceCells", maximum_distance}});
+        Json airlock_details = {{"airlockCount", airlock_count}, {"compatibleInterfaceCount", interface_count},
+                                {"exteriorOutwardCount", exterior_count}};
         bool pending = false;
-        if (options.matchingAirlock && aligned_count == 0) {
-            detail::add_issue(issues, {"dock_no_matching_airlock", severity,
-                "No compatible exterior outward-facing visitor airlock is on the target deck within the centre-distance limit.",
-                "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface},
-                    {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
-                    {"maximumDistanceCells", maximum_distance}}});
+        if (port) {
+            airlock_details.update({{"sameDeckExteriorCount", same_deck_count}, {"alignedAirlockCount", aligned_count},
+                                    {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
+                                    {"maximumDistanceCells", maximum_distance_cells}});
+            checks["c"] = check(options.matchingAirlock, aligned_count > 0, std::move(airlock_details));
+            if (options.matchingAirlock && aligned_count == 0) {
+                detail::add_issue(issues, {"dock_no_matching_airlock", severity,
+                    "No compatible exterior outward-facing visitor airlock is on the port deck within the orthogonal centre-distance limit.",
+                    "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface},
+                        {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
+                        {"maximumDistanceCells", maximum_distance_cells}}});
+            }
+        } else {
+            checks["c"] = check(options.matchingAirlock, false, std::move(airlock_details));
+            if (options.matchingAirlock) {
+                if (exterior_count == 0) {
+                    detail::add_issue(issues, {"dock_no_matching_airlock", severity,
+                        "No compatible visitor airlock is on the exterior hull facing outward.",
+                        "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface}}});
+                } else {
+                    pending = true;
+                    checks["c"]["status"] = "PENDING";
+                    detail::add_issue(issues, {"pending_F21", "warning",
+                        "pending F21: same-deck mapping and the 1-cell measurement convention await Luna; alignment is not certified.",
+                        "/visitor/blueprint/decks", {{"finding", "F21"}, {"check", "c"}}});
+                }
+            }
         }
 
         checks["d"] = check(options.approachClearance, target->clear,

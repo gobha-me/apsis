@@ -31,8 +31,8 @@ Rules are the sole balance authority. Names and budgets are never trimmed or
 clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
 The shipyard does not enforce player affordability. Ports have no size envelope;
-hangars retain their rule-defined dimensions and deck count. F03 alignment uses same-deck orthogonal centre distance; docking rotation
-remains pending F19.
+hangars retain their rule-defined dimensions and deck count. Port F03 alignment
+uses same-deck orthogonal centre distance. Hangar rotation remains pending F19.
 
 Include `<apsis/shipyard/validator.hpp>` for the public operations:
 
@@ -48,12 +48,13 @@ Docking reports each F18 check separately; `DockOptions` independently controls
 `structural` (a), `portReachability` (b), `matchingAirlock` (c), and
 `approachClearance` (d). CLI and HTTP always use defaults and never map request
 fields to these switches; the public types remain for independent tests of the
-real checks. F03/F21 are resolved by Luna, under owner delegation 2026-11-23:
-any compatible exterior outward-facing airlock on the target deck within one
-cell by Manhattan centre distance satisfies check(c). Doubled integer centres
-include half-cell boundaries without a diagonal shortcut. No visitor airlock
-is selected. Hangar rotations remain pending F19. The active rules record
-docking.alignment; older v4 snapshots use the same decided fallback.
+real checks. The F03/F21 decision by Luna, under owner delegation 2026-11-23,
+applies to ports. A compatible exterior outward-facing airlock on the port
+deck satisfies check (c) if the exact footprint centres coincide or differ by
+at most one cell along a single axis. The optional `docking.alignment` policy
+fixes the limit at one cell, also used by older v4 snapshots. Hangar check (c)
+reports `pending_F21` for an eligible airlock, independently of F19 rotation
+handling.
 See CONTRACT.md for complete check and diagnostic semantics.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:

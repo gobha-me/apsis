@@ -146,29 +146,30 @@ the active `unreachable_component` and `blocked_approach` severities (v3: error)
 They are not duplicated under (c). This permits independent mutation evidence
 for each check without mocking. Disabled checks are explicit in the output.
 
-**Resolved: Luna, under owner delegation 2026-11-23.** The visitor
-airlock's deck index must equal the selected docking target's deck index.
-Measure from the centre of the rotated airlock footprint to the centre of the
-rotated target footprint in grid cells. The orthogonal distance is Manhattan
-distance, abs(dx) + abs(dy), with an inclusive active limit of 1 cell; there is
-no diagonal shortcut. Doubled integer centres preserve exact half-cell bounds:
-the standard 2x2 port and 1x1 airlock can meet at half-cell plus half-cell distance,
-while a whole-cell diagonal offset (1,1) exceeds the limit.
+**Resolved by Luna, under owner delegation 2026-11-23.** For ports, the
+visitor airlock's deck index must equal the port's deck index. Measure between
+the centres of the rotated footprints in grid cells. A qualifying offset has
+zero displacement on at least one axis and an inclusive distance of at most
+one cell along the other. Doubled integer centres preserve exact half-cell
+offsets even on large sparse grids. The stock 2×2 port and 1×1 airlock differ
+by half a cell on both axes at their nearest integer-grid placements, so they
+fail the orthogonal test.
 
-The active rules record this as docking.alignment with sameDeck, referencePoint
-centres, distanceMetric manhattan and maxDistanceCells 1. Older v4 snapshots
-without the optional policy use this same decided convention. The bound is an
-active nonnegative integer within the existing exact interoperability limit
-9007199254740991; the bundled decision is 1. The integer comparison includes
-half-cell boundaries exactly even for sparse grids near that representation limit. All interface-compatible
-exterior outward-facing candidates are counted, with no airlock picker or
-visitor transform. Any candidate satisfying the same-deck centre bound passes
-check(c); no candidate fails with structured dock_no_matching_airlock, never
-pending_F21. Visitor crew access and approach remain structural check(a)
-requirements. Other F18 switches and hangar F19 handling remain unchanged.
+The optional `docking.alignment` policy records `sameDeck: true`,
+`referencePoint: centres`, `distanceMetric: manhattan` and `maxDistanceCells: 1`.
+The Manhattan distance is evaluated only for offsets along one axis or
+coincident centres. The schema requires the bound of one cell and older v4
+snapshots with no policy use that same bound. Check (c) passes for any compatible
+exterior outward-facing airlock that satisfies port alignment. Otherwise it
+fails with `dock_no_matching_airlock`. The API reports candidate counts without
+selecting an airlock or transforming the visitor. Visitor crew access and
+approach remain structural check (a) requirements.
 
-Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the exact deck limit. Unrotated fit uses
+Ports have no size fields or envelope checks. For hangars, check (c) reports
+`PENDING` with `pending_F21` if a compatible exterior outward-facing airlock
+exists and reports `FAIL` with `dock_no_matching_airlock` otherwise. Hangars
+report active width, length, and deck limits and enforce the exact deck limit.
+Unrotated fit uses
 exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
 without `pending_F19`. A definite size error requires a rotation-proof bound:
 the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
@@ -249,7 +250,9 @@ count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
 ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19 remains independent; F03/F21 use the resolved same-deck centre metric.
+F11–F17 before guessed totals. Ports use the resolved F03/F21 same-deck
+orthogonal centre rule. Hangar alignment and F19 rotation handling remain pending
+where applicable.
 
 The independent tests session should cover all four scenarios, load overrides,
 carried loads and child-specific formula failures, all five explicit drive prices,

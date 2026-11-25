@@ -86,7 +86,7 @@
           "properties": {
             "sameDeck": {"const": true}, "referencePoint": {"const": "centres"},
             "distanceMetric": {"const": "manhattan"},
-            "maxDistanceCells": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+            "maxDistanceCells": {"type": "integer", "const": 1}
           },
           "required": ["sameDeck", "referencePoint", "distanceMetric", "maxDistanceCells"],
           "additionalProperties": false

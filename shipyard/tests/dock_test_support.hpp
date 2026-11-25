@@ -48,15 +48,34 @@ inline Json station() {
   return blueprint;
 }
 
+inline RulesSnapshot orthogonal_rules(const RulesSnapshot &active,
+                                      const SchemaSet &schema) {
+  auto data = active.data();
+  for (auto &part : data["parts"]) {
+    if (part.at("id") == "dockingPort") {
+      part["w"] = 1;
+      part["h"] = 1;
+    }
+  }
+  auto loaded = load_rules(data.dump(), schema);
+  require(loaded.ok(), "The test-only 1x1 port must load through the real schema");
+  return std::move(*loaded.value);
+}
+
+inline Json orthogonal_station() {
+  auto blueprint = base("station");
+  add_module(blueprint, "dockingPort", 6, 11);
+  return blueprint;
+}
+
 inline Json visitor() {
   auto blueprint = base("ship");
   add_module(blueprint, "microEngine", 9, 10);
   return blueprint;
 }
 
-// Luna, under owner delegation 2026-11-23: translate the complete real
-// visitor (+4,+5) to the Manhattan-one boundary, keeping its material,
-// systems, clear approaches and internal crew routes unchanged.
+// Translate the complete visitor (+4,+5) so its airlock is one cell above
+// the test-only 1x1 port, preserving its structure and clear approaches.
 inline Json aligned_visitor(Json blueprint = visitor()) {
   for (auto &deck : blueprint["decks"]) {
     Json floors = Json::object();

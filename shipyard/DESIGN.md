@@ -77,7 +77,7 @@ definitions and stock identifiers, never caller-selected server paths or URLs.
 | `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Pending-F20 formula cases must not reject a blank build; return the definition and structural validation report without assigning those formula results. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
 | `validate` | Blueprint or definition; check schema, hull, parts, required systems, crew routes, adjacent-deck ladders, station modules, carried craft, and approaches using active rules. | PASS/FAIL and structured issues; recomputed definition when normalization succeeds |
 | `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump, subject to the F20 gate below; issues with rule-defined severity (default `warning`) |
-| `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks using any compatible matching visitor airlock meeting F03; the tool does not pick an airlock. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
+| `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks. For ports, any compatible visitor airlock meeting F03 can satisfy alignment. | PASS/FAIL, structured issues, and measured check details, including hangar dimensions and decks for hangars |
 | `render` | Valid design plus bounded render options (deck/stack, dimensions). | One PNG per deck, `stack.png`, a manifest, and a stack ZIP containing those artifacts |
 | `selftest` | Installed, versioned example suite; no arbitrary test code supplied by callers. | Per-case expected/actual results and aggregate PASS/FAIL |
 
@@ -189,24 +189,23 @@ deck-count limits. Global definition limits still apply through the validator.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
 
-**Resolved: Luna, under owner delegation 2026-11-23.** The visitor
-airlock's deck index must equal the selected docking target's deck index.
-Measure from the centre of the rotated airlock footprint to the centre of the
-rotated target footprint in grid cells. The orthogonal distance is Manhattan
-distance, abs(dx) + abs(dy), with an inclusive active limit of 1 cell; there is
-no diagonal shortcut. Doubled integer centres preserve exact half-cell bounds:
-the standard 2x2 port and 1x1 airlock can meet at half-cell plus half-cell distance,
-while a whole-cell diagonal offset (1,1) exceeds the limit.
+**Resolved by Luna, under owner delegation 2026-11-23.** For ports, the
+visitor airlock's deck index equals the port's deck index. Measure between the
+centres of the rotated footprints in grid cells. A qualifying offset is zero on
+at least one axis and at most one cell on the other, including the boundary.
+Doubled integer centres preserve exact half-cell offsets. The stock 2×2 port
+and 1×1 airlock have different centre parity on each axis, so integer-grid
+placements of that pair always fail the orthogonal test.
 
-The active rules record this as docking.alignment with sameDeck, referencePoint
-centres, distanceMetric manhattan and maxDistanceCells 1. Older v4 snapshots
-without the optional policy use this same decided convention. The bound is an
-active nonnegative integer; the bundled decision is 1. All interface-compatible
-exterior outward-facing candidates are counted, with no airlock picker or
-visitor transform. Any candidate satisfying the same-deck centre bound passes
-check(c); no candidate fails with structured dock_no_matching_airlock, never
-pending_F21. Visitor crew access and approach remain structural check(a)
-requirements. Other F18 switches and hangar F19 handling remain unchanged.
+The optional `docking.alignment` policy records `sameDeck: true`,
+`referencePoint: centres`, `distanceMetric: manhattan` and `maxDistanceCells: 1`.
+The Manhattan measure applies to axial offsets and coincident centres. The
+schema fixes the bound at one cell and older v4 snapshots without the policy
+use the same bound. Any compatible exterior outward-facing airlock satisfying
+the port alignment rule passes check (c). Visitor crew access and approach
+remain structural check (a) requirements. Hangar check (c) retains
+`pending_F21` for a compatible exterior outward-facing airlock. F19 governs
+hangar envelope and rotation separately.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 
@@ -347,9 +346,9 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (c) At least one compatible matching visitor airlock meets F03: same deck,
   exterior, facing out, within 1 cell. That airlock must also be crew-reachable
   and clear, as v3 requires; violations tie to check (a) at the rules' `error`
-  severity (v3). Luna, under owner delegation 2026-11-23 resolves F03/F21:
-  visitor deck equals target deck, measured from footprint centres with
-  inclusive orthogonal Manhattan distance of at most 1 cell.
+  severity (v3). The decision by Luna, under owner delegation 2026-11-23,
+  requires the port deck and footprint centres at most one cell apart along
+  a single axis, including coincident centres.
 - (d) Approach clearance.
 
 Each check needs its own independent test in #50. Any matching airlock works;
@@ -530,7 +529,7 @@ independent verification before declaring that capability complete.
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
 | Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
-| Docking (#50; F02/F03/F18/F19/F21) | Keep independent F18(a)-(d) fault/switch tests. Luna, under owner delegation 2026-11-23 resolves F03/F21: same deck, rotated footprint centres, Manhattan distance <=1cell, half-cell boundary accepted and whole-cell diagonal rejected. Any aligned airlock, no picker; no port size cap; hangar limits/F19 remain independent |
+| Docking (#50; F02/F03/F18/F19/F21) | Keep independent F18(a)–(d) fault and switch tests. For ports, cover same and different decks, coincident rotated footprint centres, exact and beyond-limit axial offsets, and diagonal rejection. Any aligned airlock satisfies check (c). Ports have no size cap. Hangar alignment remains pending F21 for eligible airlocks, with independent envelope and F19 checks. |
 | Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |

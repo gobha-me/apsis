@@ -357,7 +357,7 @@ int main() {
       });
 
   suite.run(
-      "hangar enforces deck cap and alignment while F19 stays pending",
+      "hangar enforces the settled deck cap while F19 and F21 stay pending",
       [&] {
         const auto rotation_rules = rotation_only_hangar(active, schema);
         auto visitor = wren.at("blueprint");
@@ -383,9 +383,8 @@ int main() {
                 hangar.at("deckCountFits") == false &&
                 hangar.at("widthLengthFit").is_null() &&
                 has_issue(report, "pending_F19") &&
-                !has_issue(report, "pending_F21") &&
-                has_issue(report, "dock_no_matching_airlock"),
-            "The deck limit and decided alignment both fail; F19 stays pending");
+                has_issue(report, "pending_F21"),
+            "The known deck limit must be enforced without settling F19/F21");
       });
 
   return suite.finish();
