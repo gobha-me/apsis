@@ -22,6 +22,7 @@ using Color = std::array<std::uint8_t, 4>;
 constexpr Color background{12, 22, 30, 255}, grid_background{18, 31, 40, 255};
 constexpr Color border{43, 64, 77, 255}, ink{230, 240, 245, 255};
 constexpr Color dark_ink{8, 16, 24, 255};
+constexpr int glyph_height = detail::render_font.front().size();
 constexpr RenderLimits hard_limits{};
 constexpr std::size_t max_input_modules = 4096, max_input_floors = 262144;
 constexpr std::uint64_t max_grid_cells = 262144;
@@ -119,7 +120,7 @@ struct Canvas {
             if (c >= 'a' && c <= 'z') c = static_cast<unsigned char>(c - 'a' + 'A');
             auto glyph = detail::render_glyphs.find(static_cast<char>(c));
             if (glyph == std::string_view::npos) glyph = detail::render_glyphs.find('?');
-            for (int row = 0; row < 7; ++row) {
+            for (int row = 0; row < glyph_height; ++row) {
                 auto bits = static_cast<unsigned int>(detail::render_font[glyph][row]);
                 while (bits != 0) {
                     const int col = 4 - std::countr_zero(bits);
@@ -217,7 +218,7 @@ Canvas draw_deck(const Json& blueprint, std::size_t index, const Json& rules,
             canvas.line(right, y, right, bottom, border);
             canvas.line(right, bottom, x, bottom, border);
             canvas.line(x, bottom, x, y, border);
-            if (options.labels)
+            if (options.labels && bottom - y >= 2 + glyph_height)
                 canvas.text(x + 2, y + 2, "HOLD " + number(hold.at("firstDeck").get<std::size_t>() + 1) +
                             "-" + number(hold.at("lastDeck").get<std::size_t>() + 1), right - x - 3, ink);
         }

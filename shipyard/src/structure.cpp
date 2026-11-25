@@ -43,6 +43,26 @@ bool adjacent(const Rectangle& rectangle, Cell cell) {
             cell.first >= rectangle.x && cell.first < rectangle.x + rectangle.w);
 }
 
+Cells hold_walkway(const Rectangle& rectangle, const Cells& walkable) {
+    Cells reached;
+    std::deque<Cell> queue;
+    for (const auto& cell : walkable) {
+        if (rectangle.contains(cell) || adjacent(rectangle, cell)) {
+            reached.insert(cell);
+            queue.push_back(cell);
+        }
+    }
+    while (!queue.empty()) {
+        const auto [x, y] = queue.front();
+        queue.pop_front();
+        for (const auto& [dx, dy] : neighbors) {
+            const Cell next{x + dx, y + dy};
+            if (walkable.contains(next) && reached.insert(next).second) queue.push_back(next);
+        }
+    }
+    return reached;
+}
+
 Cell parse_cell(std::string_view key) {
     Cell result;
     const auto comma = key.find(',');
@@ -62,7 +82,8 @@ std::string severity_rule(const std::string& code) {
     // Occupancy/shape faults share the rules' invalid_blueprint severity while
     // retaining precise, machine-readable issue codes for clients.
     if (code == "module_out_of_bounds" || code == "missing_floor" ||
-        code == "module_overlap" || code == "unique_system" || code == "carried_fit") {
+        code == "module_overlap" || code == "unique_system" || code == "carried_fit" ||
+        code == "hold_open_column" || code == "hold_access" || code == "hold_hangar_overlap") {
         return "invalid_blueprint";
     }
     return code;
@@ -251,19 +272,19 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                 issue("hold_open_column", "The hold needs one open column through every intervening floor plane.",
                       hold.path, {{"firstDeck", hold.first}, {"lastDeck", hold.last}});
             }
-            bool access = false;
-            for (const auto& [node, links] : ladders) {
-                (void)links;
-                const auto& [deck, x, y] = node;
-                (void)deck;
-                if (!(hold.rectangle.contains({x, y}) || adjacent(hold.rectangle, {x, y}))) continue;
-                bool chain = true;
+            std::vector<Cells> routes;
+            for (auto d = hold.first; d <= hold.last; ++d)
+                routes.push_back(hold_walkway(hold.rectangle, walkable[d]));
+            // The same aligned chain must connect to the hold on each deck.
+            const auto access = std::any_of(ladders.begin(), ladders.end(), [&](const auto& entry) {
+                const auto& [deck, x, y] = entry.first;
+                if (deck != hold.first) return false;
                 for (auto d = hold.first; d <= hold.last; ++d)
-                    chain = chain && ladders.contains({d, x, y});
-                access = access || chain;
-            }
+                    if (!ladders.contains({d, x, y}) || !routes[d - hold.first].contains({x, y})) return false;
+                return true;
+            });
             if (!access) {
-                issue("hold_access", "The hold needs a ladder or lift chain reaching every spanned deck.",
+                issue("hold_access", "The hold needs a ladder or lift chain with a walkable route on every spanned deck.",
                       hold.path, {{"firstDeck", hold.first}, {"lastDeck", hold.last}});
             }
             for (const auto& module : result.modules) {

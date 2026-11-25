@@ -19,10 +19,11 @@ Omitting the array or supplying an empty array declares no holds. Nested carried
 blueprints use the same schema and checks. Each record is one volume, labelled
 for people as `decks 2–4`; actual deck names and numbers do not collapse.
 
-At least one existing ladder or lift chain reaches all spanned decks at or
-beside the hold edge. Existing `verticalLink` parts at the same coordinate on
-every adjacent deck form that chain. A new lift part or access spacing is not
-invented. Ordinary floor support, command routes and reachability still apply.
+At least one existing ladder or lift chain reaches all spanned decks. Existing
+`verticalLink` parts at the same coordinate on every adjacent deck form that
+chain. On each spanned deck, a walkable route connects the chain to a walkable
+floor inside the hold or along its edge. Ordinary floor support, command routes
+and reachability still apply.
 
 Actual floor cells bordering the open volume are walkable catwalk edges under
 the existing floor/part rules. Empty interior volume alone is no crew route.
