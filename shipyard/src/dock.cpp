@@ -67,10 +67,19 @@ Json check(bool enabled, bool pass, Json details = Json::object()) {
             {"details", std::move(details)}};
 }
 
-// The optional v4 policy requires this bound when present.
-constexpr std::int64_t maximum_distance_cells = 1;
+const Json& port_alignment_policy(const Json& docking) {
+    if (const auto alignment = docking.find("alignment"); alignment != docking.end()) return *alignment;
 
-bool within_port_alignment(const detail::ModuleState& airlock, const detail::ModuleState& port) {
+    // Older v4 snapshots use the same convention as the schema-backed policy.
+    static const Json fallback = {{"targetKind", "port"}, {"sameDeck", true},
+                                  {"referencePoint", "centres"}, {"distanceMetric", "manhattan"},
+                                  {"singleAxis", true}, {"maxDistanceCells", 1}};
+    return fallback;
+}
+
+bool within_port_alignment(const detail::ModuleState& airlock, const detail::ModuleState& port,
+                           std::int64_t maximum_distance_cells) {
+    // The schema fixes centre-to-centre measurement along a single axis.
     const auto dx = (2 * airlock.x + airlock.width) - (2 * port.x + port.width);
     const auto dy = (2 * airlock.y + airlock.height) - (2 * port.y + port.height);
     return (dx == 0 || dy == 0) && std::abs(dx) + std::abs(dy) <= 2 * maximum_distance_cells;
@@ -124,7 +133,8 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
         }
         const auto& docking = target->part->at("docking");
         const auto kind = docking.at("kind").get<std::string>();
-        const auto& target_kinds = rules.data().at("docking").at("targetKinds");
+        const auto& docking_rules = rules.data().at("docking");
+        const auto& target_kinds = docking_rules.at("targetKinds");
         if (std::find(target_kinds.begin(), target_kinds.end(), kind) == target_kinds.end()) {
             invalid("invalid_docking_target", "Target part is not a supported station port or hangar.", target->path);
             return envelope(rules, false, std::move(issues), nullptr);
@@ -162,7 +172,9 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
                               target->path, {{"check", "b"}, {"deck", target_deck}, {"moduleId", target_module_id}}});
         }
 
-        const bool port = kind == "port";
+        const auto& alignment = port_alignment_policy(docking_rules);
+        const bool port = alignment.at("targetKind") == kind;
+        const auto maximum_distance_cells = alignment.at("maxDistanceCells").get<std::int64_t>();
         std::size_t airlock_count = 0, interface_count = 0, exterior_count = 0;
         std::size_t same_deck_count = 0, aligned_count = 0;
         for (const auto& airlock : visitor_structure.modules) {
@@ -175,22 +187,27 @@ Json dock(std::string_view host_bytes, std::size_t target_deck,
             ++exterior_count;
             if (!port || airlock.deck != target->deck) continue;
             ++same_deck_count;
-            if (within_port_alignment(airlock, *target)) ++aligned_count;
+            if (within_port_alignment(airlock, *target, maximum_distance_cells)) ++aligned_count;
         }
         Json airlock_details = {{"airlockCount", airlock_count}, {"compatibleInterfaceCount", interface_count},
                                 {"exteriorOutwardCount", exterior_count}};
         bool pending = false;
         if (port) {
-            airlock_details.update({{"sameDeckExteriorCount", same_deck_count}, {"alignedAirlockCount", aligned_count},
-                                    {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
-                                    {"maximumDistanceCells", maximum_distance_cells}});
+            Json policy_details = {{"targetKind", alignment.at("targetKind")}, {"sameDeck", alignment.at("sameDeck")},
+                                   {"referencePoint", alignment.at("referencePoint")},
+                                   {"distanceMetric", alignment.at("distanceMetric")},
+                                   {"singleAxis", alignment.at("singleAxis")},
+                                   {"maximumDistanceCells", maximum_distance_cells}};
+            airlock_details.update(policy_details);
+            airlock_details["sameDeckExteriorCount"] = same_deck_count;
+            airlock_details["alignedAirlockCount"] = aligned_count;
             checks["c"] = check(options.matchingAirlock, aligned_count > 0, std::move(airlock_details));
             if (options.matchingAirlock && aligned_count == 0) {
+                policy_details["check"] = "c";
+                policy_details["interface"] = target->interface;
                 detail::add_issue(issues, {"dock_no_matching_airlock", severity,
                     "No compatible exterior outward-facing visitor airlock is on the port deck within the orthogonal centre-distance limit.",
-                    "/visitor/blueprint/decks", {{"check", "c"}, {"interface", target->interface},
-                        {"distanceMetric", "manhattan"}, {"referencePoint", "centres"},
-                        {"maximumDistanceCells", maximum_distance_cells}}});
+                    "/visitor/blueprint/decks", std::move(policy_details)});
             }
         } else {
             checks["c"] = check(options.matchingAirlock, false, std::move(airlock_details));

@@ -51,10 +51,11 @@ fields to these switches; the public types remain for independent tests of the
 real checks. The F03/F21 decision by Luna, under owner delegation 2026-11-23,
 applies to ports. A compatible exterior outward-facing airlock on the port
 deck satisfies check (c) if the exact footprint centres coincide or differ by
-at most one cell along a single axis. The optional `docking.alignment` policy
-fixes the limit at one cell, also used by older v4 snapshots. Hangar check (c)
-reports `pending_F21` for an eligible airlock, independently of F19 rotation
-handling.
+at most one cell along a single axis. Docking reads the port-only
+`docking.alignment` policy from the loaded rules. The schema fixes the same-deck,
+single-axis one-cell convention, which also applies to older v4 snapshots
+without the policy. Hangar check (c) reports `pending_F21` for an eligible
+airlock, independently of F19 rotation handling.
 See CONTRACT.md for complete check and diagnostic semantics.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:

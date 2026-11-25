@@ -155,15 +155,17 @@ offsets even on large sparse grids. The stock 2×2 port and 1×1 airlock differ
 by half a cell on both axes at their nearest integer-grid placements, so they
 fail the orthogonal test.
 
-The optional `docking.alignment` policy records `sameDeck: true`,
-`referencePoint: centres`, `distanceMetric: manhattan` and `maxDistanceCells: 1`.
-The Manhattan distance is evaluated only for offsets along one axis or
-coincident centres. The schema requires the bound of one cell and older v4
-snapshots with no policy use that same bound. Check (c) passes for any compatible
-exterior outward-facing airlock that satisfies port alignment. Otherwise it
-fails with `dock_no_matching_airlock`. The API reports candidate counts without
-selecting an airlock or transforming the visitor. Visitor crew access and
-approach remain structural check (a) requirements.
+The optional `docking.alignment` policy requires `targetKind: port`,
+`sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking reads the policy from the
+loaded rules and uses the same values for older v4 snapshots without it. Port
+check (c) details and the `dock_no_matching_airlock` issue details both report
+these values, with the limit named `maximumDistanceCells` in the response.
+Check (c) passes for any compatible exterior outward-facing airlock that
+satisfies port alignment. Otherwise it fails with `dock_no_matching_airlock`.
+The API reports candidate counts without selecting an airlock or transforming
+the visitor. Visitor crew access and approach remain structural check (a)
+requirements.
 
 Ports have no size fields or envelope checks. For hangars, check (c) reports
 `PENDING` with `pending_F21` if a compatible exterior outward-facing airlock

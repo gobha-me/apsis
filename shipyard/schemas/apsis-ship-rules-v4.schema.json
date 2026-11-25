@@ -84,11 +84,12 @@
         "alignment": {
           "type": "object",
           "properties": {
+            "targetKind": {"const": "port"},
             "sameDeck": {"const": true}, "referencePoint": {"const": "centres"},
-            "distanceMetric": {"const": "manhattan"},
+            "distanceMetric": {"const": "manhattan"}, "singleAxis": {"const": true},
             "maxDistanceCells": {"type": "integer", "const": 1}
           },
-          "required": ["sameDeck", "referencePoint", "distanceMetric", "maxDistanceCells"],
+          "required": ["targetKind", "sameDeck", "referencePoint", "distanceMetric", "singleAxis", "maxDistanceCells"],
           "additionalProperties": false
         }
       },

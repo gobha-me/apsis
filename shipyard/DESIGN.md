@@ -197,15 +197,14 @@ Doubled integer centres preserve exact half-cell offsets. The stock 2×2 port
 and 1×1 airlock have different centre parity on each axis, so integer-grid
 placements of that pair always fail the orthogonal test.
 
-The optional `docking.alignment` policy records `sameDeck: true`,
-`referencePoint: centres`, `distanceMetric: manhattan` and `maxDistanceCells: 1`.
-The Manhattan measure applies to axial offsets and coincident centres. The
-schema fixes the bound at one cell and older v4 snapshots without the policy
-use the same bound. Any compatible exterior outward-facing airlock satisfying
-the port alignment rule passes check (c). Visitor crew access and approach
-remain structural check (a) requirements. Hangar check (c) retains
-`pending_F21` for a compatible exterior outward-facing airlock. F19 governs
-hangar envelope and rotation separately.
+The optional `docking.alignment` policy is scoped to `targetKind: port` and
+requires `sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking uses the loaded policy and
+applies the same convention when an older v4 snapshot omits it. Any compatible
+exterior outward-facing airlock satisfying the port alignment rule passes
+check (c). Visitor crew access and approach remain structural check (a)
+requirements. Hangar check (c) retains `pending_F21` for a compatible exterior
+outward-facing airlock. F19 governs hangar envelope and rotation separately.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 

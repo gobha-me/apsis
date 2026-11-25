@@ -85,9 +85,11 @@
       "hangar"
     ],
     "alignment": {
+      "targetKind": "port",
       "sameDeck": true,
       "referencePoint": "centres",
       "distanceMetric": "manhattan",
+      "singleAxis": true,
       "maxDistanceCells": 1
     }
   },

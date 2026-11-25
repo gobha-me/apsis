@@ -52,14 +52,14 @@ Doubled integer centres preserve half-cell offsets exactly. The bundled 2×2
 port and 1×1 airlock have different centre parity on both axes, which makes
 every integer-grid placement of that pair diagonal.
 
-The optional `docking.alignment` policy records `sameDeck: true`,
-`referencePoint: centres`, `distanceMetric: manhattan` and `maxDistanceCells: 1`.
-The distance measure applies to axial offsets and coincident centres. The
-schema fixes the bound at one cell, including the fallback for v4 snapshots
-without the policy. Any eligible, compatible exterior outward-facing airlock
-satisfies port check (c). Without one, the check fails with
-`dock_no_matching_airlock`. Visitor crew access and approach remain structural
-check (a) requirements. Eligible hangar candidates retain `pending_F21`.
+The optional `docking.alignment` policy requires `targetKind: port`,
+`sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking uses these policy values
+and applies the same convention to v4 snapshots without the policy. Any
+eligible, compatible exterior outward-facing airlock satisfies port check (c).
+Without one, the check fails with `dock_no_matching_airlock`. Visitor crew
+access and approach remain structural check (a) requirements. Eligible hangar
+candidates retain `pending_F21`.
 
 Historical prototype checkDocking compared compatible interface labels but
 did not compare airlock/target centres. Interface equality alone does not prove
