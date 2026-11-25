@@ -390,13 +390,14 @@ separate issue units:
   grapheme clusters, including one emoji as one character. That separate unit
   supplies segmentation; this trim/default change does not replace the counter.
 - Blueprint-name trimming/fallback is resolved by **Luna, under owner delegation 2026-11-23**:
-  trim surrounding ECMAScript whitespace and use the active ship/station default
-  when empty. Both bundled defaults are exactly `Unnamed design`, including the
-  factory blank source. Controls are rejected before trimming, as in prototype
-  `label()` (`index.html:3702`); all other label/note strings remain untouched.
-  Default design names must be nonblank after trimming and fit the active limit;
-  caller-provided coherent defaults remain authoritative. Normalized names are
-  reported as migration changes and are stable on reimport.
+  trim surrounding ECMAScript whitespace and use exactly `Unnamed design` when
+  the result is empty. The active design-name limit applies after fallback.
+  Controls are rejected before trimming, as in prototype `label()`
+  (`index.html:3702`). Deck labels and note text preserve their spelling. The
+  blank-design factory uses the trimmed active ship or station default. Both
+  bundled defaults are `Unnamed design`, and configured defaults must be
+  nonblank after trimming and fit the active limit. Normalized names are reported
+  as migration changes and are stable on reimport.
 - Migration-note overflow (#82): keep the newest notes with one dropped-history
   notice; the separate unit replaces the legacy preservation/warning policy.
 

@@ -27,11 +27,12 @@ active rules version, and lowercase SHA-256 of the exact rules bytes, including
 whitespace. Failed rules loading produces no snapshot or rules identity.
 Imported caches and embedded rules are discarded and replaced by active data.
 
-Rules are the sole balance authority. Blueprint names trim surrounding Unicode
-ECMAScript whitespace after rejecting controls; empty names use the active
-ship/station default, both `Unnamed design` in bundled rules. Factory blank
-labels follow those same defaults. Decision: **Luna, under owner delegation 2026-11-23**.
-Other labels and budgets are never trimmed or clamped.
+Rules are the sole balance authority. Import trims surrounding ECMAScript
+whitespace from design names after checking for controls and uses
+`Unnamed design` if the result is empty. The blank-design factory uses the
+trimmed active ship or station default. Both bundled defaults are
+`Unnamed design`. This was decided by **Luna, under owner delegation 2026-11-23**.
+Import preserves deck labels and budget values.
 `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
 The shipyard does not enforce player affordability. Ports have no size envelope;

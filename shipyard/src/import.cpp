@@ -79,12 +79,12 @@ struct Importer {
         if (check_controls(original, name_path)) {
             auto normalized = detail::trim_design_name(original);
             if (normalized.empty()) {
-                const auto key = blueprint.at("buildType") == "station" ? "stationName" : "shipName";
-                normalized = detail::trim_design_name(rules.at("defaults").at(key).get<std::string>());
+                // The blank-name fallback applies across all supported rules snapshots.
+                normalized = "Unnamed design";
             }
             if (normalized != original) {
                 value = std::move(normalized);
-                change(name_path + ": normalized design name with trimming and the active rules default");
+                change(name_path + ": normalized design name");
             }
         }
         if (detail::character_count(value.get_ref<const std::string&>()) >
@@ -235,7 +235,7 @@ struct Importer {
             detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
-            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, budget and loads retained; design names normalized.", path);
+            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4. Kept the existing geometry, IDs, budget and loads. Normalized design names.", path);
         }
     }
 

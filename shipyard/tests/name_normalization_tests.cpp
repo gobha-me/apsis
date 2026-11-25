@@ -46,7 +46,7 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
   // Luna, under owner delegation 2026-11-23: trim design names, then use the
-  // exact Unnamed design fallback from coherent active build-type defaults.
+  // exact Unnamed design fallback for empty names.
   suite.run("bundled factory labels and empty names are Unnamed design", [&] {
     for (const auto type : {BlankType::ship, BlankType::station}) {
       const bool station = type == BlankType::station;
@@ -61,6 +61,23 @@ int main() {
         expected["name"] = "Unnamed design";
         normalized(input, expected, active, schema);
       }
+    }
+  });
+
+  suite.run("previous v4 rules use the decided blank-name fallback", [&] {
+    // Reconstruct the previous bundled v4 data. Only these two defaults
+    // changed in the rules snapshot for the name decision.
+    auto previous = active.data();
+    previous["defaults"]["shipName"] = "Untitled vessel";
+    previous["defaults"]["stationName"] = "Untitled station";
+    const auto loaded = load_rules(previous.dump(), schema);
+    require(loaded.ok(), "previous v4 rules must still load");
+    for (const auto *type : {"ship", "station"}) {
+      auto input = blank(type);
+      input["name"] = " ";
+      auto expected = input;
+      expected["name"] = "Unnamed design";
+      normalized(input, expected, *loaded.value, schema);
     }
   });
 
@@ -125,20 +142,18 @@ int main() {
     invalid(input, active, schema, "field_limit");
     auto data = active.data();
     data["technicalLimits"]["maxBlueprintNameCharacters"] = 3;
-    data["defaults"]["shipName"] = " \u00A0S\u3000 ";
-    data["defaults"]["stationName"] = "\uFEFF T ";
+    data["defaults"]["shipName"] = " \u00A0ABC\u3000 ";
+    data["defaults"]["stationName"] = "\uFEFF DEF ";
     const auto loaded = load_rules(data.dump(), schema);
-    require(loaded.ok(), "trimmed coherent defaults fit narrow active cap");
+    require(loaded.ok(), "both trimmed defaults fit exactly at the active cap");
     for (const auto type : {BlankType::ship, BlankType::station}) {
       const bool station = type == BlankType::station;
-      const auto fallback = station ? "T" : "S";
-      require(blank_blueprint(*loaded.value, type).at("name") == fallback,
+      const auto factory_name = station ? "DEF" : "ABC";
+      require(blank_blueprint(*loaded.value, type).at("name") == factory_name,
               "factory trims active padded design defaults");
       input = blank(station ? "station" : "ship");
       input["name"] = "\u3000 ";
-      expected = input;
-      expected["name"] = fallback;
-      normalized(input, expected, *loaded.value, schema);
+      invalid(input, *loaded.value, schema, "field_limit");
       input["name"] = " abc ";
       expected = input;
       expected["name"] = "abc";
@@ -224,7 +239,7 @@ int main() {
       require(new_notes.size() > old_notes.size() &&
                   std::equal(old_notes.begin(), old_notes.end(), new_notes.begin()) &&
                   std::find(new_notes.begin(), new_notes.end(),
-                      "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, budget and loads retained; design names normalized.") != new_notes.end(),
+                      "Migrated apsis-shipyard-v3 to apsis-shipyard-v4. Kept the existing geometry, IDs, budget and loads. Normalized design names.") != new_notes.end(),
               "new migration wording is exact; historical notes stay byte-exact");
       const auto again = import_definition(migrated.value->definition.dump(), active, schema);
       require(again.ok() && again.value->definition == migrated.value->definition &&
