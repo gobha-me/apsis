@@ -597,37 +597,42 @@ int main(int argc, char **argv) {
     }
   });
 
-  suite.run("blank authoring bounds deck allocations", [&] {
-    auto data = active.data();
-    data["limits"]["minDecks"] = 4096;
-    data["limits"]["maxDecks"] = 4096;
-    data["limits"]["maxDeckName"] = 2049;
-    data["defaults"]["deckName"] = std::string(2048, 'a');
-    const auto at_limit = load_rules(canonical_json(data), schema);
-    require(at_limit.ok(), "The public rules loader must accept 4096 decks");
-    require(blank_blueprint(*at_limit.value).at("decks").size() == 4096,
-            "Blank authoring must allow both exact deck allocation limits");
-
-    const auto require_allocation_failure = [&] {
+  suite.run("blank creation caps deck count and UTF-8 name bytes", [&] {
+    const auto with_decks = [&](int count, std::string_view name) {
+      auto data = active.data();
+      data["limits"]["minDecks"] = count;
+      data["limits"]["maxDecks"] = count;
+      data["limits"]["maxDeckName"] = 1025;
+      data["defaults"]["deckName"] = name;
       const auto loaded = load_rules(canonical_json(data), schema);
-      require(loaded.ok(), "The oversized minimum must be valid rules data");
+      require(loaded.ok(), "These deck defaults must satisfy the game rules");
+      return *loaded.value;
+    };
+    const auto throws_length_error = [](const RulesSnapshot &configured,
+                                        BlankType type) {
       try {
-        static_cast<void>(blank_blueprint(*loaded.value));
+        static_cast<void>(blank_blueprint(configured, type));
       } catch (const std::length_error &) {
-        return;
+        return true;
       }
-      throw std::runtime_error(
-          "Oversized blank authoring must fail with length_error");
+      return false;
     };
 
-    data["limits"]["minDecks"] = 4097;
-    data["limits"]["maxDecks"] = 4097;
-    data["defaults"]["deckName"] = active.data().at("defaults").at("deckName");
-    require_allocation_failure();
+    std::string name;
+    for (int i = 0; i < 1024; ++i)
+      name += "\xC3\xA9"; // U+00E9 occupies two UTF-8 bytes.
+    const auto ship = blank_blueprint(with_decks(4096, name));
+    const auto &decks = ship.at("decks");
+    require(decks.size() == 4096 && decks.back().at("name") == name,
+            "4096 decks with 8 MiB of name bytes are permitted");
 
-    data["limits"]["minDecks"] = 4096;
-    data["defaults"]["deckName"] = std::string(2049, 'a');
-    require_allocation_failure();
+    const bool count_rejected =
+        throws_length_error(with_decks(4097, "Deck"), BlankType::ship);
+    name += 'a';
+    const bool bytes_rejected =
+        throws_length_error(with_decks(4096, name), BlankType::station);
+    require(count_rejected && bytes_rejected,
+            "Exceeding either operational bound throws std::length_error");
   });
 
   suite.run("no-cargo advice adds ordinary and concealed capacity", [&] {

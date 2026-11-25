@@ -287,28 +287,41 @@ int main() {
             "The independent non-F20 zero divisor remains an error");
   });
 
-  suite.run("division checks a known zero divisor after an F20 operand", [&] {
+  suite.run("a computed zero divisor fails beside an F20 numerator", [&] {
     auto data = active.data();
-    const auto inner = Json::array({"div", "thrust", "mass"});
-    data["formulas"]["acceleration"] = Json::array({"div", inner, 0});
+    const auto pending_mass_division = Json::array({"div", "thrust", "mass"});
+    const auto zero = Json::array({"sub", "thrust", "thrust"});
+    const auto source = canonical_json(blank());
+    data["formulas"]["acceleration"] =
+        Json::array({"div", pending_mass_division, zero});
     const auto changed = replacement(data, schema);
-    const auto report =
-        perf(canonical_json(blank_blueprint(changed)), changed, schema);
+    const auto report = perf(source, changed, schema);
     rejected_formula(report);
     const auto &item = finding(report, "formula_error");
+    const auto &details = item.at("details");
     require(item.at("path") == "/formulas/acceleration" &&
-                item.at("details").at("operator") == "div" &&
-                item.at("details").at("denominator") == 0,
-            "The parent division identifies its independent zero divisor");
+                details.at("operator") == "div" &&
+                details.at("denominator") == 0 &&
+                details.at("outputPath") ==
+                    "/performance/scenarios/current/acceleration",
+            "The outer division reports the independently evaluated zero");
 
-    data["formulas"]["acceleration"] = Json::array({"div", 0, inner});
+    data["formulas"]["acceleration"] =
+        Json::array({"div", zero, pending_mass_division});
     const auto pending_rules = replacement(data, schema);
-    const auto pending = perf(canonical_json(blank_blueprint(pending_rules)),
-                              pending_rules, schema);
+    const auto pending = perf(source, pending_rules, schema);
     require(pending.at("data").is_object() &&
                 !pending.at("data").at("performance").contains("acceleration"),
-            "A zero numerator and unavailable divisor leave acceleration "
-            "pending");
+            "The swapped operands leave acceleration pending");
+    const auto &issues = pending.at("issues");
+    require(
+        std::any_of(issues.begin(), issues.end(),
+                    [](const Json &entry) {
+                      return entry.at("code") == "pending_F20" &&
+                             entry.at("path") ==
+                                 "/performance/scenarios/current/acceleration";
+                    }),
+        "The pending diagnostic identifies current acceleration");
   });
 
   suite.run(

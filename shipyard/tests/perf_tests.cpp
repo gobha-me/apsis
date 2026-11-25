@@ -308,71 +308,70 @@ int main() {
     }
   });
 
-  suite.run("load overrides respect the original input byte limit", [&] {
-    const auto original = import_definition(
+  suite.run("the byte limit measures the caller's blueprint", [&] {
+    const auto imported = import_definition(
         read("fixtures/v3/apsis-wren-definition-v3.json"), active, schema);
-    require(original.ok(), "Wren must import before exercising the byte cap");
-    auto blueprint = original.value->definition.at("blueprint");
-    const auto bytes = canonical_json(blueprint);
-    blueprint["loads"]["cargo"] = 0.125;
-    require(canonical_json(blueprint).size() > bytes.size(),
-            "Serializing the fractional load would exceed the input byte cap");
-
-    const LoadFractions loads{.cargo = 0.125};
-    const auto report = perf(bytes, active, schema, loads,
-                             InputLimits{.maxBytes = bytes.size()});
+    require(imported.ok(), "The Wren fixture must import");
+    const auto &blueprint = imported.value->definition.at("blueprint");
+    const auto source = canonical_json(blueprint);
+    const auto report =
+        perf(source, active, schema, LoadFractions{.jumpFuel = 0.375},
+             InputLimits{.maxBytes = source.size()});
     require(report.at("pass") == true,
-            "A valid load override must accept input at the exact byte cap");
+            "Perf must accept input that exactly fits the caller's byte cap");
     const auto &data = report.at("data");
-    require(data.at("definition").at("blueprint") == blueprint,
-            "The normalized blueprint retains the fractional override");
-    near(data.at("definition").at("derived").at("currentMass"), 68.8, active,
-         "definition mass at the exact byte cap");
-    near(data.at("performance").at("currentMass"), 68.8, active,
-         "performance mass at the exact byte cap");
+    const auto &definition = data.at("definition");
+    auto expected = blueprint;
+    expected["loads"]["jumpFuel"] = 0.375;
+    require(definition.at("blueprint") == expected &&
+                canonical_json(expected).size() > source.size(),
+            "The normalized blueprint contains the larger fractional load");
+    near(definition.at("derived").at("currentMass"), 65.9875, active,
+         "imported current mass");
+    near(data.at("performance").at("currentMass"), 65.9875, active,
+         "calculated current mass");
 
-    const auto rejected = perf(bytes, active, schema, loads,
-                               InputLimits{.maxBytes = bytes.size() - 1});
-    require(rejected.at("data").is_null() &&
-                rejected.at("issues").at(0).at("code") == "resource_limit",
-            "The byte cap still rejects an oversized original input");
+    const auto short_cap =
+        perf(source, active, schema, LoadFractions{.jumpFuel = 0.375},
+             InputLimits{.maxBytes = source.size() - 1});
+    require(short_cap.at("data").is_null() &&
+                short_cap.at("issues").at(0).at("code") == "resource_limit",
+            "A one-byte-short limit rejects the caller's source");
   });
 
-  suite.run("the superseded load never reaches the direct mass formulas", [&] {
-    auto rule_data = active.data();
-    // Wren has 20 cargo units. Only a quarter load makes the divisor zero,
-    // while the current override and the empty, half and full scenarios work.
-    rule_data["formulas"]["cargoMass"] = Json::array(
-        {"div", "cargoUnits", Json::array({"sub", "cargoUnits", 5})});
-    const auto custom = load_rules(canonical_json(rule_data), schema);
-    require(custom.ok(), "The cargo mass rule must load");
-    const auto &policy = *custom.value;
-
-    auto original =
+  suite.run("the replacement fuel load drives direct formulas", [&] {
+    auto changed = active.data();
+    // Wren holds two charges, so this formula rejects its quarter-load source.
+    changed["formulas"]["jumpFuelMass"] =
+        Json::array({"div", "jumpFuelCharges",
+                     Json::array({"sub", "jumpFuelCharges", 0.5})});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The rules loader accepts the jump mass expression");
+    const auto &fuel_rules = *loaded.value;
+    auto historical =
         Json::parse(read("fixtures/v3/apsis-wren-definition-v3.json"));
-    original["blueprint"]["loads"]["cargo"] = 0.25;
-    const auto bytes = canonical_json(original);
-    const auto rejected = import_definition(bytes, policy, schema);
-    require(!rejected.ok() &&
-                issue(rejected.issues, "formula_error", "/formulas/cargoMass"),
-            "Ordinary import evaluates and rejects the original quarter load");
-
+    historical["blueprint"]["loads"]["jumpFuel"] = 0.25;
+    const auto source = canonical_json(historical);
+    const auto rejected = import_definition(source, fuel_rules, schema);
+    require(!rejected.ok() && issue(rejected.issues, "formula_error",
+                                    "/formulas/jumpFuelMass"),
+            "Import reports the undefined formula at the source load");
     const auto report =
-        perf(bytes, policy, schema, LoadFractions{.cargo = 0.75});
+        perf(source, fuel_rules, schema, LoadFractions{.jumpFuel = 0.75});
     require(report.at("pass") == true,
-            "Perf must evaluate only the effective current load");
+            "The override reaches the formula before the source load does");
     const auto &data = report.at("data");
-    near(data.at("definition").at("derived").at("currentMass"), 67.8, policy,
-         "definition mass with the effective load");
-    near(data.at("performance").at("currentMass"), 67.8, policy,
-         "performance mass with the effective load");
-
-    original["blueprint"]["loads"]["cargo"] = 0.75;
-    const auto preloaded = perf(canonical_json(original), policy, schema);
-    require(data.at("migration").at("sourceVersion") == 3 &&
-                data.at("migration").at("rulesIdentityChanged") == true &&
-                report == preloaded,
-            "The override preserves migration diagnostics from the v3 wrapper");
+    near(data.at("definition").at("derived").at("currentMass"), 67.3,
+         fuel_rules, "direct current mass with the replacement fuel");
+    near(data.at("performance").at("currentMass"), 67.3, fuel_rules,
+         "performance current mass with the replacement fuel");
+    historical["blueprint"]["loads"]["jumpFuel"] = 0.75;
+    const auto adjusted = perf(canonical_json(historical), fuel_rules, schema);
+    const auto &migration = data.at("migration");
+    require(migration.at("sourceVersion") == 3 &&
+                migration.at("rulesIdentityChanged") == true &&
+                migration == adjusted.at("data").at("migration"),
+            "A public override retains the v3 migration diagnostics");
   });
 
   return suite.finish();
