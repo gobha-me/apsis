@@ -1,8 +1,11 @@
 # Apsis
 
-Apsis is being set up. No simulation code is included yet.
+Apsis includes a headless C++23 simulation and Python analysis and test tools.
 
-The `ci` workflow creates a placeholder build and runs bootstrap checks.
+The `ci` workflow runs Python, native simulation, Shipyard and galaxy tests,
+alongside bootstrap checks. [Simulation tooling](docs/sim-tooling.md) explains
+the bounded invariant matrix, replay and input-property checks, and existing
+standing suites.
 
 [Seed runner and confidence intervals](docs/seed-runner.md) define a simulation-free
 execution hook, per-seed JSON records, and pass-rate summaries.
