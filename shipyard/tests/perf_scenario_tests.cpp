@@ -205,6 +205,45 @@ int main() {
          "no-drive range is a legitimate zero");
   });
 
+  suite.run("jump readiness requires the active cost in loaded charges", [&] {
+    auto authored = active.data();
+    authored["formulas"]["jumpCount"] = 1;
+    authored["performance"]["jumpFuelPerJump"] = 2;
+    const auto epsilon = active.data().at("numeric").at("epsilon").get<double>();
+    struct FuelCase {
+      double charges;
+      double tolerance;
+      bool enough_fuel;
+    };
+    for (const auto [charges, tolerance, enough_fuel] :
+         std::array{FuelCase{0, epsilon, false}, FuelCase{1, epsilon, false},
+                    FuelCase{2, epsilon, true}, FuelCase{1.5, 0.5, true},
+                    FuelCase{0, 2, false}}) {
+      authored["numeric"]["epsilon"] = tolerance;
+      const auto policy = replacement(authored, schema);
+      const auto report = perf(wren, policy, schema,
+                               LoadFractions{.jumpFuel = charges / 2.0});
+      const auto &data = report.at("data");
+      const auto &jump = data.at("performance").at("jump");
+      require(report.at("pass") == true && data.at("ready") == true &&
+                  jump.at("current") == charges && jump.at("currentJumps") == 1,
+              "Wren stays ready and reports the authored jump count at each "
+              "load");
+      const auto &issues = report.at("issues");
+      const bool warns =
+          std::any_of(issues.begin(), issues.end(), [](const Json &item) {
+            return item.at("code") == "no_jump_fuel" &&
+                   item.at("severity") == "warning";
+          });
+      require(warns == !enough_fuel && data.at("jumpReady") == enough_fuel &&
+                  data.at("definition").at("validation").at("jumpReady") ==
+                      enough_fuel,
+              "Jump readiness must agree with loaded fuel availability at " +
+                  std::to_string(charges) + " charges with epsilon " +
+                  std::to_string(tolerance));
+    }
+  });
+
   suite.run("active perf error severity fails an otherwise valid ship", [&] {
     auto data = active.data();
     data["validation"]["checks"]["no_jump_fuel"]["severity"] = "error";

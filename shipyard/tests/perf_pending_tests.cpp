@@ -151,6 +151,35 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
 
+  suite.run("holds stay pending at the exact source byte cap", [&] {
+    // Parsing expands both exponent spellings when the tree is serialized.
+    constexpr std::string_view source =
+        R"({"schema":"apsis-shipyard-v3","name":"Hold","budget":1e8,)"
+        R"("decks":[{"name":"D","floors":{},"modules":[]}],)"
+        R"("nextId":1e9,"holds":[]})";
+    const auto unrestricted = perf(source, active, schema);
+    const auto &issues = unrestricted.at("issues");
+    require(unrestricted.at("pass") == false &&
+                unrestricted.at("data").is_null() && issues.size() == 7,
+            "A valid hold request returns exactly the seven pending findings");
+    for (const auto number : {11, 12, 13, 14, 15, 16, 17}) {
+      const auto finding = "F" + std::to_string(number);
+      require(std::any_of(issues.begin(), issues.end(), [&](const Json &item) {
+                return item.at("code") == "pending_" + finding &&
+                       item.at("path") == "/holds" &&
+                       item.at("severity") == "error";
+              }),
+              "The hold request must report " + finding);
+    }
+    require(perf(source, active, schema, {},
+                 InputLimits{.maxBytes = source.size()}) == unrestricted,
+            "An exact byte cap must apply to the source and retain pending holds");
+    require(has_issue(perf(source, active, schema, {},
+                           InputLimits{.maxBytes = source.size() - 1}),
+                      "resource_limit"),
+            "A source one byte above the cap must still be rejected");
+  });
+
   suite.run(
       "public blank sources use active defaults and remain inspectable", [&] {
         for (const auto type : {BlankType::ship, BlankType::station}) {

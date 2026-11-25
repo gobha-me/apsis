@@ -112,11 +112,10 @@ void saturated(const Json &report) {
     require(details.is_object() && details.at("limit") == 128 &&
                 details.at("suppressedAtLeast").is_number_integer() &&
                 details.at("suppressedAtLeast").get<std::size_t>() >= 1 &&
-                !details.contains("childBlueprintPath"),
+                details.size() == 2,
             "Bound details must survive aggregation without child remapping");
   }
   require(markers == 1, "Child and parent collectors must share one root marker");
-  warnings_only(report);
   // The public contract sorts diagnostics even when collection stops early.
   require(std::is_sorted(issues.begin(), issues.end(),
                          [](const Json &left, const Json &right) {
@@ -207,6 +206,7 @@ int main() {
                                     warning_policy, schema_set);
       const auto report = perf(bytes, warning_policy, schema_set);
       saturated(report);
+      warnings_only(report);
       require(report.at("issues").size() == 128,
               "Warning amplification must retain 127 warnings plus its marker");
       // Truncation may drop any particular late metric. Retain proof that
@@ -244,9 +244,86 @@ int main() {
     for (const bool carried : {false, true}) {
       const auto source = carried ? carrier(1, policy) : blank_blueprint(policy);
       const auto bytes = importable(source, policy, schema_set);
-      saturated(perf(bytes, policy, schema_set));
+      const auto report = perf(bytes, policy, schema_set);
+      saturated(report);
+      warnings_only(report);
     }
   });
+
+  suite.run("two failed craft retain distinct performance paths", [&] {
+    auto authored = warning_policy.data();
+    authored["formulas"]["acceleration"] =
+        Json::array({"div", 1, Json::array({"sub", "mass", 0})});
+    const auto loaded = load_rules(canonical_json(authored), schema_set);
+    require(loaded.ok(), "The acceleration expression must load as rules");
+    auto source = carrier(3, *loaded.value);
+    // An empty berth between the children has no carried performance slot.
+    source["decks"][0]["modules"][1]["craft"] = nullptr;
+    const auto bytes = importable(source, *loaded.value, schema_set);
+    const auto report = perf(bytes, *loaded.value, schema_set);
+    require(report.at("pass") == false && report.at("data").is_null(),
+            "Both child-only formula failures reject performance");
+    const auto &issues = report.at("issues");
+    require(std::count_if(issues.begin(), issues.end(), [](const Json &item) {
+              return item.at("code") == "formula_error";
+            }) == 2,
+            "Each blank child must report one formula failure");
+    for (const auto index : {0, 1}) {
+      const auto blueprint_path =
+          "/blueprint/decks/0/modules/" + std::to_string(index * 2) + "/craft";
+      const auto output_path = "/performance/carriedCraft/" +
+                               std::to_string(index) +
+                               "/performance/scenarios/current/acceleration";
+      require(std::any_of(issues.begin(), issues.end(), [&](const Json &item) {
+                if (item.at("code") != "formula_error")
+                  return false;
+                const auto &details = item.at("details");
+                return item.at("severity") == "error" &&
+                       item.at("path") == "/formulas/acceleration" &&
+                       details.at("childBlueprintPath") == blueprint_path &&
+                       details.at("outputPath") == output_path;
+              }),
+              "A child failure must identify " + blueprint_path + " and " +
+                  output_path);
+    }
+  });
+
+  for (const bool carried : {false, true}) {
+    suite.run(carried ? "carried direct totals keep one root truncation marker"
+                      : "root direct totals keep one root truncation marker",
+              [&] {
+      auto authored = active.data();
+      Json group = Json::array({"add"});
+      for (int i = 0; i < 64; ++i)
+        group.push_back(Json::array({"div", 1, 0}));
+      authored["formulas"]["dryMass"] = Json::array({"add", group, group});
+      const auto loaded = load_rules(canonical_json(authored), schema_set);
+      require(loaded.ok(), "The two bounded formula groups must load as rules");
+      const auto &policy = *loaded.value;
+      const auto bytes = canonical_json(carried ? carrier(1, policy)
+                                                : blank_blueprint(policy));
+      const auto imported = import_definition(bytes, policy, schema_set);
+      const auto report = perf(bytes, policy, schema_set);
+      saturated(report);
+      const auto &issues = report.at("issues");
+      require(!imported.ok() && issues == Json(imported.issues) &&
+                  issues.size() == 128,
+              "Import and perf must expose 127 ordinary issues and one marker");
+      for (const auto &item : issues) {
+        if (item.at("code") == "issues_truncated")
+          continue;
+        const auto &details = item.at("details");
+        require(item.at("code") == "formula_error" &&
+                    item.at("path").get<std::string>().starts_with(
+                        "/formulas/dryMass/"),
+                "The retained ordinary issues must come from dryMass");
+        require(carried ? details.at("childBlueprintPath") ==
+                              "/blueprint/decks/0/modules/0/craft"
+                        : !details.contains("childBlueprintPath"),
+                "Only carried formula errors identify a child blueprint");
+      }
+    });
+  }
 
   return suite.finish();
 }
