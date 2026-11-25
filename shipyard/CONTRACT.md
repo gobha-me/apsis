@@ -22,8 +22,9 @@ including names in carried craft. Name counting is resolved by
 **Luna, under owner delegation 2026-11-23**. Vendored utf8proc 2.12.0 / Unicode
 18.0.0 supplies stateful UAX #29 segmentation. Generic JSON Schema
 minLength/maxLength, deck names, and migration notes still count Unicode scalar
-values. Trimming/fallback and migration-note overflow remain separate F22 units;
-no name bytes are rewritten by grapheme counting.
+values. Grapheme counting preserves the original name bytes. The approved F22
+trim/fallback policy trims blueprint names and accepts an empty result using
+`Unnamed design`. Runtime implementation is tracked in #81.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
@@ -85,12 +86,11 @@ missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
 versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Migration-note overflow handling (F22) is
-**Open for Luna, not guessed**, with no value picked. As an
-**interim interpretation**, the current loader preserves existing full note
-lists and leaves extra changes in the report with a warning; the prototype
-keeps the newest notes instead. This difference is not a settled technical
-encoding contract. Export is always v4.
+on reimport. The approved F22 overflow policy keeps the newest notes within the
+active note-count limit, with one dropped-history notice that is deduplicated on
+reimport. Runtime implementation is tracked in #82. The current loader rejects
+input note lists over the limit and preserves existing lists at the limit,
+leaving extra migration changes in the report with a warning. Export is always v4.
 Import alone does not approve missing systems, overlaps, hull access, or
 carried-fit legality; call `validate` for these checks. Migration never repairs
 Rustbucket or other structural faults.
@@ -268,9 +268,11 @@ representations remain distinct (1 versus 1.0), floating negative zero becomes
 RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
 and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
-canonical form. Later independent tests should lock down the settled contracts;
-the three F22 prototype differences remain open and answer none of F11–F17 or
-F19–F21.
+canonical form. Later independent tests should lock down the settled contracts.
+**Luna, under owner delegation 2026-11-23** resolved all three F22 decisions.
+Grapheme counting (#80) is implemented, with separate runtime work for
+blueprint-name trim/fallback (#81) and migration-note overflow (#82). These
+decisions leave F11–F17 and F19–F21 open.
 
 ## Deck authoring (#55)
 
@@ -304,10 +306,10 @@ provenance exactly; it never guesses ownership from a name pattern. Inserting,
 moving, or removing a deck renumbers only generated root-deck names. An explicit
 rename clears ownership, even when the supplied name equals a generated label;
 passing `nullopt` to `rename_deck` restores generated naming. The same optional
-name behavior applies to insertion. Empty explicit labels remain subject to the
-existing interim F22 behavior. Retained deck contents, coordinates, module IDs,
-`nextId`, and carried-craft labels are unchanged. Removal deletes only the
-selected deck; subsequent structural validation reports any resulting faults.
+name behavior applies to insertion. Empty explicit deck labels are accepted and
+retained. Deck edits preserve remaining deck contents, coordinates, module IDs,
+`nextId`, and carried-craft labels. Removal deletes only the selected deck.
+Subsequent structural validation reports any resulting faults.
 
 F04's default blank ship and explicit blank station are already provided by
 #65. F01's five prices are already in the v4 rules from #62; F02's port checks

@@ -7,7 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL 3.0 REQUIRED COMPONENTS Crypto)
 add_library(shipyard-utf8proc STATIC vendor/utf8proc/utf8proc.c)
-set_target_properties(shipyard-utf8proc PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+set_target_properties(shipyard-utf8proc PROPERTIES
+  C_STANDARD 99 C_STANDARD_REQUIRED ON POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(shipyard-utf8proc PUBLIC UTF8PROC_STATIC)
 target_include_directories(shipyard-utf8proc SYSTEM PUBLIC vendor/utf8proc)
 add_library(apsis-shipyard src/json.cpp src/schema.cpp src/rules.cpp src/import.cpp
