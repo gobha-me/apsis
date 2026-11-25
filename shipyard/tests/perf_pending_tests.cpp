@@ -60,12 +60,12 @@ void unavailable_values(const Json &value, bool zero_mass) {
 
 void output_unavailable(const Json &report, const std::string &path,
                     std::string_view formula) {
-  const auto &pending = unavailable_at(report, path);
+  const auto &issue = unavailable_at(report, path);
   const Json::json_pointer metric_path(
       path.substr(std::string("/performance").size()));
   require(report.at("data").at("performance").at(metric_path) == "n/a",
           "The unavailable output path must contain exact n/a: " + path);
-  for (const auto &evaluation : pending.at("details").at("evaluations")) {
+  for (const auto &evaluation : issue.at("details").at("evaluations")) {
     require(evaluation.at("formula") == formula &&
                 evaluation.at("formulaPath")
                     .get<std::string>()
@@ -80,7 +80,7 @@ void check_f20(const Json &report, bool zero_mass) {
   require(!has_issue(report, "formula_error") &&
               !has_issue(report, "nonfinite_total") &&
               !has_issue(report, "nonfinite_performance"),
-          "Pending F20 must not become a formula/nonfinite rejection");
+          "Unavailable stats must remain nonblocking");
   require(!has_issue(report, "pending_F20"),
           "Resolved stats must not retain speculative importer pending metadata");
   const auto &data = report.at("data");
@@ -104,16 +104,16 @@ void check_f20(const Json &report, bool zero_mass) {
                     return evaluation.value("dependency", std::string()) ==
                            "exhaustVelocity";
                   }),
-      "Omitted deltaV must identify its excluded exhaustVelocity dependency");
+      "Unavailable deltaV must identify its unavailable exhaustVelocity dependency");
   if (zero_mass) {
     for (const auto *key : {"acceleration", "range", "fuelToDryMassRatio",
-                            "accelerationRating", "underpowered"})
+                            "accelerationRating"})
       require(performance.at(key) == "n/a",
               "Every unavailable summary uses exact n/a: " + std::string(key));
     for (const auto *scenario : {"current", "empty", "half", "full"}) {
       const auto path = "/performance/scenarios/" + std::string(scenario);
       require(performance.at("scenarios").at(scenario).at("mass") == 0,
-              "A public blank design must actually have zero scenario mass");
+              "A zero-mass design has zero mass in every scenario");
       output_unavailable(report, path + "/acceleration", "acceleration");
       output_unavailable(report, path + "/range", "range");
     }
@@ -147,6 +147,11 @@ int main() {
                   "Blank authoring defaults must come from active rules");
           const auto report = perf(canonical_json(blueprint), active, schema);
           check_f20(report, true);
+          const auto &underpowered =
+              report.at("data").at("performance").at("underpowered");
+          require(station ? underpowered == false : underpowered == "n/a",
+                  "A blank station is never underpowered and a blank ship "
+                  "needs acceleration to decide");
           require(report.at("data").at("structuralPass") == false &&
                       has_issue(report, "required_system"),
                   "Blank structure remains inspectable without inventing "
@@ -156,6 +161,42 @@ int main() {
                     blank_blueprint(active, BlankType::ship),
                 "The public blank default must be a ship");
       });
+
+  suite.run("Wayfarer checks the divisor when exhaust velocity is unavailable", [&] {
+    const auto imported = import_definition(
+        read("fixtures/v3/apsis-wayfarer-anchorage-definition-v3.json"),
+        active, schema);
+    require(imported.ok(), "Wayfarer must import normally");
+    auto changed = active.data();
+    changed["formulas"]["deltaV"] = Json::array({"div", "exhaustVelocity", 0});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "A well-shaped deltaV division must load as rules");
+    const auto report =
+        perf(canonical_json(imported.value->definition.at("blueprint")),
+             *loaded.value, schema);
+    require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                report.at("data").is_null(),
+            "The known zero divisor rejects Wayfarer calculation");
+    const auto &issues = report.at("issues");
+    require(std::any_of(issues.begin(), issues.end(), [](const Json &entry) {
+              if (entry.at("code") != "formula_error" ||
+                  entry.at("path") != "/formulas/deltaV")
+                return false;
+              const auto &details = entry.at("details");
+              return entry.at("severity") == "error" &&
+                     !entry.at("message").get<std::string>().empty() &&
+                     details.at("operator") == "div" &&
+                     details.at("denominator") == 0 &&
+                     details.at("outputPath") == "/performance/sublight/deltaV";
+            }),
+            "F10 reports the deltaV division by zero at its formula and output");
+
+    changed["formulas"]["deltaV"] = Json::array({"div", 0, "exhaustVelocity"});
+    const auto reversed = load_rules(canonical_json(changed), schema);
+    require(reversed.ok(), "A well-shaped deltaV division must load as rules");
+    check_f20(perf(canonical_json(imported.value->definition.at("blueprint")),
+                   *reversed.value, schema), false);
+  });
 
   suite.run(
       "Wayfarer engine-less station preserves valid structure and F20", [&] {
@@ -197,6 +238,8 @@ int main() {
                       has_issue(report, "required_system"),
                   "Engine-less nonblank designs retain legitimate zeros "
                   "and ordinary structural faults");
+          require(performance.at("underpowered") == (type == BlankType::ship),
+                  "Known weak acceleration makes only the ship underpowered");
         }
       });
 
@@ -222,10 +265,21 @@ int main() {
       require(evaluations.size() == 1 &&
                   evaluations[0].at("operator") == "ln" &&
                   evaluations[0].at("operand") == 0,
-              "The pending report must identify the data-zero logarithm");
+              "The unavailable stat must identify the data-zero logarithm");
       unavailable_values(report.at("data").at("performance"), true);
       unavailable_values(report.at("data").at("definition").at("derived"), true);
     }
+  });
+
+  suite.run("wrapped zero design mass leaves acceleration unavailable", [&] {
+    auto changed = active.data();
+    changed["formulas"]["acceleration"] =
+        Json::array({"div", "thrust", Json::array({"add", "mass", 0})});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "A wrapped-mass division must load as real rules");
+    const auto report = perf(canonical_json(blank_blueprint(*loaded.value)),
+                             *loaded.value, schema);
+    check_f20(report, true);
   });
 
   // Decisions: Luna, under owner delegation 2026-11-23. Expectations below
@@ -275,12 +329,19 @@ int main() {
     require(report.at("data").at("definition").at("blueprint") == source &&
                 report.at("data").at("definition").at("derived").at("floorCount") == 1,
             "Actual nonempty floors and modules must survive zero-mass calculation");
+    const auto &performance = report.at("data").at("performance");
+    require(performance.at("power").at("marginIdle") == -1 &&
+                performance.at("underpowered") == true,
+            "An idle power shortfall makes this ship underpowered despite "
+            "unavailable acceleration");
   });
 
-  suite.run("literal invalid divisions and logarithms remain F10", [&] {
+  suite.run("independently invalid divisions and logarithms remain F10", [&] {
     struct Invalid { const char *formula; Json expression; const char *output; };
     const std::vector<Invalid> invalid{
       {"acceleration", Json::array({"div", "thrust", 0}), "/performance/scenarios/current/acceleration"},
+      {"acceleration", Json::array({"div", "thrust", Json::array({"mul", "mass", 0})}),
+       "/performance/scenarios/current/acceleration"},
       {"range", Json::array({"div", "rating", 0}), "/performance/scenarios/current/range"},
       {"burnSeconds", Json::array({"div", "fuel", 0}), "/performance/sublight/fullBurnSeconds"},
       {"exhaustVelocity", Json::array({"div", "thrust", 0}), "/performance/sublight/exhaustVelocity"},
@@ -294,7 +355,7 @@ int main() {
       require(loaded.ok(), "Well-shaped invalid arithmetic must reach F10 evaluation");
       const auto report = perf(blank_blueprint(*loaded.value).dump(), *loaded.value, schema);
       require(report.at("status") == "FAIL" && report.at("pass") == false &&
-                  report.at("data").is_null(), "Invalid literal arithmetic must reject calculation");
+                  report.at("data").is_null(), "Independently invalid arithmetic must reject calculation");
       bool found = false;
       for (const auto &entry : report.at("issues")) {
         if (entry.at("code") == "formula_error") {
@@ -307,7 +368,7 @@ int main() {
         require(entry.at("code") != "stat_unavailable" || entry.at("path") != test.output,
                 "The invalid expression cannot be reclassified as unavailable");
       }
-      require(found, "The rejected literal expression must expose formula_error");
+      require(found, "The rejected expression must expose formula_error");
     }
     auto changed = active.data();
     changed["formulas"]["structureMass"] = Json::array({"div", "floorCount", 0});

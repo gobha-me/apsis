@@ -323,7 +323,7 @@ int main(int argc, char **argv) {
             return item.at("path") == path;
           });
       require(found != pending.end(),
-              "The omitted station metric must have an F20 report");
+              "The unavailable station metric must have an F20 report");
       require(found->at("details") ==
                   Json{{"finding", "F20"},
                        {"evaluations",

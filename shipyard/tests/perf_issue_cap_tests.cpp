@@ -87,7 +87,7 @@ void warnings_only(const Json &report) {
     require(item.at("severity") == "warning" &&
                 !item.at("message").get<std::string>().empty() &&
                 item.at("code") != "formula_error",
-            "Ordinary warnings and pending F20 must not turn into errors");
+            "Ordinary warnings and unavailable F20 stats remain nonblocking");
   }
 }
 
@@ -147,7 +147,7 @@ void pending(const Json &report, const std::string &path,
   require(item.at("severity") == "warning" &&
               item.at("details").at("finding") == "F20" &&
               item.at("details").at("evaluations").size() == evaluations,
-          "A below-cap F20 report must retain every excluded evaluation");
+          "A below-cap F20 report must retain every unavailable evaluation");
 }
 } // namespace
 
@@ -157,7 +157,7 @@ int main() {
   const auto warning_policy = warning_rules(active, schema_set);
   Suite suite;
 
-  suite.run("below-cap carried warnings preserve pending F20 and omissions", [&] {
+  suite.run("below-cap carried warnings preserve F20 diagnostics and n/a values", [&] {
     const auto bytes = importable(carrier(3, warning_policy), warning_policy,
                                   schema_set);
     const auto report = perf(bytes, warning_policy, schema_set);
@@ -217,7 +217,7 @@ int main() {
     }
   });
 
-  suite.run("127 independent F20 evaluations remain ordinary pending warnings",
+  suite.run("127 independent F20 evaluations remain ordinary warnings",
             [&] {
     const auto policy = warning_rules(active, schema_set, 127);
     const auto bytes = importable(blank_blueprint(policy), policy, schema_set);

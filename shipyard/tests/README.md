@@ -4,7 +4,7 @@ These tests exercise the public APIs in `loader.hpp`, `validator.hpp`, and
 `perf.hpp`, with no mocks. Expectations
 come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
 fixtures. Loader tests cover loading, migration, and direct totals; validator,
-dock, and pending suites cover #50. The three perf suites cover #51 without
+dock, and pending suites cover #50. The five perf suites cover #51 without
 assigning values to open game decisions.
 
 Run with g++-13, C++23, CMake, and OpenSSL 3.x development files:
@@ -54,12 +54,14 @@ rule severities. Skiff's no-cargo advisory also appears at its nested location
 when carried by Kestrel Tender. No golden is repaired or regenerated.
 
 `shipyard-perf_pending` uses `blank_blueprint` for default ships and explicit
-stations. It checks every DESIGN F20 identity, every scenario's zero-mass
-omissions, engine-less burn-rate omissions, deltaV's pending exhaust-velocity
-dependency, and an explicit blank ln(0) evaluation. Omitted metrics cannot acquire
-zero, null, NaN, or string stand-ins. Blank structural reports remain inspectable;
-Wayfarer Anchorage remains structurally valid and passes perf. Positive-mass
-engine-less cases distinguish legitimate computed zeros from excluded formulas.
+stations and checks that literal zero-cell JSON produces the same results. It
+checks exact `"n/a"` values in each affected load scenario and the mirrored
+performance cache. Structured `stat_unavailable` warnings cover zero-mass
+formulas, engine-less burn-rate formulas, deltaV's exhaust-velocity dependency,
+and a logarithm of a design-derived zero. The suite also checks when `underpowered`
+can be determined without acceleration. Blank structural reports remain
+inspectable. Wayfarer Anchorage remains structurally valid and passes `perf`.
+Computed zeros remain numeric in engine-less cases.
 
 `shipyard-perf_scenario` checks current/empty/half/full loads, optional overrides,
 active scenario fractions, exact input bounds and nonfinite loads, separate
@@ -68,8 +70,11 @@ promoted to error through public rules loading. F10 failures reject, including
 an independent invalid operand beside an F20 exclusion and a formula that fails
 only in carried Skiff. Parent load overrides preserve the child's current loads.
 
-All three suites use the existing CTest wiring and warning-as-error test flags;
-the existing CI build/test step discovers them without workflow changes.
+`shipyard-perf_review` covers readiness and power thresholds, active advisory
+thresholds, life support, duplicate drive prices, and blank deck generation.
+
+CTest discovers all five suites through the existing CI build and test step.
+Each suite builds with warnings treated as errors.
 
 ## Validation and pending decisions
 
@@ -81,11 +86,11 @@ normalization must preserve its geometry. Structural success leaves complete
 readiness and jump readiness unset, as required by F23.
 
 `shipyard-pending` checks requested holds through `validate` and `dock`, including
-nested carried craft: F11–F17 must be structured blocking issues with null data,
+nested carried craft. F11–F17 produce structured blocking issues with null data,
 without guessed hold totals or ordinary missing-floor errors. Blank ship and
-station imports succeed with `pending_F20`; structural validation may still
-report missing required systems. Wayfarer structurally passes with that warning.
-Excluded performance values are absent rather than numeric substitutes.
+station imports succeed, and structural validation still reports missing required
+systems. Wayfarer passes structural validation. Import and structural validation
+leave F20 stat evaluation to `perf`.
 
 Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
 visitor wider than the former v3 cap without a size-envelope failure. Multiple
@@ -148,7 +153,8 @@ blueprints through the real `load_rules`, `import_definition`, and `perf` APIs.
 It covers warning-only carried-craft amplification, the public result limit,
 127-versus-128 independent F20 formula evaluations, and a saturated child whose
 truncation marker must remain a structured root error. Below-cap controls retain
-ordinary advisories, structured `pending_F20`, and absent excluded metrics.
+ordinary advisories, structured `stat_unavailable` warnings, and exact `"n/a"`
+values for uncomputable metrics.
 Saturated performance must fail with null data and at most 128 issues including
 exactly one marker. Default parser, grid, deck, carrier and formula-arity limits
 remain active; no fixture or golden is changed.
@@ -171,8 +177,10 @@ The r2 public-API suites extend the reviewed fault coverage:
   pending F19, plus Wren in 10x40 to distinguish the N14 orientation fault.
 - `shipyard-validator_r2_cap`: carried-craft terminal truncation (N10),
   combined below-cap designs (N16), and marker retention with structural
-  reporting disabled (N15). The public combined result has 124 overlaps,
-  three prior import warnings, and one marker inside the shared 128 slots.
+  reporting disabled (N15). The public combined result has 125 overlaps,
+  two `pending_performance` import warnings, and one marker inside the shared
+  128 slots. With structural reporting disabled, it retains both warnings and
+  the marker.
 
 The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
 the inherited linear SAX parser keeps those calls below existing watchdogs.
