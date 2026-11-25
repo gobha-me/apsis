@@ -296,30 +296,39 @@ int main() {
                 report.at("data").at("checks").at("c").at("status") == "PASS",
             "Large aligned ships certify at a port without an invented size cap");
   });
-  suite.run("large sparse centres preserve a half-cell excess over one cell", [&] {
+  suite.run("sparse grid preserves the exact one-cell port boundary", [&] {
+    constexpr std::uint64_t base = 1ULL << 52;
     auto data = active.data();
-    data["grid"] = {{"w", 9000000000000000ULL}, {"h", 1}};
+    data["grid"] = {{"w", base + 8}, {"h", 1}};
     for (auto &part : data["parts"])
       part["h"] = 1;
-    dimensions(data, 2, 1, 1, 1);
-    const auto sparse = changed_rules(data, schema);
-    auto station = blank("station");
-    constexpr std::uint64_t origin = 1ULL << 52;
-    add_module(station, "dockingPort", 0, 0);
-    station["decks"][0]["modules"][0]["x"] = origin;
-    station["decks"][0]["floors"] = {
-        {std::to_string(origin) + ",0", true},
-        {std::to_string(origin + 1) + ",0", true}};
-    // Host centre x = 2^52 + 1. The visitors are 0.5 and 1.5 cells away.
-    // Computing the latter centre in binary64 would round the gap to 1.
-    for (const auto &[offset, fits] :
-         std::array<std::pair<std::uint64_t, bool>, 2>{{{1, true}, {2, false}}}) {
-      auto visitor = blank();
-      add_module(visitor, "airlock", 0, 0, 1);
-      visitor["decks"][0]["modules"][0]["x"] = origin + offset;
-      visitor["decks"][0]["floors"][std::to_string(origin + offset) + ",0"] = true;
-      outcome(run(station, visitor, sparse, schema), fits, 1, 1, 1, 1, fits ? 1 : 0);
-    }
+    const auto place = [](std::string_view build_type, std::string_view part,
+                          std::uint64_t x, unsigned width) {
+      auto blueprint = blank(build_type);
+      add_module(blueprint, part, 0, 0);
+      auto &deck = blueprint["decks"][0];
+      deck["modules"][0]["x"] = x;
+      for (unsigned column = 0; column < width; ++column)
+        deck["floors"][std::to_string(x + column) + ",0"] = true;
+      return blueprint;
+    };
+    const auto station = place("station", "dockingPort", base + 1, 1);
+
+    // The port centre is (base + 1.5, 0.5). A 1x1 airlock at (base, 0)
+    // is exactly one cell away; rounding both centres to doubles gives two.
+    dimensions(data, 1, 1, 1, 1);
+    const auto single = changed_rules(data, schema);
+    outcome(run(station, place("ship", "airlock", base, 1), single, schema),
+            true);
+
+    // A 2x1 airlock centred at base + 2 is half a cell away. Moving it
+    // one cell right makes the gap 1.5, which would round down to one.
+    dimensions(data, 1, 1, 2, 1);
+    const auto wide = changed_rules(data, schema);
+    outcome(run(station, place("ship", "airlock", base + 1, 2), wide, schema),
+            true);
+    outcome(run(station, place("ship", "airlock", base + 2, 2), wide, schema),
+            false, 1, 1, 1, 1, 0);
   });
   return suite.finish();
 }

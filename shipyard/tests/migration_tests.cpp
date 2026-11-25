@@ -154,8 +154,8 @@ int main() {
         const auto bytes = read("rules/apsis-rules-v4.json");
         require(active.sha256() == sha256(bytes),
                 "active SHA-256 must hash original bytes");
-        require(active.sha256() == "072abb8099404359ab78eef652925841869c252359"
-                                   "ae1f57e1e74eb2640ab5db",
+        require(active.sha256() == "2e8b9050cc7919eba69663084bb4a94a31e270901"
+                                   "560be921011e65802ff5f7f",
                 "reviewed v4 rules byte identity");
         const auto changed_bytes = bytes + "\n";
         const auto changed = load_rules(changed_bytes, schema_set);

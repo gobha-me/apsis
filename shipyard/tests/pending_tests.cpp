@@ -381,16 +381,23 @@ int main() {
         const auto report =
             dock(host.dump(), 1, 15, visitor.dump(), rotation_rules, schema);
         const auto &issue = find_issue(report, "dock_hangar_deck_limit");
-        const auto &hangar = report.at("data").at("hangar");
+        const auto &data = report.at("data");
+        const auto &hangar = data.at("hangar");
         require(
             report.at("pass") == false && issue.at("severity") == "error" &&
                 issue.at("details").at("actual") == 3 &&
                 issue.at("details").at("maximum") == hangar.at("maxDecks") &&
-                hangar.at("deckCountFits") == false &&
-                hangar.at("widthLengthFit").is_null() &&
-                has_issue(report, "pending_F19") &&
-                has_issue(report, "pending_F21"),
-            "The known deck limit must be enforced without settling F19/F21");
+                hangar.at("deckCountFits") == false,
+            "Three connected visitor decks exceed the active hangar deck cap");
+        require(hangar.at("widthLengthFit").is_null() &&
+                    has_issue(report, "pending_F19"),
+                "Enforcing the deck count leaves the rotation-only fit pending");
+        const auto &alignment = data.at("checks").at("c");
+        require(alignment.at("enabled") == true &&
+                    alignment.at("status") == "PENDING" &&
+                    alignment.at("details").at("exteriorOutwardCount") == 1 &&
+                    has_issue(report, "pending_F21"),
+                "The eligible hangar airlock still awaits the F21 convention");
       });
 
   return suite.finish();
