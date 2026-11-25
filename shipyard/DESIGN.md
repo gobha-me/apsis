@@ -196,8 +196,8 @@ point remain Open for Luna, not guessed (F21). Treating the 1-cell bound as
 inclusive is an interpretation pending that answer, not a settled rule. The
 validator and `dock` require all four owner-picked conditions once clarified;
 interface-label equality alone is insufficient. These conditions are part of
-F18's complete port-dock pass rule below. Hold-specific
-docking/airlock rules remain open in F17.
+F18's complete port-dock pass rule below. F17 permits a cargo-sized airlock or
+docking door to open directly into a hold.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 
@@ -345,8 +345,8 @@ and visiting ship, `dock` passes only if all four conditions hold:
 Each check needs its own independent test in #50. Any matching airlock works;
 the tool does not pick an airlock. Ports have no size envelope; hangars limit
 width, length and deck count (F02). Flight docking and damage are outside the
-shipyard, on the sim side. These ordinary port checks do not answer F17's
-hold-specific question, which remains open.
+shipyard, on the sim side. The existing access, outward-facing and clear-approach
+checks also apply to the direct hold interfaces permitted by F17.
 
 Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock reachability and clearance, and
@@ -510,7 +510,7 @@ independent verification before declaring that capability complete.
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
 | Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
-| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
+| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; exact hangar width and length limits in both cardinal orientations, rejection of oblique-only fits under F19, and deck limits |
 | Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |

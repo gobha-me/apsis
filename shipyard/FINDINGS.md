@@ -171,7 +171,8 @@ these unresolved F20 cases.
 
 **Resolved by Luna, under owner delegation 2026-11-23.** At least one
 ladder or lift reaches every deck the hold spans. Existing adjacent-deck
-`verticalLink` ladder chains provide this access at or beside the hold edge.
+`verticalLink` ladder chains provide this access when the hold is reachable
+on every spanned deck.
 
 ## F12 — Walkability across the open space
 
@@ -271,8 +272,8 @@ check is disabled, with mutation evidence and no mocking of the unit under
 test. Any matching airlock works; the tool does not pick an airlock. Ports have
 no size envelope; hangars limit
 width, length and deck count (F02). Flight docking and damage are outside the
-shipyard, on the sim side. These ordinary port checks do not answer F17's
-hold-specific question, which remains open.
+shipyard, on the sim side. The existing access, outward-facing and clear-approach
+checks also apply to the direct hold interfaces permitted by F17.
 
 Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock crew reachability and clearance,
@@ -475,8 +476,8 @@ the historical performance boundary below does not reopen them.
 ## F25 — Current hold presentation and preserved reference boundary (#53)
 
 Luna, under owner delegation 2026-11-23 resolved F11–F17 and F19. Normal deck
-indices remain unchanged; each hold is one span-labelled manifest object, with
-an outline and compact span label on every deck it occupies. Existing floor
+indices remain unchanged. Each hold is one span-labelled manifest object with
+an outline on every deck it occupies and a compact span label where it fits. Existing floor
 and catalogue material remains the sole mass/cost/capacity input; the spatial
 rectangle contributes to width/length bounds. The historical F25 reference-scene
 comparison below remains valid evidence about the unmatched prototype image,

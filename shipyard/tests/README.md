@@ -80,20 +80,22 @@ and Wayfarer Anchorage must structurally pass. Rustbucket must fail with
 normalization must preserve its geometry. Structural success leaves complete
 readiness and jump readiness unset, as required by F23.
 
-`shipyard-pending` checks requested holds through `validate` and `dock`, including
-nested carried craft: F11–F17 must be structured blocking issues with null data,
-without guessed hold totals or ordinary missing-floor errors. Blank ship and
-station imports succeed with `pending_F20`; structural validation may still
-report missing required systems. Wayfarer structurally passes with that warning.
-Excluded performance values are absent rather than numeric substitutes.
+`shipyard-pending` checks that empty hold lists preserve ordinary structural
+and docking results, including for carried craft, and that invalid hold spans
+return structured errors. `shipyard-holds` covers nonempty hold records,
+including their structure and performance. `shipyard-loader_regression` checks
+that F21 is the sole pending docking finding in both direct import issue lists.
+Blank ship and station imports succeed with `pending_F20`. Structural
+validation may still report missing required systems. Wayfarer structurally
+passes with that warning. Excluded performance values are absent.
 
 Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
 visitor wider than the former v3 cap without a size-envelope failure. Multiple
 compatible exterior airlocks are counted without selecting one. These cases
 remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
-overall FAIL: alignment has not been certified. Hangar tests distinguish a
-definite unrotated fit, a definite oversize error, and a fit possible only after
-rotation (`pending_F19`), while retaining active dimensions and deck limits.
+overall FAIL while alignment awaits F21. Hangar tests cover unrotated and swapped
+cardinal fits, exact dimension boundaries, rejection of oblique-only fits, and
+the active visitor deck limit.
 
 ## Per-check fault coverage
 
@@ -166,9 +168,8 @@ The r2 public-API suites extend the reviewed fault coverage:
 - `shipyard-structure_r2`: command-origin hull flood (N02), bottom-first
   bridge service selection (N03), missing-command reachability (N06), and
   local hull connectivity with crew routes disabled (N07).
-- `shipyard-hangar_r2`: rotation-proof minimum-span and diagonal rejection,
-  inclusive boundaries, Skiff 6x10 in 8x8 and a 2x10 visitor in 9x9 remaining
-  pending F19, plus Wren in 10x40 to distinguish the N14 orientation fault.
+- `shipyard-hangar_r2` covers exact unrotated and swapped fit boundaries and
+  rejects Skiff 6×10 in 8×8, a 2×10 visitor in 9×9, and Wren in 10×40.
 - `shipyard-validator_r2_cap`: carried-craft terminal truncation (N10),
   combined below-cap designs (N16), and marker retention with structural
   reporting disabled (N15). The public combined result has 124 overlaps,
@@ -183,11 +184,8 @@ The following excerpt is preserved verbatim from the pre-merge documentation to
 retain every historical F18 entry and its text. The current **Per-check fault
 coverage** section above is authoritative for reviewed evidence; its concrete
 fault regressions supersede the historical toggle-only evidence and old Mull
-deferral below. The reviewed F19 behavior above (definite unrotated fit, definite
-oversize, and rotation-only `pending_F19`) is authoritative. Any earlier blanket
-F19 deferral remains historical and does not change current expectations. The
-excerpt records the earlier session; it does not claim a current mutation score
-or defer the current reviewed fault coverage.
+deferral below. The cardinal fit coverage above reflects the resolved F19
+decision. The excerpt records the earlier session and its mutation evidence.
 
 Historical F19 context accompanying the original F18 evidence:
 

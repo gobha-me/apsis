@@ -95,6 +95,9 @@ Rustbucket or other structural faults.
 
 ## Structural validation and docking (#50)
 
+Direct import reports a `pending_docking` warning for F21 in the returned issues
+and in the definition's `validation.issues`.
+
 `validate(bytes, rules, schemas, ValidationOptions{}, InputLimits{})` accepts the
 same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
 result envelope with active rules identity, sorted structured issues, and
@@ -169,8 +172,8 @@ bounded diagnostics; no unsupported-feature copy or pending-hold parser runs.
 The independent tests session should exercise canonical structural outcomes,
 rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
 switch with mutation evidence, multiple compatible airlocks, ports beyond former
-size caps, hangar limits subject to F19, and all pending gates. No new tests or
-workflow steps are supplied by this implementation session.
+size caps, cardinal hangar fits and deck limits under F19, and the remaining
+pending gates.
 
 ## Performance (#51)
 
@@ -219,8 +222,9 @@ zero-thrust/no-drive values remain numeric results.
 count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly.
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
-ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
+ordinary structural issues remain inspectable. Performance retains normalized
+hold records through load overrides and uses the actual floor and catalogue
+material described in [HOLDS.md](HOLDS.md).
 
 The independent tests session should cover all four scenarios, load overrides,
 carried loads and child-specific formula failures, all five explicit drive prices,
@@ -231,9 +235,9 @@ goldens and compare only their rules-defined values; F24 records v4 differences.
 
 Computed comparisons use finite IEEE-754 binary64 values and absolute
 `abs(a-b) <= numeric.epsilon` (currently 0.000001), without relative
-tolerance. The `carried_fit` width/length checks and hangar's computed diagonal
-reject only when `actual > maximum + numeric.epsilon`. Hangar unrotated fit,
-minimum-side rejection, and deck limits remain exact input-bound comparisons.
+tolerance. The `carried_fit` width/length checks reject only when
+`actual > maximum + numeric.epsilon`. Hangar width and length in both cardinal
+orientations and visitor deck limits use exact input-bound comparisons.
 Input bounds, IDs, coordinates, versions, and counts are exact: epsilon never
 admits an over-limit input. Computed masses are rounded at the
 reference's direct-total boundaries to `numeric.precision` decimal places
@@ -270,10 +274,8 @@ no performance value or unresolved game rule.
 ## Historical hangar wording before final Argus r2
 
 The following prior F19-related wording is retained verbatim as superseded
-merge evidence. The current docking section above governs: a definite size
-failure needs the rotation-proof minimum-span or diagonal bound; failure in
-both axis-aligned orientations is insufficient. No rotation rule is chosen
-by this historical excerpt.
+merge evidence. The current docking section above defines cardinal width and
+length fit.
 
 ~~~text
 

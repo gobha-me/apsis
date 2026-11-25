@@ -1,5 +1,6 @@
 #include "dock_test_support.hpp"
 
+#include <apsis/shipyard/perf.hpp>
 #include <apsis/shipyard/render.hpp>
 #include <array>
 #include <cmath>
@@ -229,6 +230,11 @@ int main() {
     }
     auto structural = control;
     structural["holds"].push_back(hold(0, 2, 2, 7, 2, 2));
+    // Deck 1 has no walkable floor in or next to the second hold. Deck 2
+    // still covers that entire rectangle, independently blocking its opening.
+    for (int x = 2; x <= 4; ++x)
+      for (int y = 6; y <= 9; ++y)
+        structural["decks"][1]["floors"].erase(std::to_string(x) + "," + std::to_string(y));
     require(import_definition(structural.dump(), active, schema).ok(),
             "Second hold is a well-shaped declaration requiring real structural inspection");
     const auto checked = validate(structural.dump(), active, schema);
@@ -266,12 +272,24 @@ int main() {
     for (int d : {2, 3}) split["decks"][d]["modules"][0]["y"] = 7;
     finding(validate(split.dump(), active, schema), "hold_access", "/blueprint/holds/0");
   });
-  suite.run("hold access accepts real adjacent catwalks but excludes distant or diagonal chains", [&] {
+  suite.run("hold access follows real walkways from a paired ladder on every deck", [&] {
     accepted(volume(), active, schema);
     accepted(volume(3, 8, 5), active, schema);
-    for (const auto &position : {std::pair{6, 6}, std::pair{7, 4}})
-      finding(validate(volume(3, position.first, position.second).dump(), active, schema),
-              "hold_access", "/blueprint/holds/0");
+    accepted(volume(3, 6, 6), active, schema);
+    accepted(volume(3, 7, 4), active, schema);
+
+    auto corridor = volume(3, 6, 6);
+    corridor["decks"][1]["floors"] = {{"6,6", true}, {"7,6", true}, {"8,6", true}};
+    accepted(corridor, active, schema);
+    const int id = corridor.at("nextId").get<int>();
+    corridor["nextId"] = id + 1;
+    corridor["decks"][1]["modules"].push_back(
+        {{"id", id}, {"type", "shuttleSeats"}, {"x", 7}, {"y", 6}, {"r", 0}});
+    const auto blocked_route = validate(corridor.dump(), active, schema);
+    require(blocked_route.at("pass") == false && !has_issue(blocked_route, "disconnected_hull"),
+            "An unwalkable module can block hold access on one deck while the hull stays connected");
+    finding(blocked_route, "hold_access", "/blueprint/holds/0");
+
     auto missing_floor = volume();
     missing_floor["decks"][1]["floors"].erase("7,6");
     const auto report = validate(missing_floor.dump(), active, schema);
@@ -305,6 +323,38 @@ int main() {
     require(actual.at("floorCount") == 298 && actual.at("cargo") == 0,
             "Independent real floor count and zero cargo-module capacity stay unchanged");
   });
+  suite.run("public performance preserves a real hold and material totals through load overrides", [&] {
+    auto design = volume();
+    add_module(design, "cargo", 4, 7);
+    auto control = design;
+    control.erase("holds");
+    const double epsilon = active.data().at("numeric").at("epsilon").get<double>();
+    for (const auto &loads : {LoadFractions{}, LoadFractions{.cargo = 0.5}}) {
+      const auto with = perf(design.dump(), active, schema, loads);
+      const auto without = perf(control.dump(), active, schema, loads);
+      require(with.at("pass") == true && without.at("pass") == true &&
+                  with.at("data").at("structuralPass") == true,
+              "Both real station designs must pass public performance and structural checks");
+      const auto &data = with.at("data");
+      const auto &definition = data.at("definition");
+      const auto &totals = definition.at("derived");
+      const auto &performance = data.at("performance");
+      const double cargo = loads.cargo.value_or(0);
+      const double cargo_mass = cargo * 10;
+      require(definition.at("blueprint").at("holds") == design.at("holds") &&
+                  definition.at("blueprint").at("loads").at("cargo") == cargo,
+              "The normalized performance definition retains the hold and effective cargo load");
+      require(totals.at("floorCount") == 298 && totals.at("cargo") == 10 &&
+                  totals == without.at("data").at("definition").at("derived") &&
+                  performance == without.at("data").at("performance"),
+              "Declaring the hold leaves every material total and performance scenario unchanged");
+      require(performance.at("cargoMass") == cargo_mass &&
+                  performance.at("currentMass") == totals.at("currentMass") &&
+                  std::abs(totals.at("currentMass").get<double>() -
+                           totals.at("dryMass").get<double>() - cargo_mass) <= epsilon,
+              "Both direct totals and performance include the real catalogue cargo load exactly once");
+    }
+  });
   suite.run("hangar touching edge is allowed; positive shared-deck overlap rejects", [&] {
     auto design = volume();
     add_module(design, "stationHangar", 11, 5);
@@ -314,6 +364,41 @@ int main() {
     finding(validate(design.dump(), active, schema), "hold_hangar_overlap", "/blueprint/holds/0");
     design["holds"][0]["firstDeck"] = 1;
     accepted(design, active, schema);
+  });
+  suite.run("hold geometry uses explicit blueprint severity under a warning default", [&] {
+    auto changed = active.data();
+    changed["validation"]["defaultSeverity"] = "warning";
+    const auto warning_default = load_rules(changed.dump(), schema);
+    require(warning_default.ok(), "Rules allow a warning default with an explicit error for invalid blueprints");
+    const auto &policy = *warning_default.value;
+    const auto reject = [&](const Json &design, std::string_view code) {
+      const auto report = validate(design.dump(), policy, schema);
+      const auto &item = finding(report, code, "/blueprint/holds/0");
+      require(report.at("pass") == false && !report.at("data").is_null() &&
+                  item.at("details").at("rule") == "/validation/checks/invalid_blueprint",
+              "Hold geometry rejects structurally under the explicit shape policy");
+      require(std::none_of(report.at("issues").begin(), report.at("issues").end(),
+                           [&](const Json &issue) {
+                             return issue.at("severity") == "error" && issue.at("code") != code;
+                           }),
+              "Each fixture fails only its targeted hold geometry check");
+    };
+
+    auto blocked = volume();
+    accepted(blocked, policy, schema);
+    blocked["decks"][1]["floors"]["9,6"] = true;
+    reject(blocked, "hold_open_column");
+
+    auto unreachable = volume();
+    unreachable["holds"][0]["x"] = 13;
+    reject(unreachable, "hold_access");
+
+    auto overlap = volume();
+    add_module(overlap, "stationHangar", 11, 5);
+    fill(overlap, 0, 11, 5, 5, 7);
+    accepted(overlap, policy, schema);
+    overlap["holds"][0]["w"] = 4;
+    reject(overlap, "hold_hangar_overlap");
   });
   suite.run("hangar overlap on only the inclusive last hold deck is still forbidden", [&] {
     auto design = volume(4, 7, 6, hold(0, 2));

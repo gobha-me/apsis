@@ -408,16 +408,23 @@ class PublicRenderer(unittest.TestCase):
         design["nextId"] = 6
         floors = copy.deepcopy(design["decks"][0]["floors"])
         for d in range(1, count):
-            design["decks"].append({"name": f"Normal deck {d+1}",
-                                    "floors": copy.deepcopy(floors), "modules": []})
+            design["decks"].append(
+                {
+                    "name": f"Normal deck {d + 1}",
+                    "floors": copy.deepcopy(floors),
+                    "modules": [],
+                }
+            )
         for d, deck in enumerate(design["decks"]):
-            deck["modules"].append({"id": design["nextId"], "type": "ladder",
-                                    "x": 7, "y": 6, "r": 0})
+            deck["modules"].append(
+                {"id": design["nextId"], "type": "ladder", "x": 7, "y": 6, "r": 0}
+            )
             design["nextId"] += 1
             if d > 0:
                 del deck["floors"]["9,6"]
-        design["holds"] = [{"x": 8, "y": 5, "w": 3, "h": 4,
-                            "firstDeck": first, "lastDeck": last}]
+        design["holds"] = [
+            {"x": 8, "y": 5, "w": 3, "h": 4, "firstDeck": first, "lastDeck": last}
+        ]
         return design
 
 
@@ -671,7 +678,6 @@ class Geometry(PublicRenderer):
                         ):
                             self.assertEqual(images[0].at(x, y), BACKGROUND)
 
-
     def test_luna_hold_span_manifest_border_labels_and_unchanged_other_decks(self):
         # Luna, under owner delegation 2026-11-23: one object, normal deck indices.
         design = self.hold_station()
@@ -682,39 +688,59 @@ class Geometry(PublicRenderer):
         manifest, images = self.verify_bundle(result, design, no_labels)
         baseline = self.render(plain, options=no_labels, validate=True)
         _, ordinary = self.verify_bundle(baseline, plain, no_labels)
-        self.assertEqual(manifest["holds"], [{**design["holds"][0], "label": "decks 2–3"}])
+        self.assertEqual(
+            manifest["holds"], [{**design["holds"][0], "label": "decks 2–3"}]
+        )
         self.assertEqual([d["deckIndex"] for d in manifest["decks"]], [0, 1, 2, 3])
-        self.assertEqual([d["name"] for d in manifest["decks"]],
-                         [d["name"] for d in design["decks"]])
+        self.assertEqual(
+            [d["name"] for d in manifest["decks"]], [d["name"] for d in design["decks"]]
+        )
         camera = manifest["camera"]
         cell, ox, oy = camera["cellPixels"], camera["originX"], camera["originY"]
         x, y = ox + 8 * cell, oy + 5 * cell
         right, bottom = x + 3 * cell - 1, y + 4 * cell - 1
         for d in (1, 2):
-            for px, py in ((x, y), (right, y), (right, bottom), (x, bottom),
-                           (x + cell, y), (x, y + cell)):
+            for px, py in (
+                (x, y),
+                (right, y),
+                (right, bottom),
+                (x, bottom),
+                (x + cell, y),
+                (x, y + cell),
+            ):
                 self.assertEqual(images[d].at(px, py), BORDER)
             self.assertNotEqual(images[d].pixels, ordinary[d].pixels)
         for d in (0, 3):
-            self.assertEqual(images[d].pixels, ordinary[d].pixels,
-                             "Holds affect neither deck before first nor after last")
+            self.assertEqual(
+                images[d].pixels,
+                ordinary[d].pixels,
+                "Holds affect neither deck before first nor after last",
+            )
         titled = self.render(design, validate=True)
         labelled, title_images = self.verify_bundle(titled, design)
         self.assertEqual(labelled["holds"], manifest["holds"])
         for d in (1, 2):
-            ink_pixels = sum(title_images[d].at(px, py) == TITLE
-                             for py in range(y + 2, y + 9)
-                             for px in range(x + 2, right - 1))
+            ink_pixels = sum(
+                title_images[d].at(px, py) == TITLE
+                for py in range(y + 2, y + 9)
+                for px in range(x + 2, right - 1)
+            )
             self.assertGreater(ink_pixels, 0, "Real held panels carry the span label")
-            self.assertFalse(any(images[d].at(px, py) == TITLE
-                                 for py in range(y + 2, y + 9)
-                                 for px in range(x + 2, right - 1)))
+            self.assertFalse(
+                any(
+                    images[d].at(px, py) == TITLE
+                    for py in range(y + 2, y + 9)
+                    for px in range(x + 2, right - 1)
+                )
+            )
         empty = copy.deepcopy(plain)
         empty["holds"] = []
         empty_result = self.render(empty, options=no_labels, validate=True)
-        self.assertEqual([a for a in empty_result["artifacts"] if a["mediaType"] == "image/png"],
-                         [a for a in baseline["artifacts"] if a["mediaType"] == "image/png"],
-                         "Empty hold metadata retains byte-identical deck and stack PNGs")
+        self.assertEqual(
+            [a for a in empty_result["artifacts"] if a["mediaType"] == "image/png"],
+            [a for a in baseline["artifacts"] if a["mediaType"] == "image/png"],
+            "Empty hold metadata retains byte-identical deck and stack PNGs",
+        )
 
     def test_exact_hold_right_and_bottom_midpoints_and_outside_pixels(self):
         design = self.hold_station()
@@ -736,10 +762,14 @@ class Geometry(PublicRenderer):
             self.assertNotEqual(ordinary[deck].at(middle_x, bottom), BORDER)
             self.assertEqual(images[deck].at(right + 1, middle_y), GRID)
             self.assertEqual(images[deck].at(middle_x, bottom + 1), GRID)
-            self.assertEqual(images[deck].at(right + 2, middle_y),
-                             ordinary[deck].at(right + 2, middle_y))
-            self.assertEqual(images[deck].at(middle_x, bottom + 2),
-                             ordinary[deck].at(middle_x, bottom + 2))
+            self.assertEqual(
+                images[deck].at(right + 2, middle_y),
+                ordinary[deck].at(right + 2, middle_y),
+            )
+            self.assertEqual(
+                images[deck].at(middle_x, bottom + 2),
+                ordinary[deck].at(middle_x, bottom + 2),
+            )
 
     def test_compact_hold_label_exact_digits_hyphen_and_endpoint_bitmap(self):
         # Literal reviewed 5x7 glyph expectations: no production font/helper is imported.
@@ -759,7 +789,9 @@ class Geometry(PublicRenderer):
         manifest, images = self.verify_bundle(titled, design)
         plain = self.render(design, options={"labels": False}, validate=True)
         _, unlabelled = self.verify_bundle(plain, design, {"labels": False})
-        self.assertEqual(manifest["holds"], [{**design["holds"][0], "label": "decks 2–4"}])
+        self.assertEqual(
+            manifest["holds"], [{**design["holds"][0], "label": "decks 2–4"}]
+        )
         camera = manifest["camera"]
         x = camera["originX"] + 8 * camera["cellPixels"] + 2
         y = camera["originY"] + 5 * camera["cellPixels"] + 2
@@ -768,11 +800,16 @@ class Geometry(PublicRenderer):
             for row in range(7):
                 for index, char in enumerate(text):
                     for column in range(6):
-                        ink = column < 5 and bool(glyphs[char][row] & (1 << (4-column)))
+                        ink = column < 5 and bool(
+                            glyphs[char][row] & (1 << (4 - column))
+                        )
                         px, py = x + 6 * index + column, y + row
                         expected = TITLE if ink else unlabelled[deck].at(px, py)
-                        self.assertEqual(images[deck].at(px, py), expected,
-                                         (deck, text, row, index, column))
+                        self.assertEqual(
+                            images[deck].at(px, py),
+                            expected,
+                            (deck, text, row, index, column),
+                        )
 
     def test_nine_pixel_hold_width_clips_after_exact_first_h_glyph(self):
         design = self.hold_station(count=3, first=0, last=2)
@@ -792,10 +829,44 @@ class Geometry(PublicRenderer):
         for deck in (0, 2):
             for row in range(7):
                 for column in range(20):
-                    ink = column < 5 and bool(h_rows[row] & (1 << (4-column)))
+                    ink = column < 5 and bool(h_rows[row] & (1 << (4 - column)))
                     expected = TITLE if ink else ordinary[deck].at(x + column, y + row)
-                    self.assertEqual(images[deck].at(x + column, y + row), expected,
-                                     (deck, row, column))
+                    self.assertEqual(
+                        images[deck].at(x + column, y + row),
+                        expected,
+                        (deck, row, column),
+                    )
+
+    def test_short_hold_label_stays_inside_the_outline(self):
+        design = self.hold_station(count=3, first=0, last=2)
+        hold = design["holds"][0]
+        hold["h"] = 1
+        for index, deck in enumerate(design["decks"]):
+            deck["modules"][-1]["y"] = 5
+            if index:
+                deck["floors"]["9,6"] = True
+                del deck["floors"]["9,5"]
+
+        for width, height, cell in ((110, 120, 3), (292, 288, 10)):
+            with self.subTest(cell=cell):
+                options = {"width": width, "height": height}
+                rendered = self.render(design, options=options, validate=True)
+                manifest, images = self.verify_bundle(rendered, design, options)
+                self.assertEqual(manifest["holds"], [{**hold, "label": "decks 1–3"}])
+                camera = manifest["camera"]
+                self.assertEqual(camera["cellPixels"], cell)
+                x = camera["originX"] + hold["x"] * cell
+                y = camera["originY"] + hold["y"] * cell
+                bottom = y + cell - 1
+                for image in images[:-1]:
+                    for px in range(x, x + hold["w"] * cell):
+                        self.assertEqual(image.at(px, bottom), BORDER)
+                        self.assertEqual(image.at(px, bottom + 1), GRID)
+                    self.assertEqual(
+                        image.at(x + 2, bottom + 2), color(self.rules["floor"]["color"])
+                    )
+                    if cell == 10:
+                        self.assertEqual(image.at(x + 2, bottom - 1), TITLE)
 
 
 class Bounds(PublicRenderer):
@@ -818,12 +889,16 @@ class Bounds(PublicRenderer):
         empty = self.render(holds, validate=True)
         self.verify_bundle(empty, holds)
         plain = self.render(self.station(), validate=True)
-        self.assertEqual([a for a in empty["artifacts"] if a["mediaType"] == "image/png"],
-                         [a for a in plain["artifacts"] if a["mediaType"] == "image/png"])
-        self.assertFalse(any(i["code"].startswith("pending_F1")
-                             for i in empty["envelope"]["issues"]))
-        holds["holds"] = [{"x": 0, "y": 0, "w": 1, "h": 1,
-                            "firstDeck": 0, "lastDeck": 0}]
+        self.assertEqual(
+            [a for a in empty["artifacts"] if a["mediaType"] == "image/png"],
+            [a for a in plain["artifacts"] if a["mediaType"] == "image/png"],
+        )
+        self.assertFalse(
+            any(i["code"].startswith("pending_F1") for i in empty["envelope"]["issues"])
+        )
+        holds["holds"] = [
+            {"x": 0, "y": 0, "w": 1, "h": 1, "firstDeck": 0, "lastDeck": 0}
+        ]
         self.rejected(self.render(holds), "hold_span")
 
     def test_raw_holds_only_subtotal4096_is_not_an_operational_overflow(self):
@@ -834,7 +909,9 @@ class Bounds(PublicRenderer):
         self.assertEqual(sum(len(deck["modules"]) for deck in design["decks"]), 0)
         equality = self.render(design)
         self.rejected(equality, "schema_error")
-        self.assertNotIn("render_resource_limit", [i["code"] for i in equality["envelope"]["issues"]])
+        self.assertNotIn(
+            "render_resource_limit", [i["code"] for i in equality["envelope"]["issues"]]
+        )
         design["holds"].append({})
         self.rejected(self.render(design), "render_resource_limit")
 
@@ -845,37 +922,55 @@ class Bounds(PublicRenderer):
         design["holds"] *= 4096 - modules
         exact = self.render(design, options=options, validate=True)
         self.passed(exact)
-        self.assertEqual(len(json.loads(exact["artifacts"][-2]["raw"])["holds"]), 4096-modules)
+        self.assertEqual(
+            len(json.loads(exact["artifacts"][-2]["raw"])["holds"]), 4096 - modules
+        )
         design["holds"].append(copy.deepcopy(design["holds"][0]))
         self.rejected(self.render(design, options=options), "render_resource_limit")
 
         # A real 3x5-cell, two-deck craft fits the catalogue shuttle berth.
-        child = {"schema": "apsis-shipyard-v4", "name": "Small hold craft",
-                 "buildType": "ship", "budget": 100000,
-                 "loads": {"cargo": 0, "jumpFuel": 1, "sublightFuel": 1},
-                 "nextId": 8, "migrationNotes": [], "decks": []}
+        child = {
+            "schema": "apsis-shipyard-v4",
+            "name": "Small hold craft",
+            "buildType": "ship",
+            "budget": 100000,
+            "loads": {"cargo": 0, "jumpFuel": 1, "sublightFuel": 1},
+            "nextId": 8,
+            "migrationNotes": [],
+            "decks": [],
+        }
         floors = {f"{x},{y}": True for x in range(3) for y in range(5)}
-        modules = [{"id": 1, "type": "cockpit", "x": 0, "y": 0, "r": 0},
-                   {"id": 2, "type": "microReactor", "x": 1, "y": 0, "r": 0},
-                   {"id": 3, "type": "microLifeSupport", "x": 2, "y": 0, "r": 0},
-                   {"id": 4, "type": "airlock", "x": 0, "y": 2, "r": 1},
-                   {"id": 5, "type": "microEngine", "x": 2, "y": 3, "r": 0},
-                   {"id": 6, "type": "ladder", "x": 1, "y": 2, "r": 0}]
+        modules = [
+            {"id": 1, "type": "cockpit", "x": 0, "y": 0, "r": 0},
+            {"id": 2, "type": "microReactor", "x": 1, "y": 0, "r": 0},
+            {"id": 3, "type": "microLifeSupport", "x": 2, "y": 0, "r": 0},
+            {"id": 4, "type": "airlock", "x": 0, "y": 2, "r": 1},
+            {"id": 5, "type": "microEngine", "x": 2, "y": 3, "r": 0},
+            {"id": 6, "type": "ladder", "x": 1, "y": 2, "r": 0},
+        ]
         child["decks"].append({"name": "Bottom", "floors": floors, "modules": modules})
         upper = copy.deepcopy(floors)
         del upper["2,1"]
-        child["decks"].append({"name": "Upper", "floors": upper,
-                               "modules": [{"id": 7, "type": "ladder", "x": 1, "y": 2, "r": 0}]})
+        child["decks"].append(
+            {
+                "name": "Upper",
+                "floors": upper,
+                "modules": [{"id": 7, "type": "ladder", "x": 1, "y": 2, "r": 0}],
+            }
+        )
         nested = self.station()
         nested["decks"][0]["modules"].pop()
-        nested["decks"][0]["modules"].append({"id": 6, "type": "shuttleDock", "x": 12,
-                                              "y": 5, "r": 0, "craft": child})
+        nested["decks"][0]["modules"].append(
+            {"id": 6, "type": "shuttleDock", "x": 12, "y": 5, "r": 0, "craft": child}
+        )
         nested["nextId"] = 7
-        nested["decks"][0]["floors"].update({f"{x},{y}": True
-                                               for x in range(12, 16) for y in range(5, 11)})
+        nested["decks"][0]["floors"].update(
+            {f"{x},{y}": True for x in range(12, 16) for y in range(5, 11)}
+        )
         count = 6 + 7
-        child["holds"] = [{"x": 1, "y": 1, "w": 2, "h": 2,
-                            "firstDeck": 0, "lastDeck": 1}] * (4096-count)
+        child["holds"] = [
+            {"x": 1, "y": 1, "w": 2, "h": 2, "firstDeck": 0, "lastDeck": 1}
+        ] * (4096 - count)
         self.passed(self.render(nested, options=options, validate=True))
         child["holds"].append(copy.deepcopy(child["holds"][0]))
         self.rejected(self.render(nested, options=options), "render_resource_limit")
