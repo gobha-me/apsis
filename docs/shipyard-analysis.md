@@ -39,11 +39,11 @@ python3 tools/shipyard_report.py shipyard/fixtures/v3/*definition-v3.json \
 
 The default rules and schema directory are `shipyard/rules/apsis-rules-v4.json`
 and `shipyard/schemas`. `--rules` and `--schemas` select other existing inputs;
-these flags never edit them. The adapter reads a per-campaign snapshot of the
-regular `*.schema.json` files. Each input is at most 8 MiB. At most 64 total
-source × grid cases are allowed, with a default 30-second timeout per case
-(`--timeout`, bounded to 300 seconds). Larger analyses should use the host's
-heavy-work controls and separate bounded plans.
+these flags never edit them. Each campaign runs a temporary copy of the adapter
+against a snapshot of the regular `*.schema.json` files. Each input is at most
+8 MiB. At most 64 total source × grid cases are allowed, with a default 30-second
+timeout per case (`--timeout`, bounded to 300 seconds). Larger analyses should
+use the host's heavy-work controls and separate bounded plans.
 
 For example, measure Wren's current loaded mass across an explicit cargo and
 jump-fuel load grid:
@@ -69,12 +69,12 @@ its original bytes, including sources the native validator rejects as invalid.
 
 Every completed output directory contains:
 
-- `manifest.json` records input/rules/schema hashes, original schema directory, exact
-  adapter command, binary and Python-tool hashes, candidate hashes and scalar
-  overrides, status, summary, and report artifact hashes. The adapter command
-  records the temporary schema snapshot path used for the run. The candidate
-  hash covers the bytes supplied to stdin. It equals the source hash in corpus
-  mode and covers the compact JSON candidate in grid mode.
+- `manifest.json` records input/rules/schema hashes, original driver path and schema
+  directory, exact adapter command, binary and Python-tool hashes, candidate hashes
+  and scalar overrides, status, summary, and report artifact hashes. The adapter
+  command records the temporary executable and schema paths used for the run.
+  The candidate hash covers the bytes supplied to stdin. It equals the source
+  hash in corpus mode and covers the compact JSON candidate in grid mode.
 - `results.json` records per-case status, complete/jump readiness, recomputed direct
   totals, migration metadata, and every bounded validator issue. Cases without
   definition data show `"ready": null`, `"jumpReady": null`, and `"totals": {}`.

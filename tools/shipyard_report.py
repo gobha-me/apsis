@@ -11,6 +11,7 @@ import itertools
 import json
 import math
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -148,7 +149,7 @@ def plan(paths: list[Path], axes: list[tuple[str, list]]) -> tuple[list, list]:
                 }
             )
             continue
-        source = strict_json(raw.decode("utf-8"))
+        source = strict_json(raw.decode("utf-8-sig"))
         if not isinstance(source, dict):
             raise ReportError(f"definition must be a JSON object: {path}")
         for pointer, _ in axes:
@@ -362,6 +363,7 @@ def execute(args) -> dict:
     }
     if not schema_bytes:
         raise ReportError("schema directory contains no regular *.schema.json files")
+    driver = args.driver.resolve()
     manifest = {
         "schemaVersion": 1,
         "toolSha256": digest(Path(__file__).read_bytes()),
@@ -374,8 +376,9 @@ def execute(args) -> dict:
         "axes": dict(axes),
         "caseCount": len(cases),
         "timeoutSeconds": args.timeout,
+        "driver": str(driver),
         "command": [
-            str(args.driver.resolve()),
+            str(driver),
             str(schema_directory),
             str(args.rules.resolve()),
         ],
@@ -394,15 +397,18 @@ def execute(args) -> dict:
     if args.dry_run:
         return manifest
     try:
-        manifest["driverSha256"] = digest(args.driver.read_bytes())
         rows = []
-        with tempfile.TemporaryDirectory(
-            prefix=".schema-snapshot-", dir=args.output.resolve()
-        ) as directory:
+        with tempfile.TemporaryDirectory(prefix="shipyard-snapshot-") as directory:
             snapshot = Path(directory)
+            driver_snapshot = snapshot / "driver" / driver.name
+            driver_snapshot.parent.mkdir()
+            shutil.copy(driver, driver_snapshot)
+            manifest["driverSha256"] = digest(driver_snapshot.read_bytes())
+            schema_snapshot = snapshot / "schemas"
+            schema_snapshot.mkdir()
             for name, data in schema_bytes.items():
-                (snapshot / name).write_bytes(data)
-            manifest["command"][1] = str(snapshot)
+                (schema_snapshot / name).write_bytes(data)
+            manifest["command"][:2] = [str(driver_snapshot), str(schema_snapshot)]
             manifest["status"] = "running"
             save()
             for case in cases:

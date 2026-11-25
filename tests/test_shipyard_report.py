@@ -225,12 +225,14 @@ class ReportPlanningTests(unittest.TestCase):
                     ),
                 )
             self.assertEqual(1, run.call_count)
-            self.assertEqual(str(driver.resolve()), run.call_args.args[0][0])
             data = json.loads((output / "results.json").read_text())
             self.assertIsNone(data["cases"][0]["ready"])
             self.assertEqual(100, data["cases"][0]["totals"]["cost"])
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual("completed", manifest["status"])
+            self.assertEqual(str(driver.resolve()), manifest["driver"])
+            self.assertEqual(manifest["command"], run.call_args.args[0])
+            self.assertFalse(Path(manifest["command"][0]).exists())
             self.assertEqual(
                 report.digest(driver.read_bytes()), manifest["driverSha256"]
             )
@@ -239,6 +241,48 @@ class ReportPlanningTests(unittest.TestCase):
                 rows = list(csv.DictReader(stream))
             self.assertEqual("100", rows[0]["cost"])
             self.assertIn("does not certify", (output / "report.md").read_text())
+
+    def test_campaign_uses_manifest_driver_bytes_after_original_is_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            driver = root / "adapter"
+            initial = b"initial adapter"
+            replacement = root / "rebuilt-adapter"
+            rebuilt = b"rebuilt adapter"
+            driver.write_bytes(initial)
+            replacement.write_bytes(rebuilt)
+            output = root / "report"
+            observed = []
+
+            def run_adapter(command, **kwargs):
+                observed.append(Path(command[0]).read_bytes())
+                if len(observed) == 1:
+                    replacement.replace(driver)
+                return subprocess.CompletedProcess(
+                    [], 0, json.dumps(response()).encode(), b""
+                )
+
+            with (
+                patch.object(report.subprocess, "run", side_effect=run_adapter),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                status = report.main(
+                    [
+                        str(SKIFF),
+                        str(SKIFF),
+                        "--driver",
+                        str(driver),
+                        "--output",
+                        str(output),
+                    ]
+                )
+            self.assertEqual(0, status, stderr.getvalue())
+            self.assertEqual(rebuilt, driver.read_bytes())
+            self.assertEqual([initial, initial], observed)
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertEqual("completed", manifest["status"])
+            self.assertEqual(report.digest(initial), manifest["driverSha256"])
 
     def test_campaign_validates_with_manifest_schema_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -361,11 +405,12 @@ class NativeReportTests(unittest.TestCase):
     def setUpClass(cls):
         cls.driver = Path(os.environ["APSIS_SHIPYARD_VALIDATE"]).resolve()
 
-    def invoke(self, source, rules=RULES):
+    def invoke(self, source, rules=RULES, *, stdout=subprocess.PIPE):
         return subprocess.run(
             [str(self.driver), str(SCHEMAS), str(rules)],
             input=source,
-            capture_output=True,
+            stdout=stdout,
+            stderr=subprocess.PIPE,
             timeout=30,
             check=False,
         )
@@ -414,6 +459,27 @@ class NativeReportTests(unittest.TestCase):
         completed = self.invoke(SKIFF.read_bytes(), SKIFF)
         self.assertEqual(2, completed.returncode)
         self.assertEqual("rules_loading", json.loads(completed.stderr)["error"])
+
+    @unittest.skipUnless(Path("/dev/full").exists(), "requires /dev/full")
+    def test_adapter_reports_failed_stdout_write(self):
+        with Path("/dev/full").open("wb") as stdout:
+            completed = self.invoke(b"not json", stdout=stdout)
+
+        self.assertEqual(2, completed.returncode)
+        self.assertEqual(
+            {"error": "adapter_error", "message": "stdout write failed"},
+            json.loads(completed.stderr),
+        )
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX pipes")
+    def test_adapter_reports_broken_stdout_pipe(self):
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        with os.fdopen(write_fd, "wb") as stdout:
+            completed = self.invoke(b"not json", stdout=stdout)
+
+        self.assertEqual(2, completed.returncode)
+        self.assertEqual("stdout write failed", json.loads(completed.stderr)["message"])
 
     def test_report_corpus_measures_original_source_bytes(self):
         sources = {
@@ -528,6 +594,26 @@ class NativeReportTests(unittest.TestCase):
         self.assertGreater(masses[-1], masses[0])
         self.assertEqual(1, len({case["totals"]["cost"] for case in cases}))
         self.assertTrue(all(case["ready"] is None for case in cases))
+
+    def test_grid_accepts_utf8_bom_and_hashes_original_source(self):
+        raw = b"\xef\xbb\xbf" + SKIFF.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "bom.json"
+            source.write_bytes(raw)
+            output = Path(directory) / "grid"
+            results = self.run_report(
+                output, source, "--axis", "/blueprint/loads/cargo=[0,0.5]"
+            )
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertEqual(raw, source.read_bytes())
+
+        source_hash = report.digest(raw)
+        self.assertEqual(source_hash, manifest["sources"][0]["sha256"])
+        cases = results["cases"]
+        self.assertEqual(["PASS", "PASS"], [case["status"] for case in cases])
+        self.assertEqual(
+            [source_hash, source_hash], [case["sourceSha256"] for case in cases]
+        )
 
 
 if __name__ == "__main__":

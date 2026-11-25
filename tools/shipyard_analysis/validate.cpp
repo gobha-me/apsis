@@ -1,6 +1,7 @@
 // Read-only adapter: default public validator options, no authoring/perf changes.
 #include <apsis/shipyard/validator.hpp>
 
+#include <csignal>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -39,8 +40,12 @@ int main(int argc, char** argv) {
         }
         const auto definition = bounded_read(std::cin);
         // Structural FAIL is a successful measurement; operational failures exit 2.
-        std::cout << sy::validate(definition, *rules.value, *schemas.value).dump() << '\n';
-        return std::cout ? 0 : 2;
+#ifdef SIGPIPE
+        std::signal(SIGPIPE, SIG_IGN);
+#endif
+        std::cout << sy::validate(definition, *rules.value, *schemas.value).dump() << '\n' << std::flush;
+        if (!std::cout) throw std::runtime_error("stdout write failed");
+        return 0;
     } catch (const std::exception& error) {
         std::cerr << sy::Json({{"error", "adapter_error"}, {"message", error.what()}}).dump() << '\n';
         return 2;
