@@ -1,7 +1,7 @@
 {
   "schema": "apsis-ship-rules-v4",
   "version": 4,
-  "notes": "Engineering and economy rules shared by shipyard definitions. Technical limits are input sanity limits only; maxBudgetInputCr is not a game budget or player-affordability rule. The shipyard does not enforce player affordability. F11-F17, F19-F21 remain open for Luna; hold behavior, docking rotations/alignment conventions, and undefined performance results are not specified here.",
+  "notes": "Engineering and economy rules shared by shipyard definitions. Technical limits are input sanity limits only; maxBudgetInputCr is not a game budget or player-affordability rule. The shipyard does not enforce player affordability. F11-F17, F19, F20, and F21 hangar alignment remain open for Luna. Hold behavior, hangar docking rotations and alignment, and undefined performance results remain unspecified.",
   "floorMass": 0.15,
   "floorCost": 40,
   "cellSizeM": 2,
