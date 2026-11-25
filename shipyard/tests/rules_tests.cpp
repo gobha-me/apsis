@@ -304,5 +304,101 @@ int main(int argc, char **argv) {
                    "/formulas/structureMass", "formula_error");
         }
       });
+  suite.run(
+      "F10 valid arithmetic evaluates operands rather than falling back", [&] {
+        // Expectations come from the documented expression language,
+        // independently of the evaluator. Keep final masses nonnegative.
+        const std::vector<std::pair<Json, double>> cases{
+            {Json::array({"add", 2, 7, 4}), 13},
+            {Json::array({"sub", 9, 2}), 7},
+            {Json::array({"mul", 2, 3, 5}), 30},
+            {Json::array({"div", 6, 3}), 2},
+            {Json::array({"div", 1, 0.5}), 2},
+            {Json::array({"div", -3, -2}), 1.5},
+            {Json::array({"div", 0, 7}), 0},
+            {Json::array({"floor", 1.75}), 1},
+            {Json::array({"add", 4, Json::array({"floor", -1.25})}), 2},
+            {Json::array({"min", 8, 2, 5}), 2},
+            {Json::array({"max", 2, 8, 5}), 8},
+            {Json::array({"add", 2, Json::array({"mul", 3, 4})}), 14},
+        };
+        for (const auto &[formula, expected] : cases) {
+          auto changed = original;
+          changed["formulas"]["structureMass"] = formula;
+          const auto loaded = load_rules(changed.dump(), schema_set);
+          require(loaded.ok(), "valid expression must load: " + formula.dump());
+          const auto imported =
+              import_definition(blank().dump(), *loaded.value, schema_set);
+          require(imported.ok(),
+                  "valid expression must evaluate: " + formula.dump() + " " +
+                      Json(imported.issues).dump());
+          const auto &derived = imported.value->definition.at("derived");
+          for (const auto *field :
+               {"structureMass", "dryMass", "mass", "currentMass"}) {
+            require(derived.at(field) == expected,
+                    formula.dump() + " expected " + field + " = " +
+                        std::to_string(expected) + ", got " +
+                        derived.at(field).dump());
+          }
+        }
+      });
+
+  suite.run("F10 logarithms accept one and positive arguments below one", [&] {
+    // These are valid computations, including legitimate zero at ln(1).
+    // The public contract rounds computed masses to six decimal places.
+    const std::vector<std::pair<Json, double>> cases{
+        {Json::array({"ln", 1}), 0},
+        {Json::array({"ln", 2}), 0.693147},
+        {Json::array({"ln", 2.718281828459045}), 1},
+        {Json::array({"mul", -1, Json::array({"ln", 0.5})}), 0.693147},
+    };
+    for (const auto &[formula, expected] : cases) {
+      auto changed = original;
+      changed["formulas"]["structureMass"] = formula;
+      const auto loaded = load_rules(changed.dump(), schema_set);
+      require(loaded.ok(), "valid logarithm expression must load");
+      const auto imported =
+          import_definition(blank().dump(), *loaded.value, schema_set);
+      require(imported.ok(),
+              "valid logarithm must evaluate: " + formula.dump() + " " +
+                  Json(imported.issues).dump());
+      const auto &derived = imported.value->definition.at("derived");
+      for (const auto *field :
+           {"structureMass", "dryMass", "mass", "currentMass"}) {
+        require(derived.at(field) == expected,
+                formula.dump() + " expected " + field + " = " +
+                    std::to_string(expected) + ", got " +
+                    derived.at(field).dump());
+      }
+    }
+  });
+  suite.run(
+      "direct formula totals follow floor counts and active floor mass", [&] {
+        for (const double floor_mass : {0.25, 1.5, 2.0}) {
+          auto changed = original;
+          changed["floorMass"] = changed["floor"]["mass"] = floor_mass;
+          changed["formulas"]["structureMass"] = Json::array(
+              {"add", Json::array({"mul", 3, "floorCount", "floorMass"}), 2});
+          const auto loaded = load_rules(changed.dump(), schema_set);
+          require(loaded.ok(), "coherent active floor-mass rules load");
+          for (int count = 0; count <= 8; ++count) {
+            auto source = blank();
+            for (int x = 0; x < count; ++x)
+              source["decks"][0]["floors"][std::to_string(x) + ",0"] = true;
+            const auto imported =
+                import_definition(source.dump(), *loaded.value, schema_set);
+            require(imported.ok(), "valid floor-count property imports");
+            const double expected = 3 * count * floor_mass + 2;
+            const auto &derived = imported.value->definition.at("derived");
+            for (const auto *field :
+                 {"structureMass", "dryMass", "mass", "currentMass"}) {
+              require(derived.at(field) == expected,
+                      std::string(field) +
+                          " must follow floorCount=" + std::to_string(count) +
+                          ", floorMass=" + std::to_string(floor_mass));
+            }
+          }
+        }
+      });
   return suite.finish();
 }
