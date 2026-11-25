@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -76,22 +77,32 @@ struct Calculator {
         return left - right < -snapshot.data().at("numeric").at("epsilon").get<double>();
     }
 
-    bool design_unavailable(const Issue& issue, std::string_view name) const {
+    bool design_unavailable(const Issue& issue, std::string_view name, const Json& variables) const {
         if (issue.code != "formula_error") return false;
         const auto& node = rules.at(Json::json_pointer(issue.path));
         if (node == "exhaustVelocity") return name == "deltaV" && exhaust_unavailable;
         const auto operation = issue.details.value("operator", std::string());
+        // Use a positive unit value to check the failing operand's dependence on eligible zero inputs.
+        // A zero independent of those inputs, such as mass * 0, stays an error.
+        const auto with_positive_inputs = [&](const Json& operand, std::initializer_list<std::string_view> inputs) {
+            auto probe = variables;
+            for (const auto input : inputs) {
+                auto& value = probe.at(input);
+                if (value == 0) value = 1.0;
+            }
+            return evaluate_formula_operand(operand, probe).value.value_or(0);
+        };
         if (operation == "ln") {
             return name == "deltaV" && issue.details.value("operand", -1.0) == 0 &&
-                (node[1] == "startMass" || node[1] == "endMass");
+                with_positive_inputs(node[1], {"startMass", "endMass"}) > 0;
         }
         if (operation != "div") return false;
         const auto& denominator = node[2];
-        if (name == "acceleration" || name == "range") return denominator == "mass";
-        if (name == "deltaV") return denominator == "endMass";
-        if (name == "fuelToDryMassRatio") return denominator == "dryMass";
+        if (name == "acceleration" || name == "range") return with_positive_inputs(denominator, {"mass"}) != 0;
+        if (name == "deltaV") return with_positive_inputs(denominator, {"endMass"}) != 0;
+        if (name == "fuelToDryMassRatio") return with_positive_inputs(denominator, {"dryMass"}) != 0;
         return engine_count == 0 && (name == "burnSeconds" || name == "exhaustVelocity") &&
-            denominator == "burnRate";
+            with_positive_inputs(denominator, {"burnRate"}) != 0;
     }
 
     static Json metric(const std::optional<double>& value) {
@@ -107,7 +118,7 @@ struct Calculator {
         const Issue* truncated = nullptr;
         for (auto& issue : result.issues) {
             if (issue.code == "issues_truncated") { truncated = &issue; continue; }
-            if (allow_unavailable && design_unavailable(issue, name)) {
+            if (allow_unavailable && design_unavailable(issue, name, variables)) {
                 Json evaluation = {{"formula", name}, {"formulaPath", issue.path}};
                 if (issue.details.contains("operator")) evaluation["operator"] = issue.details.at("operator");
                 if (issue.details.contains("operand")) evaluation["operand"] = issue.details.at("operand");
@@ -223,10 +234,11 @@ struct Calculator {
             }
         } else result["accelerationRating"] = "n/a";
         const bool ship = blueprint.at("buildType") == "ship";
-        const bool weak = current.at("acceleration").is_number() && near_less(current.at("acceleration"), policy.at("underpoweredAcceleration"));
-        if (current.at("acceleration").is_number()) {
-            result["underpowered"] = ship && (weak || near_less(supply, idle) || near_less(supply, cruise) || near_less(supply, jump));
-        } else result["underpowered"] = "n/a";
+        const bool acceleration_known = current.at("acceleration").is_number();
+        const bool weak = acceleration_known && near_less(current.at("acceleration"), policy.at("underpoweredAcceleration"));
+        if (!ship) result["underpowered"] = false;
+        else if (near_less(supply, idle) || near_less(supply, cruise) || near_less(supply, jump)) result["underpowered"] = true;
+        else result["underpowered"] = acceleration_known ? Json(weak) : Json("n/a");
         for (const auto& [phase, demand] : std::map<std::string, double>{{"idle", idle}, {"cruise", cruise}, {"jump", jump}}) {
             if (near_less(supply, demand)) advisory("power_shortfall", "Demand exceeds the active rules' available power supply.",
                 "/performance/power/" + phase, {{"phase", phase}, {"supply", supply}, {"demand", demand}});

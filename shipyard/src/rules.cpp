@@ -67,34 +67,34 @@ std::optional<double> evaluate(const Json& node, const Json& vars, const std::st
             return fail("Formula variable is missing or not a finite number.", {{"variable", name}});
         return vars[name].get<double>();
     }
-    std::vector<double> values;
+    std::vector<std::optional<double>> values;
     bool complete = true;
     // Visit independent operands even after one fails. In particular an F20
     // exclusion must never conceal an unrelated invalid sibling expression.
     for (std::size_t i = 1; i < node.size(); ++i) {
         const auto value = evaluate(node[i], vars, path + "/" + std::to_string(i), issues);
-        if (value) values.push_back(*value);
-        else complete = false;
+        values.push_back(value);
+        if (!value) complete = false;
     }
-    if (!complete) return std::nullopt;
     const auto op = node[0].get<std::string>();
+    if (op == "div" && values[1] == 0)
+        return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", *values[1]}});
+    if (!complete) return std::nullopt;
     double result = 0;
     if (op == "add" || op == "mul") {
         result = op == "mul" ? 1 : 0;
-        for (const auto value : values) {
-            result = op == "mul" ? result * value : result + value;
+        for (const auto& value : values) {
+            result = op == "mul" ? result * *value : result + *value;
             if (!std::isfinite(result)) return fail("Formula intermediate result is not finite.");
         }
-    } else if (op == "sub") result = values[0] - values[1];
-    else if (op == "div") {
-        if (values[1] == 0) return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", values[1]}});
-        result = values[0] / values[1];
-    } else if (op == "floor") result = std::floor(values[0]);
+    } else if (op == "sub") result = *values[0] - *values[1];
+    else if (op == "div") result = *values[0] / *values[1];
+    else if (op == "floor") result = std::floor(*values[0]);
     else if (op == "ln") {
-        if (values[0] <= 0) return fail("Formula logarithm requires a positive operand.", {{"operator", "ln"}, {"operand", values[0]}});
-        result = std::log(values[0]);
-    } else if (op == "min") result = *std::min_element(values.begin(), values.end());
-    else if (op == "max") result = *std::max_element(values.begin(), values.end());
+        if (*values[0] <= 0) return fail("Formula logarithm requires a positive operand.", {{"operator", "ln"}, {"operand", *values[0]}});
+        result = std::log(*values[0]);
+    } else if (op == "min") result = std::min_element(values.begin(), values.end())->value();
+    else if (op == "max") result = std::max_element(values.begin(), values.end())->value();
     else return fail("Unknown formula operator.");
     if (!std::isfinite(result)) return fail("Formula result is not finite.");
     return result;
@@ -266,19 +266,23 @@ Result<RulesSnapshot> load_rules(std::string_view bytes, const SchemaSet& schema
     }
 }
 namespace detail {
-Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name, const Json& variables) {
-    const auto path = "/formulas/" + std::string(name);
-    if (!rules.data().at("formulas").contains(name))
-        return {std::nullopt, {error("invalid_formula", "Undefined formula.", path)}};
+Result<double> evaluate_formula_operand(const Json& operand, const Json& variables, const std::string& path) {
     std::vector<Issue> issues;
     std::optional<double> value;
     try {
-        value = evaluate(rules.data().at("formulas").at(std::string(name)), variables, path, issues);
+        value = evaluate(operand, variables, path, issues);
     } catch (const IssueLimitReached&) {
         // The shared marker already records the omitted formula diagnostics.
     }
     sort_issues(issues);
     return {value, std::move(issues)};
+}
+
+Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name, const Json& variables) {
+    const auto path = "/formulas/" + std::string(name);
+    if (!rules.data().at("formulas").contains(name))
+        return {std::nullopt, {error("invalid_formula", "Undefined formula.", path)}};
+    return evaluate_formula_operand(rules.data().at("formulas").at(std::string(name)), variables, path);
 }
 } // namespace detail
 bool numerically_equal(double left, double right, const RulesSnapshot& rules) {

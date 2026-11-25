@@ -11,5 +11,7 @@ std::string pointer_token(std::string_view token);
 // The perf operation distinguishes unavailable design stats from invalid formulas.
 Result<double> evaluate_formula(const RulesSnapshot& rules, std::string_view name,
                                 const Json& variables);
+Result<double> evaluate_formula_operand(const Json& operand, const Json& variables,
+                                        const std::string& path = "");
 std::size_t character_count(std::string_view utf8);
 } // namespace apsis::shipyard::detail
