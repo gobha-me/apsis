@@ -210,7 +210,9 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
             raise ReportError("adapter returned an invalid issue severity/details")
     if passed == any(issue["severity"] == "error" for issue in issues):
         raise ReportError("adapter status disagrees with its error findings")
-    data = response.get("data")
+    if "data" not in response:
+        raise ReportError("adapter result is missing data")
+    data = response["data"]
     if data is not None and not isinstance(data, dict):
         raise ReportError("adapter returned malformed data")
     definition = data.get("definition") if data is not None else None
@@ -237,11 +239,23 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
     ):
         raise ReportError("adapter returned missing/nonfinite direct totals")
     if definition is not None and (
-        validation.get("ready") is not (None if passed else False)
-        or validation.get("jumpReady") is not None
+        "ready" not in validation
+        or "jumpReady" not in validation
+        or validation["ready"] is not (None if passed else False)
+        or validation["jumpReady"] is not None
         or validation.get("issues") != issues
     ):
         raise ReportError("adapter confused structural approval with readiness")
+    migration = data.get("migration") if data is not None else None
+    if data is not None and (
+        not isinstance(migration, dict)
+        or type(migration.get("sourceVersion")) is not int
+        or type(migration.get("targetVersion")) is not int
+        or type(migration.get("rulesIdentityChanged")) is not bool
+        or not isinstance(migration.get("changes"), list)
+        or any(not isinstance(change, str) for change in migration["changes"])
+    ):
+        raise ReportError("adapter returned malformed migration metadata")
     return {
         **{key: value for key, value in case.items() if key != "input"},
         "status": response["status"],
@@ -250,7 +264,7 @@ def summarize(case: dict, response: dict, rules_hash: str) -> dict:
         "jumpReady": validation.get("jumpReady"),
         "totals": derived,
         "issues": issues,
-        "migration": data.get("migration") if data else None,
+        "migration": migration,
     }
 
 

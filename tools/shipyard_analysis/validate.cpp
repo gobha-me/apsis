@@ -2,6 +2,7 @@
 #include <apsis/shipyard/validator.hpp>
 
 #include <csignal>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -34,11 +35,14 @@ int main(int argc, char** argv) {
         std::ifstream stream(argv[2], std::ios::binary);
         if (!stream.is_open()) throw std::runtime_error("cannot open rules file");
         auto rules = sy::load_rules(bounded_read(stream), *schemas.value);
+        stream.close(); // The rules file may have reused an initially closed stdin descriptor.
         if (!rules.ok()) {
             std::cerr << sy::Json({{"error", "rules_loading"}, {"issues", rules.issues}}).dump() << '\n';
             return 2;
         }
         const auto definition = bounded_read(std::cin);
+        // The synchronized std::cin can report a failed read as EOF.
+        if (std::ferror(stdin)) throw std::runtime_error("stdin read failed");
         // Structural FAIL is a successful measurement; operational failures exit 2.
 #ifdef SIGPIPE
         std::signal(SIGPIPE, SIG_IGN);

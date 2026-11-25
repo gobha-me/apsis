@@ -48,7 +48,12 @@ def response():
                     "fuel": 2,
                 },
             },
-            "migration": {},
+            "migration": {
+                "sourceVersion": 3,
+                "targetVersion": 4,
+                "rulesIdentityChanged": True,
+                "changes": ["Migrated definition"],
+            },
         },
     }
 
@@ -211,8 +216,9 @@ class ReportPlanningTests(unittest.TestCase):
             driver = Path(directory) / "adapter"
             driver.write_bytes(b"fake test adapter")
             output = Path(directory) / "report"
+            baseline = response()
             completed = subprocess.CompletedProcess(
-                [], 0, json.dumps(response()).encode(), b""
+                [], 0, json.dumps(baseline).encode(), b""
             )
             with (
                 patch.object(report.subprocess, "run", return_value=completed) as run,
@@ -227,7 +233,11 @@ class ReportPlanningTests(unittest.TestCase):
             self.assertEqual(1, run.call_count)
             data = json.loads((output / "results.json").read_text())
             self.assertIsNone(data["cases"][0]["ready"])
+            self.assertIsNone(data["cases"][0]["jumpReady"])
             self.assertEqual(100, data["cases"][0]["totals"]["cost"])
+            self.assertEqual(
+                baseline["data"]["migration"], data["cases"][0]["migration"]
+            )
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual("completed", manifest["status"])
             self.assertEqual(str(driver.resolve()), manifest["driver"])
@@ -390,6 +400,70 @@ class ReportPlanningTests(unittest.TestCase):
                 )
                 self.assertFalse((output / "results.json").exists())
 
+    def test_invalid_adapter_evidence_records_failed_manifest(self):
+        passed = response()
+        failed = {
+            **passed,
+            "pass": False,
+            "status": "FAIL",
+            "data": None,
+            "issues": [
+                {
+                    "code": "invalid_json",
+                    "severity": "error",
+                    "path": "",
+                    "message": "Invalid JSON",
+                    "details": {},
+                }
+            ],
+        }
+        missing = object()
+        validation_path = ("data", "definition", "validation")
+        migration_path = ("data", "migration")
+        for path, replacement, diagnostic in (
+            (("data",), missing, "missing data"),
+            ((*validation_path, "ready"), missing, "readiness"),
+            ((*validation_path, "jumpReady"), missing, "readiness"),
+            (migration_path, missing, "migration"),
+            (migration_path, "migrated", "migration"),
+            ((*migration_path, "sourceVersion"), True, "migration"),
+            ((*migration_path, "targetVersion"), 4.0, "migration"),
+            ((*migration_path, "rulesIdentityChanged"), 1, "migration"),
+            ((*migration_path, "changes"), "migrated", "migration"),
+            ((*migration_path, "changes"), ["migrated", 1], "migration"),
+        ):
+            with (
+                self.subTest(path=path, replacement=replacement),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                changed = copy.deepcopy(failed if path == ("data",) else passed)
+                parent = changed
+                for field in path[:-1]:
+                    parent = parent[field]
+                if replacement is missing:
+                    del parent[path[-1]]
+                else:
+                    parent[path[-1]] = replacement
+                completed = subprocess.CompletedProcess(
+                    [], 0, json.dumps(changed).encode(), b""
+                )
+                driver = Path(directory) / "adapter"
+                driver.write_bytes(b"fake")
+                output = Path(directory) / "report"
+                with (
+                    patch.object(report.subprocess, "run", return_value=completed),
+                    redirect_stdout(io.StringIO()),
+                    redirect_stderr(io.StringIO()),
+                ):
+                    status = report.main(
+                        [str(SKIFF), "--driver", str(driver), "--output", str(output)]
+                    )
+                self.assertEqual(2, status)
+                manifest = json.loads((output / "manifest.json").read_text())
+                self.assertEqual("failed", manifest["status"])
+                self.assertIn(diagnostic, manifest["error"])
+                self.assertFalse((output / "results.json").exists())
+
     def test_markdown_escapes_untrusted_names(self):
         self.assertEqual(
             "&lt;script&gt;&#124;&#96; line", report.markdown_text("<script>|`\nline")
@@ -405,10 +479,11 @@ class NativeReportTests(unittest.TestCase):
     def setUpClass(cls):
         cls.driver = Path(os.environ["APSIS_SHIPYARD_VALIDATE"]).resolve()
 
-    def invoke(self, source, rules=RULES, *, stdout=subprocess.PIPE):
+    def invoke(self, source=None, rules=RULES, *, stdin=None, stdout=subprocess.PIPE):
         return subprocess.run(
             [str(self.driver), str(SCHEMAS), str(rules)],
             input=source,
+            stdin=stdin,
             stdout=stdout,
             stderr=subprocess.PIPE,
             timeout=30,
@@ -459,6 +534,42 @@ class NativeReportTests(unittest.TestCase):
         completed = self.invoke(SKIFF.read_bytes(), SKIFF)
         self.assertEqual(2, completed.returncode)
         self.assertEqual("rules_loading", json.loads(completed.stderr)["error"])
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX descriptors")
+    def test_adapter_distinguishes_failed_stdin_read_from_empty_input(self):
+        empty = self.invoke(b"")
+        self.assertEqual(0, empty.returncode, empty.stderr)
+        result = json.loads(empty.stdout)
+        self.assertEqual("FAIL", result["status"])
+        self.assertEqual(
+            ["invalid_json"], [issue["code"] for issue in result["issues"]]
+        )
+
+        descriptor = os.open(SCHEMAS, os.O_RDONLY)
+        try:
+            directory = self.invoke(stdin=descriptor)
+        finally:
+            os.close(descriptor)
+        closed = subprocess.run(
+            [
+                "sh",
+                "-c",
+                'exec "$@" <&-',
+                "sh",
+                *map(str, (self.driver, SCHEMAS, RULES)),
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        for input_kind, failed in (("directory", directory), ("closed", closed)):
+            with self.subTest(input_kind=input_kind):
+                self.assertEqual(2, failed.returncode)
+                self.assertEqual(b"", failed.stdout)
+                self.assertEqual(
+                    {"error": "adapter_error", "message": "stdin read failed"},
+                    json.loads(failed.stderr),
+                )
 
     @unittest.skipUnless(Path("/dev/full").exists(), "requires /dev/full")
     def test_adapter_reports_failed_stdout_write(self):
