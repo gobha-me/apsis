@@ -206,18 +206,19 @@ class EvidenceTests(unittest.TestCase):
     def evidence(self, directory):
         (directory / "runs").mkdir()
         self.manifest["status"] = "complete"
-        for seed in self.manifest["seeds"]:
-            item = record(self.manifest, self.case, seed, ended=seed == 110478)
-            path = directory / "runs" / f"case-0000-{seed}-hauler.json"
-            sweep.write_json(path, item)
-            self.manifest["runs"].append(
-                {
-                    "case": "case-0000",
-                    "seed": seed,
-                    "style": "hauler",
-                    "sha256": sweep.sha256(path),
-                }
-            )
+        for case in self.manifest["cases"]:
+            for seed in self.manifest["seeds"]:
+                item = record(self.manifest, case, seed, ended=seed == 110478)
+                path = directory / "runs" / f"{case['id']}-{seed}-hauler.json"
+                sweep.write_json(path, item)
+                self.manifest["runs"].append(
+                    {
+                        "case": case["id"],
+                        "seed": seed,
+                        "style": "hauler",
+                        "sha256": sweep.sha256(path),
+                    }
+                )
 
     def test_censored_outcomes_and_curve_denominators(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -253,6 +254,44 @@ class EvidenceTests(unittest.TestCase):
             self.assertIn("right-censored", (directory / "summary.md").read_text())
             self.assertTrue((directory / "runs.csv").is_file())
 
+    def test_report_regeneration_preserves_linked_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "campaign"
+            output.mkdir()
+            self.evidence(output)
+            manifest = output / "manifest.json"
+            sweep.write_json(manifest, self.manifest)
+            raw = output / "runs" / "case-0000-333860-hauler.json"
+            external = root / "sentinel"
+            external.write_bytes(b"external file\n")
+            inputs = {path: path.read_bytes() for path in (manifest, raw, external)}
+
+            self.assertEqual(sweep.main(["report", str(output)]), 0)
+            links = {
+                output / "summary.json": raw,
+                output / "summary.csv": manifest,
+                output / "curves.csv": external,
+                output / "runs.csv": raw,
+                output / "summary.md": external,
+            }
+            reports = {path: path.read_bytes() for path in links}
+            for path, target in links.items():
+                path.unlink()
+                if target == manifest:
+                    path.hardlink_to(target)
+                else:
+                    path.symlink_to(target)
+
+            self.assertEqual(sweep.main(["report", str(output)]), 0)
+            for path, original in inputs.items():
+                with self.subTest(path=path.name):
+                    self.assertEqual(path.read_bytes(), original)
+            for path, original in reports.items():
+                with self.subTest(path=path.name):
+                    self.assertFalse(path.is_symlink())
+                    self.assertEqual(path.read_bytes(), original)
+
     def test_report_rejects_case_label_drift(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -273,6 +312,29 @@ class EvidenceTests(unittest.TestCase):
                 sweep.main(["report", str(directory)])
             self.assertEqual(error.exception.code, 1)
             self.assertFalse((directory / "summary.md").exists())
+
+    def test_report_rejects_disagreement_on_non_axis_settings(self):
+        self.manifest = sweep.plan(args(seeds=[333860], styles=["hauler"]))
+        first, second = self.manifest["cases"]
+        medium_mass = int(first["resolvedParams"]["mediumMass"])
+        for case in (first, second):
+            case["resolvedParams"]["mediumMass"] = str(medium_mass + 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.evidence(directory)
+            path = directory / "manifest.json"
+            sweep.write_json(path, self.manifest)
+            self.assertEqual(sweep.main(["report", str(directory)]), 0)
+
+            second["resolvedParams"]["mediumMass"] = str(medium_mass + 2)
+            artifact = directory / "runs" / "case-0001-333860-hauler.json"
+            sweep.write_json(artifact, record(self.manifest, second))
+            self.manifest["runs"][1]["sha256"] = sweep.sha256(artifact)
+            sweep.write_json(path, self.manifest)
+            with self.assertRaises(SystemExit) as error:
+                sweep.main(["report", str(directory)])
+            self.assertEqual(error.exception.code, 1)
 
     def test_manifest_run_identifiers_are_checked_before_artifact_reads(self):
         with tempfile.TemporaryDirectory() as temporary:

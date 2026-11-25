@@ -12,6 +12,7 @@ import random
 import re
 import statistics
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 STYLES = (
@@ -362,6 +363,7 @@ def validate_design(manifest):
     if not isinstance(cases, list) or len(cases) != len(points):
         raise ValueError("manifest case count mismatch")
     cases_by_id = {}
+    baseline_params = None
     for index, (case, point) in enumerate(zip(cases, points, strict=True)):
         case_id = f"case-{index:04d}"
         if not isinstance(case, dict) or case.get("id") != case_id:
@@ -376,6 +378,15 @@ def validate_design(manifest):
             resolved.get(name) != str(value) for name, value in point.items()
         ):
             raise ValueError("manifest case overrides do not match resolved settings")
+        fixed_params = {
+            name: value for name, value in resolved.items() if name not in axes
+        }
+        if any(not isinstance(value, str) for value in fixed_params.values()):
+            raise ValueError("invalid non-axis resolved parameter value")
+        if baseline_params is None:
+            baseline_params = fixed_params
+        elif fixed_params != baseline_params:
+            raise ValueError("manifest cases disagree on non-axis resolved parameters")
         cases_by_id[case_id] = case
     return cases_by_id
 
@@ -502,13 +513,6 @@ def summarize(output, manifest):
                 **{r: record["curve"][-1][r] for r in RESOURCES},
             }
         )
-    write_json(
-        output / "summary.json",
-        {"schemaVersion": 1, "summaries": summaries, "resourceCurves": curves},
-    )
-    csv_file(output / "summary.csv", list(summaries[0]), summaries)
-    csv_file(output / "curves.csv", list(curves[0]), curves)
-    csv_file(output / "runs.csv", list(rows[0]), rows)
     lines = [
         "# Balance experiment observations",
         "",
@@ -538,7 +542,19 @@ def summarize(output, manifest):
         lines.append(
             f"| {row['case']} | {row['style']} | {row['runs']} | {row['survivalRate']:.1%} | {row['lost']} / {row['hazard']} / {row['bankrupt']} | {row['terminalCount']} / {row['censoredCount']} | {duration} | {row['medianFinalCompletedJobs']} | {row['medianFinalWallet']} | {row['medianFinalDebt']} |"
         )
-    (output / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # Replace existing report entries without writing through their links.
+    with tempfile.TemporaryDirectory(dir=output) as temporary:
+        staged = Path(temporary)
+        write_json(
+            staged / "summary.json",
+            {"schemaVersion": 1, "summaries": summaries, "resourceCurves": curves},
+        )
+        csv_file(staged / "summary.csv", list(summaries[0]), summaries)
+        csv_file(staged / "curves.csv", list(curves[0]), curves)
+        csv_file(staged / "runs.csv", list(rows[0]), rows)
+        (staged / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for report in staged.iterdir():
+            report.replace(output / report.name)
     return summaries
 
 
