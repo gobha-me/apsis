@@ -34,6 +34,13 @@ BOUNDS = {
     "stockDrivePm": (500, 3000),
 }
 DRIVES = (500, 1000, 1500, 2000, 3000)
+RECIPE_BOUNDS = {
+    "majors": (3, 5),
+    "startDay": (0, 36000),
+    "days": (1, 7200),
+    "sampleEvery": (1, 7200),
+}
+MAX_CURVE_SAMPLES = 1001
 RESOURCES = ("wallet", "debt", "fuel", "worth", "completedJobs")
 ENDS = ("horizon", "lost", "hazard", "bankrupt")
 
@@ -176,6 +183,13 @@ def bounded(low, high):
     return parse
 
 
+def validate_sampling(days, sample_every):
+    if math.ceil(days / sample_every) + 1 > MAX_CURVE_SAMPLES:
+        raise ValueError(
+            f"at most {MAX_CURVE_SAMPLES} curve samples per run; increase --sample-every"
+        )
+
+
 def plan(args):
     axes = dict(args.axis or [("stockTank", [3, 6])])
     if args.axis and len(axes) != len(args.axis):
@@ -188,8 +202,7 @@ def plan(args):
     # Bound the plan before materializing products or strata.
     if points > 10000:
         raise ValueError("design exceeds 10000 points; split the experiment")
-    if math.ceil(args.days / args.sample_every) > 1000:
-        raise ValueError("at most 1001 curve samples per run; increase --sample-every")
+    validate_sampling(args.days, args.sample_every)
     candidates = design(axes, args.method, args.samples, args.design_seed)
     unique = unique_points(candidates)
     total = len(unique) * len(args.seeds) * len(args.styles)
@@ -239,6 +252,14 @@ def require_int(value, low, high, label):
         raise ValueError(f"invalid {label}")
 
 
+def is_int64_string(value):
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"0|-?[1-9][0-9]{0,18}", value) is not None
+        and -(2**63) <= int(value) < 2**63
+    )
+
+
 def validate(record, manifest, case, seed, style):
     if not isinstance(record, dict):
         raise ValueError("driver result must be an object")
@@ -279,7 +300,7 @@ def validate(record, manifest, case, seed, style):
     if first is not None:
         require_int(first, 1, elapsed, "first job completion day")
     curve = record.get("curve")
-    if not isinstance(curve, list) or not 2 <= len(curve) <= 1001:
+    if not isinstance(curve, list) or not 2 <= len(curve) <= MAX_CURVE_SAMPLES:
         raise ValueError("invalid resource curve")
     expected_days = list(range(0, elapsed + 1, manifest["sampleEvery"]))
     if expected_days[-1] != elapsed:
@@ -296,11 +317,7 @@ def validate(record, manifest, case, seed, style):
             raise ValueError("resource sample day mismatch")
         for resource in RESOURCES:
             value = point.get(resource)
-            if (
-                not isinstance(value, str)
-                or not re.fullmatch(r"0|-?[1-9][0-9]*", value)
-                or not -(2**63) <= int(value) < 2**63
-            ):
+            if not is_int64_string(value):
                 raise ValueError(f"invalid exact resource: {resource}")
             if resource != "worth" and int(value) < 0:
                 raise ValueError(f"negative {resource}")
@@ -362,6 +379,15 @@ def validate_design(manifest):
     cases = manifest["cases"]
     if not isinstance(cases, list) or len(cases) != len(points):
         raise ValueError("manifest case count mismatch")
+    # The schema requires every setting name. Recorded fixed values may differ from defaults.
+    params, default_rules = defaults()
+    rules = manifest["rules"]
+    if (
+        not isinstance(rules, dict)
+        or rules.keys() != default_rules.keys()
+        or any(type(value) is not bool for value in rules.values())
+    ):
+        raise ValueError("invalid manifest rules")
     cases_by_id = {}
     baseline_params = None
     for index, (case, point) in enumerate(zip(cases, points, strict=True)):
@@ -374,14 +400,14 @@ def validate_design(manifest):
         ):
             raise ValueError("manifest case overrides do not match design")
         resolved = case["resolvedParams"]
-        if not isinstance(resolved, dict) or any(
-            resolved.get(name) != str(value) for name, value in point.items()
-        ):
+        if not isinstance(resolved, dict) or resolved.keys() != params.keys():
+            raise ValueError("invalid manifest resolved parameter names")
+        if any(resolved[name] != str(value) for name, value in point.items()):
             raise ValueError("manifest case overrides do not match resolved settings")
         fixed_params = {
             name: value for name, value in resolved.items() if name not in axes
         }
-        if any(not isinstance(value, str) for value in fixed_params.values()):
+        if any(not is_int64_string(value) for value in fixed_params.values()):
             raise ValueError("invalid non-axis resolved parameter value")
         if baseline_params is None:
             baseline_params = fixed_params
@@ -394,6 +420,9 @@ def validate_design(manifest):
 def summarize(output, manifest):
     if manifest["status"] != "complete":
         raise ValueError("campaign is incomplete; partial evidence is not summarized")
+    for name, (low, high) in RECIPE_BOUNDS.items():
+        require_int(manifest[name], low, high, f"manifest {name}")
+    validate_sampling(manifest["days"], manifest["sampleEvery"])
     cases = validate_design(manifest)
     seeds, styles = manifest["seeds"], manifest["styles"]
     if not isinstance(seeds, list) or not seeds:
@@ -683,10 +712,14 @@ def main(argv=None):
     execute.add_argument(
         "--styles", type=style_list, default=["hauler", "crisis", "pathfinder"]
     )
-    execute.add_argument("--majors", type=bounded(3, 5), default=4)
-    execute.add_argument("--start-day", type=bounded(0, 36000), default=0)
-    execute.add_argument("--days", type=bounded(1, 7200), default=180)
-    execute.add_argument("--sample-every", type=bounded(1, 7200), default=30)
+    execute.add_argument("--majors", type=bounded(*RECIPE_BOUNDS["majors"]), default=4)
+    execute.add_argument(
+        "--start-day", type=bounded(*RECIPE_BOUNDS["startDay"]), default=0
+    )
+    execute.add_argument("--days", type=bounded(*RECIPE_BOUNDS["days"]), default=180)
+    execute.add_argument(
+        "--sample-every", type=bounded(*RECIPE_BOUNDS["sampleEvery"]), default=30
+    )
     execute.add_argument("--max-runs", type=bounded(1, 100000), default=24)
     execute.add_argument("--max-sim-days", type=bounded(1, 10**9), default=100000)
     execute.add_argument("--timeout", type=bounded(1, 3600), default=60)

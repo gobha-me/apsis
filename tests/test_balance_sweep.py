@@ -203,12 +203,16 @@ class EvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     sweep.load_json(path)
 
-    def evidence(self, directory):
+    def evidence(self, directory, *, curve_interval=None, all_ended=False):
         (directory / "runs").mkdir()
         self.manifest["status"] = "complete"
+        recipe = self.manifest
+        if curve_interval is not None:
+            recipe = recipe | {"sampleEvery": curve_interval}
         for case in self.manifest["cases"]:
             for seed in self.manifest["seeds"]:
-                item = record(self.manifest, case, seed, ended=seed == 110478)
+                item = record(recipe, case, seed, ended=all_ended or seed == 110478)
+                item["sampleEvery"] = self.manifest["sampleEvery"]
                 path = directory / "runs" / f"{case['id']}-{seed}-hauler.json"
                 sweep.write_json(path, item)
                 self.manifest["runs"].append(
@@ -219,6 +223,19 @@ class EvidenceTests(unittest.TestCase):
                         "sha256": sweep.sha256(path),
                     }
                 )
+
+    def assert_report_rejected_before_artifacts(self, directory, message):
+        sweep.write_json(directory / "manifest.json", self.manifest)
+        with (
+            mock.patch.object(sweep, "sha256", wraps=sweep.sha256) as digest,
+            mock.patch.object(sys, "stderr") as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            sweep.main(["report", str(directory)])
+        self.assertEqual(error.exception.code, 1)
+        self.assertIn(message, stderr.write.call_args.args[0])
+        digest.assert_not_called()
+        self.assertFalse((directory / "summary.json").exists())
 
     def test_censored_outcomes_and_curve_denominators(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -313,9 +330,73 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 1)
             self.assertFalse((directory / "summary.md").exists())
 
+    def test_report_rejects_invalid_recipes(self):
+        baseline = self.manifest
+        for changes, message in (
+            ({"majors": 6}, "majors"),
+            ({"majors": 4.0}, "majors"),
+            ({"startDay": -1}, "startDay"),
+            ({"days": 7201}, "days"),
+            ({"sampleEvery": 7201}, "sampleEvery"),
+            ({"sampleEvery": 0}, "sampleEvery"),
+            ({"sampleEvery": -1}, "sampleEvery"),
+            ({"days": 6001, "sampleEvery": 6}, "1001 curve samples"),
+        ):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                self.manifest = deepcopy(baseline) | changes
+                self.manifest["simulatedDayBudget"] = self.manifest["runCount"] * (
+                    self.manifest["startDay"] + self.manifest["days"] + 1
+                )
+                # Nonpositive intervals cannot generate coordinates, so reuse the fixture curve.
+                interval = (
+                    baseline["sampleEvery"]
+                    if self.manifest["sampleEvery"] <= 0
+                    else None
+                )
+                # The request exceeds the cap even if every observed curve is short.
+                self.evidence(directory, curve_interval=interval, all_ended=True)
+                self.assert_report_rejected_before_artifacts(directory, message)
+
+    def test_report_rejects_invalid_settings(self):
+        baseline = self.manifest
+        resolved = self.case["resolvedParams"]
+        default_rules = baseline["rules"]
+        for label, rules, params, message in (
+            ("missing rules", {}, resolved, "invalid manifest rules"),
+            (
+                "missing params",
+                default_rules,
+                {"stockTank": "6"},
+                "resolved parameter names",
+            ),
+            (
+                "nonboolean rule",
+                default_rules | {"rescue": 1},
+                resolved,
+                "invalid manifest rules",
+            ),
+            (
+                "noncanonical param",
+                default_rules,
+                resolved | {"mediumMass": "01"},
+                "invalid non-axis resolved parameter value",
+            ),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                self.manifest = deepcopy(baseline)
+                self.manifest["rules"] = rules
+                self.manifest["cases"][0]["resolvedParams"] = params
+                self.evidence(directory)
+                self.assert_report_rejected_before_artifacts(directory, message)
+
     def test_report_rejects_disagreement_on_non_axis_settings(self):
         self.manifest = sweep.plan(args(seeds=[333860], styles=["hauler"]))
         first, second = self.manifest["cases"]
+        # Historical fixed values may differ from current defaults.
+        rules = self.manifest["rules"]
+        rules["rescue"] = not rules["rescue"]
         medium_mass = int(first["resolvedParams"]["mediumMass"])
         for case in (first, second):
             case["resolvedParams"]["mediumMass"] = str(medium_mass + 1)
@@ -539,6 +620,21 @@ class NativeTests(unittest.TestCase):
                 self.assertEqual(raw["resolvedParams"]["stockTank"], tank)
                 self.assertEqual(raw["curve"][0]["elapsedDays"], 0)
                 self.assertEqual(raw["curve"][0]["fuel"], tank)
+
+    def test_measured_career_applies_bot_actions(self):
+        driver = os.environ["APSIS_BALANCE_DRIVER"]
+        clean = {k: v for k, v in os.environ.items() if not k.startswith("APSIS_")}
+        raw = json.loads(
+            subprocess.check_output(
+                [driver, "333860", "4", "0", "180", "30", "0", "stockTank=3"],
+                env=clean,
+            )
+        )
+        final = raw["curve"][-1]
+        # The hauler refits during this career, adding to worth beyond net cash.
+        self.assertGreater(
+            int(final["worth"]), int(final["wallet"]) - int(final["debt"])
+        )
 
     def test_native_rejects_unsafe_direct_inputs(self):
         driver = os.environ["APSIS_BALANCE_DRIVER"]
