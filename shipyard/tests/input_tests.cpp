@@ -108,6 +108,27 @@ int main() {
         rejected(blueprint, active, schema, "schema_error", "/budget");
       });
 
+  suite.run("F22a UTF-8 name boundaries preserve complete graphemes", [&] {
+    // Each repeated character is one grapheme. U+0080 is a C1 control;
+    // the public text contract rejects C0 and DEL, not C1. U+0100 is a
+    // precomposed letter. Neither needs a combining-sequence interpretation.
+    for (const auto &grapheme :
+         {std::string("\xC2\x80"), std::string("\xC4\x80")}) {
+      for (const std::size_t count : {1, 79, 80}) {
+        auto blueprint = blank();
+        blueprint["name"] = repeated(grapheme, count);
+        preserved(blueprint, active, schema, "name");
+      }
+      auto blueprint = blank();
+      blueprint["name"] = repeated(grapheme, 81);
+      rejected(blueprint, active, schema, "field_limit", "/name");
+    }
+
+    auto blueprint = blank();
+    blueprint["name"] = "A B" + repeated("\xC4\x80", 77);
+    preserved(blueprint, active, schema, "name");
+  });
+
   suite.run(
       "technical input caps come from the active rules in both directions",
       [&] {
@@ -357,7 +378,15 @@ int main() {
                                     .get<std::size_t>();
         for (std::size_t i = 0; i <= note_count; ++i)
           blueprint["migrationNotes"].push_back("note");
-        rejected(blueprint, active, schema, "field_limit", "/migrationNotes");
+        // Luna, under owner delegation 2026-11-23: count overflow retains
+        // newest notes and one notice inside the original active bound.
+        const auto retained = import_definition(blueprint.dump(), active, schema);
+        require(retained.ok(), "Note count overflow must remain importable");
+        Json expected = Json::array({"Older migration notes were dropped."});
+        for (std::size_t i = 1; i < note_count; ++i)
+          expected.push_back("note");
+        require(retained.value->definition.at("blueprint").at("migrationNotes") == expected,
+                "Overflow keeps newest duplicate notes plus exactly one bounded notice");
       });
 
   suite.run("import forwards operational input byte and nesting limits", [&] {

@@ -68,15 +68,46 @@ struct Importer {
 
     void add_note(Json& blueprint, const std::string& note, const std::string& path) {
         auto& notes = blueprint.at("migrationNotes");
-        if (includes(notes, note)) return;
-        if (notes.size() < rules.at("limits").at("maxMigrationNotes").get<std::size_t>() &&
-            detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
+        if (detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
             notes.push_back(note);
             return;
         }
         detail::add_issue(issues, {"migration_note_limit", "warning",
-                          "Existing migration notes were preserved; additional changes are in the migration report.",
+                          "A generated migration note exceeds the active text limit; changes remain in the migration report.",
                           at(path, "migrationNotes"), Json::object()});
+    }
+
+    void retain_notes(Json& blueprint, const std::string& path) {
+        auto& notes = blueprint.at("migrationNotes");
+        const auto maximum = rules.at("limits").at("maxMigrationNotes").get<std::size_t>();
+        const std::size_t markers = blueprint.contains("migrationNotesDropped") ? 1 : 0;
+        const auto real_count = notes.size() - markers;
+        if (markers != 0 || real_count > maximum) {
+            // Rules require a positive cap: reserve one bounded slot for history.
+            const auto keep = std::min(real_count, maximum - 1);
+            constexpr std::string_view full_notice = "Older migration notes were dropped.";
+            const auto marker = detail::character_count(full_notice) <=
+                rules.at("limits").at("maxNoteLength").get<std::size_t>() ? full_notice : "\xe2\x80\xa6";
+            Json retained = Json::array({std::string(marker)});
+            retained.insert(retained.end(), notes.end() - static_cast<Json::difference_type>(keep), notes.end());
+            if (retained != notes) {
+                const auto dropped = real_count - keep;
+                notes = std::move(retained);
+                blueprint["migrationNotesDropped"] = true;
+                change(at(path, "migrationNotes") + ": retained newest notes and one dropped-history notice");
+                detail::add_issue(issues, {"migration_note_limit", "warning",
+                    "Older migration notes were dropped; the newest notes and one notice were retained.",
+                    at(path, "migrationNotes"), {{"limit", maximum}, {"dropped", dropped}, {"retained", keep}}});
+            }
+        }
+        for (auto& [deck_index, deck] : blueprint.at("decks").items()) {
+            for (auto& [module_index, module] : deck.at("modules").items()) {
+                if (module.contains("craft") && !module.at("craft").is_null()) {
+                    const auto child = at(at(at(at(at(path, "decks"), deck_index), "modules"), module_index), "craft");
+                    retain_notes(module.at("craft"), child);
+                }
+            }
+        }
     }
 
     // Normalize only schema/default metadata, never geometry, labels or IDs.
@@ -123,11 +154,11 @@ struct Importer {
                 detail::add_issue(issues, error("invalid_load", "Load fractions must be between zero and one.", at(at(path, "loads"), it.key())));
             }
         }
-        auto& notes = blueprint.at("migrationNotes");
-        if (notes.size() > limits.at("maxMigrationNotes").get<std::size_t>()) {
-            detail::add_issue(issues, error("field_limit", "Migration note count exceeds the active rules limit.", at(path, "migrationNotes")));
-        }
-        for (std::size_t i = 0; i < notes.size(); ++i) {
+        const auto& notes = blueprint.at("migrationNotes");
+        // The v4 schema requires a leading notice when the provenance flag is set.
+        // Validate every ordinary note, including those later discarded.
+        const std::size_t first_ordinary = blueprint.contains("migrationNotesDropped") ? 1 : 0;
+        for (std::size_t i = first_ordinary; i < notes.size(); ++i) {
             check_text(notes[i], limits.at("maxNoteLength"), at(at(path, "migrationNotes"), std::to_string(i)));
         }
         const auto deck_count = blueprint.at("decks").size();
@@ -209,7 +240,10 @@ struct Importer {
             detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
-            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.", path);
+            const std::string note = "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.";
+            if (!includes(blueprint.at("migrationNotes"), note)) {
+                add_note(blueprint, note, path);
+            }
         }
     }
 
@@ -357,13 +391,23 @@ Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view b
         if (importer.report.rulesIdentityChanged) {
             importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
             if (!has_errors(importer.issues)) {
-                importer.add_note(blueprint, "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.", blueprint_path);
+                const auto& notes = blueprint.at("migrationNotes");
+                const auto maximum = rules.data().at("limits").at("maxMigrationNotes").get<std::size_t>();
+                // On overflow, one slot belongs to the notice and only the suffix will survive.
+                const auto keep = notes.size() > maximum ? maximum - 1 : notes.size();
+                const auto first_retained = notes.end() - static_cast<Json::difference_type>(keep);
+                const std::string note = "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.";
+                if (std::find(first_retained, notes.end(), note) == notes.end()) {
+                    importer.add_note(blueprint, note, blueprint_path);
+                }
             }
         }
         if (has_errors(importer.issues)) {
             sort_issues(importer.issues);
             return {std::nullopt, std::move(importer.issues)};
         }
+        // New automatic notes are present now; retain each craft independently.
+        importer.retain_notes(blueprint, blueprint_path);
         // Validate the normalized target before any rule-dependent arithmetic.
         auto target_issues = schemas.validate(blueprint, "apsis-shipyard-v4");
         if (!target_issues.empty()) return {std::nullopt, std::move(target_issues)};
@@ -391,8 +435,12 @@ Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view b
         detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
         detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
         sort_issues(importer.issues);
+        // Migration warnings describe the input history. Keep them in the result
+        // while caching only diagnostics reproducible from the normalized export.
+        auto validation_issues = importer.issues;
+        std::erase_if(validation_issues, [](const Issue& issue) { return issue.code == "migration_note_limit"; });
         Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
-            {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", importer.issues}}},
+            {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", std::move(validation_issues)}}},
             {"rulesVersion", rules.version()}, {"rulesSha256", rules.sha256()}, {"rules", rules.data()}};
         auto output_issues = schemas.validate(definition, "apsis-ship-definition-v4");
         if (!output_issues.empty()) return {std::nullopt, std::move(output_issues)};

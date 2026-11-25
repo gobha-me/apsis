@@ -16,12 +16,11 @@ the request time limit (#52). Draft schemas describe shape; the loader then
 checks active catalogue references, grid coordinates, module IDs/nextId,
 rotations, interfaces, carry depth, and limits.
 C0 and DEL controls are rejected in labels/notes; no Unicode normalization
-occurs. F22's name-length counting and label trimming/fallback choices are
-**Open for Luna, not guessed**, with no value picked. The current loader's
-Unicode scalar-value counting and preservation of empty or whitespace-only
-labels without trimming or fallback are an **interim interpretation**. The
-prototype instead uses JavaScript UTF-16 length units and trims labels with a
-fallback. These differences are not a settled technical encoding contract.
+occurs. F22 name counting and trim/fallback are decided by
+**Luna, under owner delegation 2026-11-23** and implemented separately in #80
+and #81. This independent note-retention unit leaves the earlier name runtime
+unchanged until those implementations are integrated; it adds no new name
+interpretation or unresolved design question.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
@@ -82,13 +81,32 @@ Migration accepts v3 blueprints/wrappers, validates source shape, fills only
 missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
-versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Migration-note overflow handling (F22) is
-**Open for Luna, not guessed**, with no value picked. As an
-**interim interpretation**, the current loader preserves existing full note
-lists and leaves extra changes in the report with a warning; the prototype
-keeps the newest notes instead. This difference is not a settled technical
-encoding contract. Export is always v4.
+versions, rule-identity changes, and deterministic changes. Export is always v4.
+
+**Luna, under owner delegation 2026-11-23** resolved F22 migration-note overflow
+(#82). After adding any generated notes, import applies the active
+`maxMigrationNotes` count to each blueprint independently, including carried
+craft. On overflow it keeps the newest `maxMigrationNotes - 1` ordinary notes
+in their original order and reserves the first slot for a dropped-history
+notice. A cap of one keeps only the notice. Ordinary input notes are checked
+for type, controls, and the active `maxNoteLength` before any cull. Retained
+ordinary notes preserve their text and duplicates.
+When active rules replace a stale rule identity, import appends the explanation
+if the same note would otherwise be absent from the retained list.
+
+The optional v4 blueprint field `migrationNotesDropped` accepts only `true`
+and requires the first note to be `Older migration notes were dropped.` or `…`.
+The field identifies that entry as the generated notice. The same text in
+other entries or in a list without the field is ordinary note text. Import
+uses the full notice when it fits the active text cap and the ellipsis
+otherwise. Same-rules reimport preserves the retained list without another
+cull or extra notice.
+
+A cull produces a `migration_note_limit` warning with the active `limit` and
+the `dropped` and `retained` counts of ordinary notes. When a generated
+ordinary note exceeds the active text cap, the import warns and the migration
+report still records the associated change.
+
 Import alone does not approve missing systems, overlaps, hull access, or
 carried-fit legality; call `validate` for these checks. Migration never repairs
 Rustbucket or other structural faults.
@@ -265,10 +283,9 @@ representations remain distinct (1 versus 1.0), floating negative zero becomes
 0.0, and nonfinite programmatic values are rejected. Canonicalization is not
 RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
-and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
-canonical form. Later independent tests should lock down the settled contracts;
-the three F22 prototype differences remain open and answer none of F11–F17 or
-F19–F21.
+and adds no migration notes. One-time migration warnings appear in the import
+result outside the exported `validation.issues` cache. Rule-file SHA-256 uses
+the original rules bytes. The F22 decisions leave F11–F17 and F19–F21 open.
 
 ## Deck authoring (#55)
 
