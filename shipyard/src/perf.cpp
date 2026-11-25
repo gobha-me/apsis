@@ -64,14 +64,11 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     override_load("sublightFuel", loads.sublightFuel);
     if (has_errors(issues)) return envelope(rules, std::move(issues), nullptr);
 
-    auto imported = detail::import_for_validation(bytes, rules, schemas, limits, overrides);
+    detail::CarriedTotals carried_totals;
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits, overrides, &carried_totals);
     if (!imported.ok()) return envelope(rules, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     issues = std::move(imported.issues);
-    std::erase_if(issues, [](const Issue& issue) {
-        return issue.code == "pending_validation" || issue.code == "pending_performance" ||
-               issue.code == "pending_docking";
-    });
     auto structure = detail::inspect_structure(definition.at("blueprint"), rules);
     const bool structural_pass = !has_errors(structure.issues);
     const auto append = [&](const std::vector<Issue>& additions) {
@@ -88,8 +85,8 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     Result<Json> calculated;
     try {
         append(structure.issues);
-        calculated = detail::calculate_performance(definition, rules, schemas,
-            definition.at("blueprint").at("loads"), limits);
+        calculated = detail::calculate_performance(definition.at("blueprint"), definition.at("derived"),
+            rules, carried_totals);
         append(calculated.issues);
     } catch (const detail::IssueLimitReached&) {
         return envelope(rules, std::move(issues), nullptr);
@@ -98,7 +95,8 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     auto performance = std::move(*calculated.value);
     const bool ready = !has_errors(issues);
     const double jump_margin = performance.at("power").at("marginJump");
-    const bool jump_ready = ready && performance.at("rating").get<double>() > 0 &&
+    const bool jump_ready = ready && !performance.at("jump").at("driveCosts").empty() &&
+        performance.at("rating").get<double>() > 0 &&
         performance.at("jump").at("currentJumps").get<double>() >= 1 &&
         (jump_margin >= -rules.data().at("numeric").at("epsilon").get<double>());
     sort_issues(issues);

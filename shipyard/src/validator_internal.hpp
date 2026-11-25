@@ -1,6 +1,7 @@
 #pragma once
 
 #include <apsis/shipyard/validator.hpp>
+#include "internal.hpp"
 #include <cstdint>
 
 namespace apsis::shipyard::detail {
@@ -37,5 +38,6 @@ Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,
                                                InputLimits limits = {},
-                                               const Json& load_overrides = {});
+                                               const Json& load_overrides = {},
+                                               CarriedTotals* performance_totals = nullptr);
 } // namespace apsis::shipyard::detail

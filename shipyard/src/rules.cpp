@@ -79,15 +79,18 @@ std::optional<double> evaluate(const Json& node, const Json& vars, const std::st
     // A known zero divisor is invalid even when the numerator failed.
     if (op == "div" && values[1] == 0)
         return fail("Formula divides by zero.", {{"operator", "div"}, {"denominator", *values[1]}});
-    if (!complete) return std::nullopt;
     double result = 0;
     if (op == "add" || op == "mul") {
         result = op == "mul" ? 1 : 0;
+        // An unavailable operand stops the reduction, but the known prefix
+        // can already have overflowed.
         for (const auto& value : values) {
+            if (!value) return std::nullopt;
             result = op == "mul" ? result * *value : result + *value;
             if (!std::isfinite(result)) return fail("Formula intermediate result is not finite.");
         }
-    } else if (op == "sub") result = *values[0] - *values[1];
+    } else if (!complete) return std::nullopt;
+    else if (op == "sub") result = *values[0] - *values[1];
     else if (op == "div") result = *values[0] / *values[1];
     else if (op == "floor") result = std::floor(*values[0]);
     else if (op == "ln") {

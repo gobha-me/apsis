@@ -40,11 +40,13 @@ int source_version(std::string_view schema) {
 struct Importer {
     const RulesSnapshot& snapshot;
     const Json& rules;
+    detail::CarriedTotals* performance_totals;
     std::vector<Issue> issues;
     MigrationReport report;
     std::map<std::string, const Json*, std::less<>> parts;
 
-    explicit Importer(const RulesSnapshot& active) : snapshot(active), rules(active.data()) {
+    Importer(const RulesSnapshot& active, detail::CarriedTotals* totals)
+        : snapshot(active), rules(active.data()), performance_totals(totals) {
         for (const auto& part : rules.at("parts")) {
             parts.emplace(part.at("id").get<std::string>(), &part);
         }
@@ -213,14 +215,19 @@ struct Importer {
         }
     }
 
-    double formula(std::string_view name, const Json& variables) {
+    void add_total_issue(Issue issue, const std::string& blueprint_path) {
+        if (blueprint_path != "/blueprint") issue.details["childBlueprintPath"] = blueprint_path;
+        detail::add_issue(issues, std::move(issue));
+    }
+
+    double formula(std::string_view name, const Json& variables, const std::string& blueprint_path) {
         auto result = detail::evaluate_formula(snapshot, name, variables);
-        for (auto& issue : result.issues) detail::add_issue(issues, std::move(issue));
+        for (auto& issue : result.issues) add_total_issue(std::move(issue), blueprint_path);
         if (!result.value) throw FormulaFailure{};
         return *result.value;
     }
 
-    Json totals(const Json& blueprint, const std::string& path = "/blueprint") {
+    Json totals(const Json& blueprint, const std::string& path = "/blueprint") try {
         Json values = Json::object();
         for (const auto* key : {"cost", "mass", "dryMass", "currentMass", "structureMass", "componentMass", "space",
                                 "floorCount", "widthM", "lengthM", "areaM2", "cargo", "hidden", "fuel", "sublightFuel",
@@ -265,7 +272,7 @@ struct Importer {
                     add("berthCount", 1);
                     if (module.contains("craft") && !module.at("craft").is_null()) {
                         const auto child_path = at(at(at(at(at(path, "decks"), std::to_string(d)), "modules"), std::to_string(m)), "craft");
-                        const auto child = totals(module.at("craft"), child_path);
+                        auto child = totals(module.at("craft"), child_path);
                         add("shuttleCount", 1);
                         for (const auto* key : {"carriedMass", "carriedDryMass", "componentMass"}) add(key, child.at("dryMass"));
                         add("carriedCurrentMass", child.at("currentMass"));
@@ -275,24 +282,25 @@ struct Importer {
                         values["carriedCraft"].push_back({{"id", module.at("id")}, {"deck", d}, {"name", module.at("craft").at("name")},
                             {"mass", child.at("dryMass")}, {"dryMass", child.at("dryMass")}, {"currentMass", child.at("currentMass")},
                             {"cost", child.at("cost")}, {"widthM", child.at("widthM")}, {"lengthM", child.at("lengthM")}});
+                        if (performance_totals) performance_totals->emplace(child_path, std::move(child));
                     }
                 }
             }
         }
         add("cost", number("floorCount") * rules.at("floor").at("cost").get<double>());
-        values["structureMass"] = round_computed(formula("structureMass", {{"floorCount", values.at("floorCount")}, {"floorMass", rules.at("floor").at("mass")}}), snapshot);
+        values["structureMass"] = round_computed(formula("structureMass", {{"floorCount", values.at("floorCount")}, {"floorMass", rules.at("floor").at("mass")}}, path), snapshot);
         for (const auto* key : {"componentMass", "carriedMass", "carriedCurrentMass", "carriedDryMass"}) values[key] = round_computed(number(key), snapshot);
-        values["dryMass"] = round_computed(formula("dryMass", values), snapshot);
+        values["dryMass"] = round_computed(formula("dryMass", values, path), snapshot);
         values["mass"] = values.at("dryMass");
         const auto& loads = blueprint.at("loads");
         const auto& performance = rules.at("performance");
         const auto cargo_mass = formula("cargoMass", {{"cargoUnits", (number("cargo") + number("hidden")) * loads.at("cargo").get<double>()},
-                                                        {"cargoMassPerUnit", performance.at("cargoMassPerUnit")}});
+                                                        {"cargoMassPerUnit", performance.at("cargoMassPerUnit")}}, path);
         const auto jump_mass = formula("jumpFuelMass", {{"jumpFuelCharges", number("fuel") * loads.at("jumpFuel").get<double>()},
-                                                         {"jumpFuelMassPerCharge", performance.at("jumpFuelMassPerCharge")}});
+                                                         {"jumpFuelMassPerCharge", performance.at("jumpFuelMassPerCharge")}}, path);
         values["currentMass"] = round_computed(formula("loadedMass", {{"dryMass", values.at("dryMass")}, {"cargoMass", cargo_mass},
             {"jumpFuelMass", jump_mass}, {"sublightFuelMass", number("sublightFuel") * loads.at("sublightFuel").get<double>()},
-            {"carriedLoadMass", number("carriedCurrentMass") - number("carriedDryMass")}}), snapshot);
+            {"carriedLoadMass", number("carriedCurrentMass") - number("carriedDryMass")}}, path), snapshot);
         const auto cell_size = rules.at("cellSizeM").get<double>();
         values["areaM2"] = number("floorCount") * cell_size * cell_size;
         if (number("floorCount") > 0) {
@@ -301,9 +309,10 @@ struct Importer {
         }
         for (auto it = values.begin(); it != values.end(); ++it) {
             if (it.value().is_number() && !std::isfinite(it.value().get<double>())) {
-                detail::add_issue(issues, error("nonfinite_total", "A direct total is not finite.", at("/derived", it.key())));
+                add_total_issue(error("nonfinite_total", "A direct total is not finite.", at("/derived", it.key())), path);
             }
         }
+        if (performance_totals) return values;
         Json pending = Json::array();
         if (no_modules && number("floorCount") == 0 && number("dryMass") == 0 && number("currentMass") == 0) {
             for (const auto* formula_name : {"acceleration", "range"}) {
@@ -324,13 +333,19 @@ struct Importer {
                               path, {{"finding", "F20"}, {"issue", 51}, {"evaluations", std::move(pending)}}});
         }
         return values;
+    } catch (const std::invalid_argument&) {
+        add_total_issue(error("nonfinite_total", "A direct total cannot be rounded to a finite value.", "/derived"), path);
+        throw FormulaFailure{};
+    } catch (const std::overflow_error&) {
+        add_total_issue(error("nonfinite_total", "A direct total exceeds the numeric rounding range.", "/derived"), path);
+        throw FormulaFailure{};
     }
 };
 } // namespace
 
 Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view bytes,
     const RulesSnapshot& rules, const SchemaSet& schemas, InputLimits limits,
-    const Json& load_overrides) {
+    const Json& load_overrides, CarriedTotals* performance_totals) {
     auto parsed = parse_json(bytes, limits);
     if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
     const auto& input = *parsed.value;
@@ -346,7 +361,7 @@ Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view b
     auto shape_issues = schemas.validate(input, schema);
     if (!shape_issues.empty()) return {std::nullopt, std::move(shape_issues)};
     const bool wrapped = schema == "apsis-ship-definition-v3" || schema == "apsis-ship-definition-v4";
-    Importer importer(rules);
+    Importer importer(rules, performance_totals);
     try {
         importer.report.sourceVersion = version;
         Json blueprint = wrapped ? input.at("blueprint") : input;
@@ -374,22 +389,16 @@ Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view b
         } catch (const FormulaFailure&) {
             sort_issues(importer.issues);
             return {std::nullopt, std::move(importer.issues)};
-        } catch (const std::invalid_argument&) {
-            detail::add_issue(importer.issues, error("nonfinite_total", "A direct total cannot be rounded to a finite value.", "/derived"));
-            sort_issues(importer.issues);
-            return {std::nullopt, std::move(importer.issues)};
-        } catch (const std::overflow_error&) {
-            detail::add_issue(importer.issues, error("nonfinite_total", "A direct total exceeds the numeric rounding range.", "/derived"));
-            sort_issues(importer.issues);
-            return {std::nullopt, std::move(importer.issues)};
         }
         if (has_errors(importer.issues)) {
             sort_issues(importer.issues);
             return {std::nullopt, std::move(importer.issues)};
         }
-        detail::add_issue(importer.issues, {"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
-        detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
-        detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
+        if (!performance_totals) {
+            detail::add_issue(importer.issues, {"pending_validation", "warning", "Imported cached results are discarded; structural validation and readiness await issue #50.", "/validation", {{"issue", 50}}});
+            detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
+            detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
+        }
         sort_issues(importer.issues);
         Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
             {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", importer.issues}}},
