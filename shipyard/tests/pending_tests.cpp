@@ -123,6 +123,9 @@ void port_alignment_rejected(const Json &report) {
   require(issue.at("severity") == "error" &&
               issue.at("path") == "/visitor/blueprint/decks" &&
               issue.at("details").at("check") == "c" &&
+              issue.at("details").at("targetKind") == "port" &&
+              issue.at("details").at("sameDeck") == true &&
+              issue.at("details").at("singleAxis") == true &&
               issue.at("details").at("distanceMetric") == "manhattan" &&
               !has_issue(report, "pending_F21"),
           "Alignment failure retains a precise resolved diagnostic");
@@ -307,6 +310,9 @@ int main() {
                              {"exteriorOutwardCount", 2},
                              {"sameDeckExteriorCount", 0},
                              {"alignedAirlockCount", 0},
+                             {"targetKind", "port"},
+                             {"sameDeck", true},
+                             {"singleAxis", true},
                              {"distanceMetric", "manhattan"},
                              {"referencePoint", "centres"},
                              {"maximumDistanceCells", 1}};

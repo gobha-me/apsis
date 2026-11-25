@@ -33,6 +33,15 @@ Json run(const Json &station, const Json &visitor, const RulesSnapshot &rules,
   return dock(station.dump(), deck, 1, visitor.dump(), rules, schemas, isolated());
 }
 
+Json port_policy_details() {
+  return {{"targetKind", "port"},
+          {"sameDeck", true},
+          {"singleAxis", true},
+          {"referencePoint", "centres"},
+          {"distanceMetric", "manhattan"},
+          {"maximumDistanceCells", 1}};
+}
+
 void outcome(const Json &report, bool fits, std::size_t airlocks = 1,
              std::size_t interfaces = 1, std::size_t exterior = 1,
              std::size_t same_deck = 1, std::size_t aligned = 1) {
@@ -46,15 +55,13 @@ void outcome(const Json &report, bool fits, std::size_t airlocks = 1,
               report.at("status") == (fits ? "PASS" : "FAIL") &&
               data.at("pending") == false && !has_issue(report, "pending_F21"),
           "Luna, under owner delegation 2026-11-23, decides F03/F21");
-  require(check.at("details") ==
-              Json{{"airlockCount", airlocks},
+  auto expected = port_policy_details();
+  expected.update({{"airlockCount", airlocks},
                    {"compatibleInterfaceCount", interfaces},
                    {"exteriorOutwardCount", exterior},
                    {"sameDeckExteriorCount", same_deck},
-                   {"alignedAirlockCount", aligned},
-                   {"distanceMetric", "manhattan"},
-                   {"referencePoint", "centres"},
-                   {"maximumDistanceCells", 1}},
+                   {"alignedAirlockCount", aligned}});
+  require(check.at("details") == expected,
           "All candidates and the exact active centre convention are observable");
   for (const auto *other : {"a", "b", "d"})
     require(data.at("checks").at(other).at("status") == "DISABLED",
@@ -67,14 +74,12 @@ void outcome(const Json &report, bool fits, std::size_t airlocks = 1,
                                   report.at("issues").end(), [](const Json &i) {
       return i.at("code") == "dock_no_matching_airlock";
     });
+    auto details = port_policy_details();
+    details.update({{"check", "c"}, {"interface", "standard"}});
     require(found->at("severity") == "error" &&
                 found->at("path") == "/visitor/blueprint/decks" &&
                 !found->at("message").get<std::string>().empty() &&
-                found->at("details") ==
-                    Json{{"check", "c"}, {"interface", "standard"},
-                         {"distanceMetric", "manhattan"},
-                         {"referencePoint", "centres"},
-                         {"maximumDistanceCells", 1}},
+                found->at("details") == details,
             "Resolved errors retain exact path, severity and measurement policy");
   }
 }
@@ -105,24 +110,35 @@ int main() {
   const auto orthogonal = orthogonal_rules(active, schema);
   Suite suite;
 
-  suite.run("stock 2x2 port rejects the 1x1 airlock's half-cell diagonals", [&] {
-    for (int rotation = 0; rotation < 4; ++rotation)
-      for (const auto &[x, y] : std::array<std::pair<int, int>, 4>{
-               {{10, 10}, {11, 10}, {10, 11}, {11, 11}}})
-        outcome(run(host(rotation), ship(x, y, rotation), active, schema),
-                false, 1, 1, 1, 1, 0);
+  suite.run("stock port rejects half-cell displacement along both axes", [&] {
+    // The port at (10,10) is centred at (11,11). Every visitor centred
+    // 0.5 cells away in each direction fails even though the distances sum to 1.
+    for (int rotation = 0; rotation < 4; ++rotation) {
+      const auto station = host(rotation);
+      for (int x : {10, 11})
+        for (int y : {10, 11})
+          outcome(run(station, ship(x, y, rotation), active, schema),
+                  false, 1, 1, 1, 1, 0);
+    }
   });
-  suite.run("one-cell axial boundary includes coincident centres", [&] {
+  suite.run("one cell is inclusive only along a shared row or column", [&] {
     auto data = active.data();
     dimensions(data, 2, 2, 2, 2);
     const auto configured = changed_rules(data, schema);
-    for (const auto &[x, y] : std::array<std::pair<int, int>, 5>{
-             {{10, 10}, {9, 10}, {11, 10}, {10, 9}, {10, 11}}})
-      outcome(run(host(), ship(x, y), configured, schema), true);
-    for (const auto &[x, y] : std::array<std::pair<int, int>, 8>{
-             {{8, 10}, {12, 10}, {10, 8}, {10, 12},
-              {9, 9}, {11, 11}, {9, 11}, {11, 9}}})
-      outcome(run(host(), ship(x, y), configured, schema), false, 1, 1, 1, 1, 0);
+    // Equal footprints make origin offsets exact centre offsets.
+    struct Placement {
+      int dx;
+      int dy;
+      bool fits;
+    };
+    constexpr std::array<Placement, 13> placements{{
+        {0, 0, true}, {-1, 0, true}, {1, 0, true}, {0, -1, true}, {0, 1, true},
+        {-2, 0, false}, {2, 0, false}, {0, -2, false}, {0, 2, false},
+        {-1, -1, false}, {-1, 1, false}, {1, -1, false}, {1, 1, false}}};
+    const auto station = host();
+    for (const auto &[dx, dy, fits] : placements)
+      outcome(run(station, ship(10 + dx, 10 + dy), configured, schema),
+              fits, 1, 1, 1, 1, fits ? 1 : 0);
   });
   suite.run("same deck uses array index rather than label or candidate centre", [&] {
     auto station = host();
@@ -146,12 +162,13 @@ int main() {
             "Every candidate belongs to a genuinely valid real visitor");
     const auto station = orthogonal_station();
     const auto report = dock_at_port(station, visitor, orthogonal, schema);
+    auto details = port_policy_details();
+    details.update({{"airlockCount", 3}, {"compatibleInterfaceCount", 3},
+                    {"exteriorOutwardCount", 3}, {"sameDeckExteriorCount", 3},
+                    {"alignedAirlockCount", 2}});
     require(report.at("pass") == true &&
                 report.at("data").at("checks").at("c").at("details") ==
-                    Json{{"airlockCount", 3}, {"compatibleInterfaceCount", 3},
-                         {"exteriorOutwardCount", 3}, {"sameDeckExteriorCount", 3},
-                         {"alignedAirlockCount", 2}, {"distanceMetric", "manhattan"},
-                         {"referencePoint", "centres"}, {"maximumDistanceCells", 1}},
+                    details,
             "A distant first airlock cannot conceal either later aligned one");
     std::reverse(modules.begin(), modules.end());
     require(dock_at_port(station, visitor, orthogonal, schema) == report,
@@ -179,27 +196,53 @@ int main() {
                 !has_issue(report, "pending_F21"),
             "The public independent option retains its exact disabled contract");
   });
-  suite.run("omitted alignment policy retains the orthogonal one-cell bound", [&] {
+  suite.run("shipped v4 rules declare the exact port-only alignment policy", [&] {
+    const Json expected = {{"targetKind", "port"},
+                           {"sameDeck", true},
+                           {"singleAxis", true},
+                           {"referencePoint", "centres"},
+                           {"distanceMetric", "manhattan"},
+                           {"maxDistanceCells", 1}};
+    require(active.data().at("docking").at("alignment") == expected,
+            "The loaded port policy requires a shared deck and one axis");
+  });
+  suite.run("omitting the whole port policy preserves geometry and diagnostics", [&] {
     auto data = orthogonal.data();
     data["docking"].erase("alignment");
     const auto legacy = changed_rules(data, schema);
-    outcome(run(host(), ship(11, 10), legacy, schema), true);
-    outcome(run(host(), ship(12, 10), legacy, schema), false, 1, 1, 1, 1, 0);
-    outcome(run(host(), ship(11, 11), legacy, schema), false, 1, 1, 1, 1, 0);
+    const auto station = host();
+    outcome(run(station, ship(10, 10), legacy, schema), true);
+    outcome(run(station, ship(11, 10), legacy, schema), true);
+    outcome(run(station, ship(12, 10), legacy, schema), false, 1, 1, 1, 1, 0);
+    outcome(run(station, ship(11, 11), legacy, schema), false, 1, 1, 1, 1, 0);
+    dimensions(data, 2, 2, 1, 1);
+    const auto legacy_stock = changed_rules(data, schema);
+    outcome(run(station, ship(10, 10), legacy_stock, schema),
+            false, 1, 1, 1, 1, 0);
   });
-  suite.run("invalid alignment policies reject rather than alter convention", [&] {
-    for (const auto &[key, value] :
-         std::array<std::pair<const char *, Json>, 8>{
-             {{"sameDeck", false}, {"referencePoint", "origins"},
-              {"distanceMetric", "euclidean"}, {"maxDistanceCells", -1},
-              {"maxDistanceCells", 0}, {"maxDistanceCells", 0.5},
-              {"maxDistanceCells", 2}, {"maxDistanceCells", 1e100}}}) {
+  suite.run("schema rejects exceptions to the approved port policy", [&] {
+    const std::array<std::pair<const char *, Json>, 10> invalid{{
+        {"targetKind", "hangar"}, {"sameDeck", false}, {"singleAxis", false},
+        {"referencePoint", "origins"}, {"distanceMetric", "euclidean"},
+        {"maxDistanceCells", -1}, {"maxDistanceCells", 0},
+        {"maxDistanceCells", 0.5}, {"maxDistanceCells", 2},
+        {"maxDistanceCells", 1e100}}};
+    for (const auto &[key, value] : invalid) {
       auto data = active.data();
       data["docking"]["alignment"][key] = value;
       const auto loaded = load_rules(data.dump(), schema);
       require(!loaded.ok() &&
                   issue(loaded.issues, "schema_error", "/docking/alignment/" + std::string(key)),
-              "An invalid policy reports its exact public schema path");
+              "Rejected port policy value for " + std::string(key) + ": " + value.dump());
+    }
+    for (const auto *key : {"targetKind", "sameDeck", "singleAxis", "referencePoint",
+                            "distanceMetric", "maxDistanceCells"}) {
+      auto data = active.data();
+      data["docking"]["alignment"].erase(key);
+      const auto loaded = load_rules(data.dump(), schema);
+      require(!loaded.ok() &&
+                  issue(loaded.issues, "schema_error", "/docking/alignment/" + std::string(key)),
+              "A present port policy must specify " + std::string(key));
     }
   });
   suite.run("nonsquare cardinal footprints use active directions not rotation index", [&] {

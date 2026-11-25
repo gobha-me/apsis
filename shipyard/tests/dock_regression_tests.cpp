@@ -168,6 +168,7 @@ int main() {
     const auto report =
         dock(anchorage.dump(), 1, 15, skiff.dump(), active, schema);
     const auto &hangar = report.at("data").at("hangar");
+    const auto &matching = report.at("data").at("checks").at("c");
     require(hangar.at("visitorWidthM") == 6 &&
                 hangar.at("visitorLengthM") == 10 &&
                 hangar.at("maxWidthM") == 10 &&
@@ -177,6 +178,11 @@ int main() {
                 !has_issue(report, "pending_F19") &&
                 has_issue(report, "pending_F21"),
             "definite unrotated fit must leave only alignment uncertified");
+    require(matching.at("status") == "PENDING" &&
+                matching.at("details") == Json{{"airlockCount", 1},
+                                               {"compatibleInterfaceCount", 1},
+                                               {"exteriorOutwardCount", 1}},
+            "hangar alignment stays pending with its candidate counts");
   });
 
   suite.run("S2 only a fit requiring rotation remains pending_F19", [&] {

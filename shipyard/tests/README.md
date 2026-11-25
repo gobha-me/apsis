@@ -87,15 +87,17 @@ station imports succeed with `pending_F20`; structural validation may still
 report missing required systems. Wayfarer structurally passes with that warning.
 Excluded performance values are absent rather than numeric substitutes.
 
-`shipyard-alignment` checks that port candidates qualify on the same deck with
-coincident centres or an offset of at most one cell along a single axis. It
-covers the exact one-cell boundary, larger axial offsets, half-cell diagonals at
-the Manhattan-distance limit, rotated footprints, and the one-cell fallback for
-v4 snapshots without an alignment block. The schema rejects any other bound.
-Compatible exterior airlocks are counted without selecting one. The stock 2×2
-port and 1×1 airlock have different centre parity on both axes. Positive controls
-load test-only footprints through the public rules schema. A structurally valid
-52 m visitor with an aligned airlock verifies that ports have no size envelope.
+`shipyard-alignment` checks same-deck candidates with coincident centres, exactly
+one cell of displacement along either axis, larger axial offsets, half-cell
+diagonals at the Manhattan limit, and rotated footprints. It checks the
+port-only, single-axis policy in the shipped rules, check (c), and failure
+details. The schema rejects altered values and incomplete policy blocks.
+Omitting the entire block preserves the same geometry and diagnostics for older
+v4 snapshots. Compatible exterior airlocks are counted without selecting one.
+The stock 2×2 port and 1×1 airlock have different centre parity on both axes.
+Positive controls load test-only footprints through the public rules schema. A
+structurally valid 52 m visitor with an aligned airlock verifies that ports have
+no size envelope.
 
 Hangar candidates retain `pending_F21` under check (c). Separate hangar size
 tests distinguish a definite unrotated fit, a definite oversize error, and a fit
