@@ -81,6 +81,40 @@ int main() {
     }
   });
 
+  suite.run("blank configured defaults use the fallback within the active cap",
+            [&] {
+    constexpr std::string_view fallback = "Unnamed design";
+    auto data = active.data();
+    data["defaults"]["shipName"] = "   ";
+    data["defaults"]["stationName"] = "";
+    auto &cap = data["technicalLimits"]["maxBlueprintNameCharacters"];
+    for (const auto maximum : {std::size_t{80}, fallback.size()}) {
+      cap = maximum;
+      const auto loaded = load_rules(data.dump(), schema);
+      require(loaded.ok(), "blank design defaults must load when the fallback "
+                           "fits: " + Json(loaded.issues).dump());
+      for (const auto type : {BlankType::ship, BlankType::station}) {
+        const auto build_type = type == BlankType::station ? "station" : "ship";
+        auto named = blank(build_type);
+        named["name"] = "Keel";
+        normalized(named, named, *loaded.value, schema);
+
+        const auto factory = blank_blueprint(*loaded.value, type);
+        require(factory.at("name") == fallback &&
+                    factory.at("buildType") == build_type,
+                "the factory uses the exact fallback and retains build type");
+        normalized(factory, factory, *loaded.value, schema);
+      }
+    }
+
+    cap = fallback.size() - 1;
+    const auto rejected = load_rules(data.dump(), schema);
+    require(!rejected.ok() &&
+                issue(rejected.issues, "invalid_rules", "/defaults/shipName") &&
+                issue(rejected.issues, "invalid_rules", "/defaults/stationName"),
+            "both blank defaults reject when the fallback exceeds the cap");
+  });
+
   const std::vector<std::string> margins{
       " ", "\u00A0", "\u1680", "\u2000", "\u2001", "\u2002", "\u2003",
       "\u2004", "\u2005", "\u2006", "\u2007", "\u2008", "\u2009",
@@ -162,13 +196,13 @@ int main() {
       invalid(input, *loaded.value, schema, "field_limit");
     }
     for (const auto *key : {"shipName", "stationName"})
-      for (const auto *bad : {"", " \u3000", "\tS", "S\x7F", " abcd "}) {
+      for (const auto *bad : {"\tS", "S\x7F", " abcd "}) {
         auto changed = data;
         changed["defaults"][key] = bad;
         const auto rejected = load_rules(changed.dump(), schema);
         require(!rejected.ok() && issue(rejected.issues, "invalid_rules",
                                        "/defaults/" + std::string(key)),
-                "blank/control/overlong active design defaults reject");
+                "control/overlong active design defaults reject");
       }
   });
 
