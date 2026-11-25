@@ -102,7 +102,8 @@ and in the definition's `validation.issues`.
 same v3/v4 blueprint or definition inputs as import. It returns the DESIGN.md
 result envelope with active rules identity, sorted structured issues, and
 `data.definition` plus migration details if normalization succeeds. Structural
-errors retain the inspectable definition unless issue collection is truncated.
+errors retain the inspectable definition unless issue collection is truncated
+or the hold-work budget is exceeded.
 `data.structuralPass` and the envelope status describe the enabled structural
 checks. Cached validation is discarded.
 `validation.ready` is false on structural failure and null on structural pass;
@@ -169,6 +170,19 @@ overlap, direct cargo interfaces, span labels, and unchanged material totals.
 These are the F11–F17 decisions of
 Luna, under owner delegation 2026-11-23. Schema faults keep their ordinary
 bounded diagnostics; no unsupported-feature copy or pending-hold parser runs.
+
+Structural inspection allows up to 1,000,000 work units for hold records,
+walkable-component construction for hold access, and hold geometry checks.
+A blueprint and its entire carried-craft tree share this operational budget.
+Docking gives the host and visitor separate budgets, including when F18(a) is
+disabled. Exceeding the budget stops inspection with a
+`structure_resource_limit` error and `details.limit: 1000000`. Its path points
+to the hold list being checked, for example `/blueprint/holds` in standalone
+validation or `/host/blueprint/holds` and `/visitor/blueprint/holds` in docking.
+For a carried craft, the path includes the intervening deck, module, and
+`craft` segments. `validate`, `perf`, and `dock` return FAIL with `data: null`.
+`render` returns the same validation error with FAIL, `data: null`, and no
+artifacts.
 
 The independent tests session should exercise canonical structural outcomes,
 rule-severity changes, ordinary ladders/crew routes, carried craft, each F18
@@ -418,10 +432,9 @@ F19–F21.
 ## Historical numeric wording before Argus round 4
 
 The following prior hangar and numeric-comparison paragraphs are preserved
-verbatim as superseded merge evidence. The current docking and numeric sections
-above govern: input dimensions/deck counts remain exact, while the computed
-hangar diagonal uses active absolute numeric.epsilon. This records the reviewed
-comparison correction and assigns no allowed docking rotation or owner rule.
+verbatim as superseded merge evidence. The current structural validation and
+docking section defines exact cardinal width and length fit and exact visitor
+deck limits.
 
 ~~~text
 Ports have no size fields or envelope checks. Hangars report active width,
@@ -1065,18 +1078,15 @@ F19–F21.
 ## Historical numeric wording before Argus round 4
 
 The following prior hangar and numeric-comparison paragraphs are preserved
-verbatim as superseded merge evidence. The current docking and numeric sections
-above govern: input dimensions/deck counts remain exact, while the computed
-hangar diagonal uses active absolute numeric.epsilon. This records the reviewed
-comparison correction and assigns no allowed docking rotation or owner rule.
+verbatim as superseded merge evidence. The current structural validation and
+docking section defines exact cardinal width and length fit and exact visitor
+deck limits.
 
 <details>
 <summary>Historical r2 hangar and numeric wording before r4</summary>
 
-This text is retained verbatim as merge evidence. The current r4 contract
-above governs the active epsilon on the computed diagonal; exact unrotated
-input bounds, minimum-span rejection, and deck limits remain exact. No owner
-rotation decision is assigned and no FINDINGS ID is renumbered.
+This excerpt predates the cardinal-fit decision documented in the current
+structural validation and docking section.
 
 ~~~text
 Ports have no size fields or envelope checks. Hangars report active width,
