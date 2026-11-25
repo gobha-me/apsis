@@ -2,16 +2,20 @@
 #include "internal.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 #include <utility>
 
 namespace apsis::shipyard {
 namespace {
-std::string generated_name(const RulesSnapshot& rules, std::size_t index) {
+std::string deck_name_prefix(const RulesSnapshot& rules) {
     const auto& defaults = rules.data().at("defaults");
-    const auto prefix = defaults.contains("deckNamePrefix")
+    return defaults.contains("deckNamePrefix")
         ? defaults.at("deckNamePrefix").get<std::string>()
         : defaults.at("deckName").get<std::string>() + " ";
-    return prefix + std::to_string(index + 1);
+}
+
+std::string generated_name(const RulesSnapshot& rules, std::size_t index) {
+    return deck_name_prefix(rules) + std::to_string(index + 1);
 }
 
 Json empty_deck(const RulesSnapshot& rules, std::size_t index,
@@ -77,8 +81,22 @@ Result<Json> finish(Json blueprint, const RulesSnapshot& rules,
 Json blank_blueprint(const RulesSnapshot& rules, BlankType type) {
     const auto& active = rules.data();
     const auto& defaults = active.at("defaults");
+    constexpr std::size_t max_generated_decks = 4096;
+    constexpr std::size_t max_deck_name_bytes = 8 * 1024 * 1024;
+    constexpr const char* allocation_error = "Blank blueprint exceeds the operational deck allocation limit.";
+    const auto deck_count = active.at("limits").at("minDecks").get<std::size_t>();
+    if (deck_count > max_generated_decks) throw std::length_error(allocation_error);
+
+    const auto prefix_bytes = deck_name_prefix(rules).size();
+    auto remaining_name_bytes = max_deck_name_bytes;
+    for (std::size_t index = 0; index < deck_count; ++index) {
+        const auto name_bytes = prefix_bytes + std::to_string(index + 1).size();
+        if (name_bytes > remaining_name_bytes) throw std::length_error(allocation_error);
+        remaining_name_bytes -= name_bytes;
+    }
+
     Json decks = Json::array();
-    for (std::size_t index = 0; index < active.at("limits").at("minDecks").get<std::size_t>(); ++index)
+    for (std::size_t index = 0; index < deck_count; ++index)
         decks.push_back(empty_deck(rules, index));
     return {{"schema", active.at("schemaIds").at("blueprint")},
         {"name", defaults.at(type == BlankType::station ? "stationName" : "shipName")},

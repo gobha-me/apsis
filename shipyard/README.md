@@ -81,6 +81,8 @@ fails the result. Formula failures reject with structured errors, except the
 exact pending-F20 evaluations in DESIGN.md: those emit `pending_F20` and omit
 the values, including dependent values, without numeric substitutes. Blank
 sources use active defaults and retain their structural validation report.
+`blank_blueprint` throws `std::length_error` if generation would exceed 4096
+decks or 8 MiB of deck names in total.
 
 Include `<apsis/shipyard/authoring.hpp>` to edit a blueprint's decks through the
 library. `insert_deck`, `move_deck`, `remove_deck`, and `rename_deck` return a
@@ -106,7 +108,8 @@ preservation guarantees. Concealed-cargo tooltip work remains deferred to a UI
 (F06); no CLI, HTTP, container, or deploy code is added here.
 
 See [CONTRACT.md](CONTRACT.md) for input, formula, migration, numeric comparison,
-and canonical serialization contracts for the later independent tests.
+and canonical serialization contracts. The five performance suites are listed
+in [tests/README.md](tests/README.md).
 
 <details>
 <summary>Main efe5fd82 integration: preserved source text</summary>

@@ -308,5 +308,71 @@ int main() {
     }
   });
 
+  suite.run("the byte limit measures the caller's blueprint", [&] {
+    const auto imported = import_definition(
+        read("fixtures/v3/apsis-wren-definition-v3.json"), active, schema);
+    require(imported.ok(), "The Wren fixture must import");
+    const auto &blueprint = imported.value->definition.at("blueprint");
+    const auto source = canonical_json(blueprint);
+    const auto report =
+        perf(source, active, schema, LoadFractions{.jumpFuel = 0.375},
+             InputLimits{.maxBytes = source.size()});
+    require(report.at("pass") == true,
+            "Perf must accept input that exactly fits the caller's byte cap");
+    const auto &data = report.at("data");
+    const auto &definition = data.at("definition");
+    auto expected = blueprint;
+    expected["loads"]["jumpFuel"] = 0.375;
+    require(definition.at("blueprint") == expected &&
+                canonical_json(expected).size() > source.size(),
+            "The normalized blueprint contains the larger fractional load");
+    near(definition.at("derived").at("currentMass"), 65.9875, active,
+         "imported current mass");
+    near(data.at("performance").at("currentMass"), 65.9875, active,
+         "calculated current mass");
+
+    const auto short_cap =
+        perf(source, active, schema, LoadFractions{.jumpFuel = 0.375},
+             InputLimits{.maxBytes = source.size() - 1});
+    require(short_cap.at("data").is_null() &&
+                short_cap.at("issues").at(0).at("code") == "resource_limit",
+            "A one-byte-short limit rejects the caller's source");
+  });
+
+  suite.run("the replacement fuel load drives direct formulas", [&] {
+    auto changed = active.data();
+    // Wren holds two charges, so this formula rejects its quarter-load source.
+    changed["formulas"]["jumpFuelMass"] =
+        Json::array({"div", "jumpFuelCharges",
+                     Json::array({"sub", "jumpFuelCharges", 0.5})});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The rules loader accepts the jump mass expression");
+    const auto &fuel_rules = *loaded.value;
+    auto historical =
+        Json::parse(read("fixtures/v3/apsis-wren-definition-v3.json"));
+    historical["blueprint"]["loads"]["jumpFuel"] = 0.25;
+    const auto source = canonical_json(historical);
+    const auto rejected = import_definition(source, fuel_rules, schema);
+    require(!rejected.ok() && issue(rejected.issues, "formula_error",
+                                    "/formulas/jumpFuelMass"),
+            "Import reports the undefined formula at the source load");
+    const auto report =
+        perf(source, fuel_rules, schema, LoadFractions{.jumpFuel = 0.75});
+    require(report.at("pass") == true,
+            "The override reaches the formula before the source load does");
+    const auto &data = report.at("data");
+    near(data.at("definition").at("derived").at("currentMass"), 67.3,
+         fuel_rules, "direct current mass with the replacement fuel");
+    near(data.at("performance").at("currentMass"), 67.3, fuel_rules,
+         "performance current mass with the replacement fuel");
+    historical["blueprint"]["loads"]["jumpFuel"] = 0.75;
+    const auto adjusted = perf(canonical_json(historical), fuel_rules, schema);
+    const auto &migration = data.at("migration");
+    require(migration.at("sourceVersion") == 3 &&
+                migration.at("rulesIdentityChanged") == true &&
+                migration == adjusted.at("data").at("migration"),
+            "A public override retains the v3 migration diagnostics");
+  });
+
   return suite.finish();
 }

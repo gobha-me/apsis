@@ -213,6 +213,64 @@ int main(int argc, char **argv) {
             "A ready drive-less Wren with two charges cannot jump");
   });
 
+  suite.run("jump readiness requires a catalogue-classified drive", [&] {
+    auto data = active.data();
+    part(data, "drive10").erase("system");
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "A ratings-only part record must load as rules");
+    const auto wren = fixture_blueprint("wren", *loaded.value, schema);
+    const auto report =
+        perf(canonical_json(wren), *loaded.value, schema, {.jumpFuel = 1});
+    const auto &jump = performance(report).at("jump");
+    require(report.at("pass") == true &&
+                report.at("data").at("ready") == true &&
+                performance(report).at("rating") == 1 &&
+                jump.at("currentJumps") == 2 && jump.at("driveCosts").empty(),
+            "Wren has positive rating and charges without a classified drive");
+    const auto &data_report = report.at("data");
+    require(data_report.at("jumpReady") == false &&
+                data_report.at("definition").at("validation").at("jumpReady") ==
+                    false,
+            "A rated design without a fitted drive cannot be jump-ready");
+  });
+
+  suite.run("jump fuel advice follows drive classification", [&] {
+    const auto source =
+        canonical_json(fixture_blueprint("wren", active, schema));
+    auto data = active.data();
+    auto &drive = part(data, "drive10");
+    drive.erase("system");
+    const auto unclassified = load_rules(canonical_json(data), schema);
+    require(unclassified.ok(), "A ratings-only part record must load as rules");
+    drive["system"] = "jumpDrive";
+    drive["effect"]["rating"] = 0;
+    const auto unrated = load_rules(canonical_json(data), schema);
+    require(unrated.ok(), "An unrated jump-drive part must load as rules");
+
+    const auto without_drive =
+        perf(source, *unclassified.value, schema, {.jumpFuel = 0});
+    const auto with_drive =
+        perf(source, *unrated.value, schema, {.jumpFuel = 0});
+    require(performance(without_drive).at("rating") == 1 &&
+                performance(with_drive).at("rating") == 0 &&
+                performance(with_drive).at("jump").at("driveCosts").size() == 1,
+            "The active catalogue separates rating from a fitted drive");
+    require(findings(without_drive, "no_jump_fuel").empty() &&
+                findings(with_drive, "no_jump_fuel").size() == 1,
+            "The warning requires a classified drive even at zero rating");
+
+    const auto fueled = perf(source, *unrated.value, schema, {.jumpFuel = 1});
+    const auto &rated_zero = performance(fueled);
+    require(fueled.at("data").at("ready") == true &&
+                rated_zero.at("rating") == 0 &&
+                rated_zero.at("jump").at("currentJumps") == 2 &&
+                rated_zero.at("jump").at("driveCosts").size() == 1 &&
+                rated_zero.at("power").at("marginJump").get<double>() >= 0,
+            "The unrated drive is fitted, fueled and powered");
+    require(fueled.at("data").at("jumpReady") == false,
+            "A fitted and fueled drive still needs a positive rating");
+  });
+
   suite.run("exactly one loaded jump is sufficient", [&] {
     const auto &report = reports.at("wren_one_jump");
     require(
@@ -403,6 +461,104 @@ int main(int argc, char **argv) {
             "Two engines fall below the next threshold");
   });
 
+  suite.run("fractional engine advisory threshold keeps its fraction", [&] {
+    auto data = active.data();
+    data["advisories"]["many_engines"]["minEngineCount"] = 2.5;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the fractional engine threshold");
+
+    auto wren = fixture_blueprint("wren", *loaded.value, schema);
+    const auto two_engines = perf(canonical_json(wren), *loaded.value, schema);
+    auto &modules = wren.at("decks").at(0).at("modules");
+    modules.push_back({{"id", wren.at("nextId")},
+                       {"type", "microEngine"},
+                       {"x", 12},
+                       {"y", 18},
+                       {"r", 0}});
+    wren["nextId"] = wren.at("nextId").get<int>() + 1;
+    const auto three_engines =
+        perf(canonical_json(wren), *loaded.value, schema);
+    require(two_engines.at("pass") == true && three_engines.at("pass") == true,
+            "Both Wren variants must be structurally accepted: " +
+                three_engines.at("issues").dump());
+    require(findings(two_engines, "many_engines").empty(),
+            "Two engines fall below the 2.5-engine threshold");
+    advisory(three_engines, "many_engines", "/performance",
+             {{"rule", "/validation/checks/many_engines"}});
+  });
+
+  suite.run("fractional module advisory threshold keeps its fraction", [&] {
+    auto data = active.data();
+    data["advisories"]["no_cargo"]["minModuleCount"] = 5.5;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the fractional module threshold");
+
+    auto skiff = fixture_blueprint("skiff", *loaded.value, schema);
+    const auto six_modules = perf(canonical_json(skiff), *loaded.value, schema);
+    auto &modules = skiff.at("decks").at(0).at("modules");
+    modules.erase(std::remove_if(modules.begin(), modules.end(),
+                                 [](const Json &module) {
+                                   return module.at("type") == "shuttleSeats";
+                                 }),
+                  modules.end());
+    const auto five_modules =
+        perf(canonical_json(skiff), *loaded.value, schema);
+    require(five_modules.at("pass") == true && six_modules.at("pass") == true,
+            "Both cargo-less Skiff variants must be structurally accepted: " +
+                five_modules.at("issues").dump());
+    require(findings(five_modules, "no_cargo").empty(),
+            "Five modules fall below the 5.5-module threshold");
+    advisory(six_modules, "no_cargo", "/performance",
+             {{"rule", "/validation/checks/no_cargo"}});
+  });
+
+  suite.run(
+      "engine advisory respects ship-only rules at a zero threshold", [&] {
+        auto data = active.data();
+        auto &engine_advice = data["advisories"]["many_engines"];
+        engine_advice["buildTypes"] = Json::array({"ship"});
+        engine_advice["minEngineCount"] = 0;
+        const auto loaded = load_rules(canonical_json(data), schema);
+        require(loaded.ok(), "Rules accept the ship-only zero threshold");
+
+        const auto station =
+            fixture_blueprint("wayfarer-anchorage", *loaded.value, schema);
+        const auto wren = fixture_blueprint("wren", *loaded.value, schema);
+        const auto station_report =
+            perf(canonical_json(station), *loaded.value, schema);
+        const auto ship_report =
+            perf(canonical_json(wren), *loaded.value, schema);
+        require(station_report.at("pass") == true &&
+                    ship_report.at("pass") == true,
+                "Both builds must be structurally accepted");
+        require(findings(station_report, "many_engines").empty(),
+                "The ship-only advisory excludes Wayfarer Anchorage");
+        advisory(ship_report, "many_engines", "/performance",
+                 {{"rule", "/validation/checks/many_engines"}});
+      });
+
+  suite.run("a positive life reserve alone gives zero endurance", [&] {
+    auto data = active.data();
+    part(data, "cockpit")["effect"]["lifeReserve"] = 1;
+    const auto loaded = load_rules(canonical_json(data), schema);
+    require(loaded.ok(), "Rules accept the cockpit life reserve");
+
+    auto skiff = fixture_blueprint("skiff", *loaded.value, schema);
+    auto &modules = skiff.at("decks").at(0).at("modules");
+    modules.erase(std::remove_if(modules.begin(), modules.end(),
+                                 [](const Json &module) {
+                                   return module.at("type") ==
+                                          "microLifeSupport";
+                                 }),
+                  modules.end());
+    const auto report = perf(canonical_json(skiff), *loaded.value, schema);
+    require(
+        report.at("data").at("definition").at("derived").at("lifeReserve") == 1,
+        "The cockpit contributes one reserve to the public total");
+    require(performance(report).at("endurance") == 0,
+            "One reserve without installed life support gives zero endurance");
+  });
+
   suite.run("fuel ratio advice includes equality and the active epsilon", [&] {
     for (const auto *name : {"fuel_threshold_0", "fuel_threshold_1"}) {
       const auto &report = reports.at(name);
@@ -439,6 +595,54 @@ int main(int argc, char **argv) {
                 "Every minimum deck starts with empty floors and modules");
       }
     }
+  });
+
+  suite.run("blank creation caps deck count and UTF-8 name bytes", [&] {
+    const auto with_decks = [&](int count, std::string_view prefix) {
+      auto data = active.data();
+      data["limits"]["minDecks"] = count;
+      data["limits"]["maxDecks"] = count;
+      data["limits"]["maxDeckName"] = prefix.size() + 4;
+      data["defaults"]["deckNamePrefix"] = prefix;
+      const auto loaded = load_rules(canonical_json(data), schema);
+      require(loaded.ok(), "These deck defaults must satisfy the game rules");
+      return *loaded.value;
+    };
+    const auto throws_length_error = [](const RulesSnapshot &configured,
+                                        BlankType type) {
+      try {
+        static_cast<void>(blank_blueprint(configured, type));
+      } catch (const std::length_error &) {
+        return true;
+      }
+      return false;
+    };
+
+    const auto max_decks = blank_blueprint(with_decks(4096, "Deck "));
+    require(max_decks.at("decks").size() == 4096 &&
+                max_decks.at("decks").back().at("name") == "Deck 4096",
+            "4096 decks with generated names are permitted");
+
+    // 524 prefixes of 16,006 bytes plus 1,464 digits total exactly 8 MiB.
+    std::string prefix;
+    for (int i = 0; i < 8003; ++i)
+      prefix += "\xC3\xA9";
+    const auto ship = blank_blueprint(with_decks(524, prefix));
+    const auto &decks = ship.at("decks");
+    std::size_t name_bytes = 0;
+    for (const auto &deck : decks)
+      name_bytes += deck.at("name").get_ref<const std::string &>().size();
+    require(decks.size() == 524 && name_bytes == 8 * 1024 * 1024 &&
+                decks.back().at("name") == prefix + "524",
+            "Exactly 8 MiB of generated name bytes are permitted");
+
+    const bool count_rejected =
+        throws_length_error(with_decks(4097, "Deck "), BlankType::ship);
+    prefix += 'a';
+    const bool bytes_rejected =
+        throws_length_error(with_decks(524, prefix), BlankType::station);
+    require(count_rejected && bytes_rejected,
+            "Exceeding either operational bound throws std::length_error");
   });
 
   suite.run("no-cargo advice adds ordinary and concealed capacity", [&] {

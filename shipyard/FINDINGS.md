@@ -1743,7 +1743,7 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Independent performance tests remain for the later tests session. F11–F17,
+Five independent suites cover performance. F11–F17,
 F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
 rotation, or same-deck distance convention is assigned here.
 

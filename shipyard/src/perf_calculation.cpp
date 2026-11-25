@@ -1,5 +1,4 @@
 #include "perf_calculation.hpp"
-#include "internal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,6 +8,12 @@
 #include <string>
 
 namespace apsis::shipyard::detail {
+bool has_jump_fuel(double charges, const RulesSnapshot& rules) {
+    const auto fuel_per_jump = rules.data().at("performance").at("jumpFuelPerJump").get<double>();
+    const auto epsilon = rules.data().at("numeric").at("epsilon").get<double>();
+    return charges > 0 && charges - fuel_per_jump >= -epsilon;
+}
+
 namespace {
 struct FormulaFailure {};
 
@@ -28,10 +33,10 @@ struct Calculator {
     Json drives = Json::array();
     double drive_cost = 0;
 
-    Calculator(const Json& input, const RulesSnapshot& active, const Json& current_loads)
+    Calculator(const Json& input, const Json& direct_totals, const RulesSnapshot& active)
         : snapshot(active), rules(active.data()),
-          blueprint(input.at("blueprint")), totals(input.at("derived")),
-          policy(rules.at("performance")), loads(current_loads) {
+          blueprint(input), totals(direct_totals),
+          policy(rules.at("performance")), loads(blueprint.at("loads")) {
         for (const auto& part : rules.at("parts")) {
             parts.emplace(part.at("id").get<std::string>(), &part);
         }
@@ -58,7 +63,7 @@ struct Calculator {
                 }
             }
         }
-        blank = blank && number("dryMass") == 0;
+        blank = blank && number("dryMass") == 0 && number("currentMass") == 0;
     }
 
     double number(const std::string& key) const { return totals.at(key).get<double>(); }
@@ -232,14 +237,14 @@ struct Calculator {
         if (ship && weak) advisory("weak_acceleration", "Current acceleration is below the active rules' advisory threshold.",
             "/performance/acceleration", {{"acceleration", current.at("acceleration")}, {"threshold", policy.at("underpoweredAcceleration")}});
         if (engine_count && current.at("sublightFuelMass").get<double>() <= 0) advisory("no_sublight_fuel", "Engines are fitted without loaded sublight propellant.", "/performance/sublight/current");
-        if (number("rating") > 0 && near_less(current.at("jumpCharges"), policy.at("jumpFuelPerJump"))) advisory("no_jump_fuel", "A jump drive is fitted with fewer than one jump's fuel currently loaded.", "/performance/jump/current");
+        if (!drives.empty() && !has_jump_fuel(current.at("jumpCharges"), snapshot)) advisory("no_jump_fuel", "A jump drive is fitted with fewer than one jump's fuel currently loaded.", "/performance/jump/current");
         if (number("shield") > policy.at("advisoryShieldCount").get<double>() || number("weapon") > policy.at("advisoryWeaponCount").get<double>()) advisory("excess_defence", "Defence equipment exceeds the active rules' advisory counts.", "/performance");
         for (const auto& [code, rule] : rules.at("advisories").items()) {
             const auto& types = rule.at("buildTypes");
             if (std::find(types.begin(), types.end(), blueprint.at("buildType")) == types.end()) continue;
-            const bool applies = (code == "many_engines" && engine_count >= rule.at("minEngineCount").get<std::size_t>()) ||
+            const bool applies = (code == "many_engines" && engine_count >= rule.at("minEngineCount").get<double>()) ||
                 (code == "large_fuel_capacity" && fuel_ratio && !near_less(*fuel_ratio, rule.at("minFuelToDryMassRatio"))) ||
-                (code == "no_cargo" && module_count >= rule.at("minModuleCount").get<std::size_t>() &&
+                (code == "no_cargo" && module_count >= rule.at("minModuleCount").get<double>() &&
                     number("cargo") + number("hidden") <= rule.at("maxCargoCapacity").get<double>());
             if (applies) advisory(code, rule.at("text"), "/performance");
         }
@@ -249,28 +254,31 @@ struct Calculator {
 };
 } // namespace
 
-Result<Json> calculate_performance(const Json& definition, const RulesSnapshot& rules,
-                                   const SchemaSet& schemas, const Json& loads, InputLimits limits) {
-    Calculator calculator(definition, rules, loads);
+Result<Json> calculate_performance(const Json& blueprint, const Json& totals,
+                                   const RulesSnapshot& rules, const CarriedTotals& carried_totals,
+                                   const std::string& blueprint_path) {
+    Calculator calculator(blueprint, totals, rules);
     try {
         auto performance = calculator.calculate();
         Json carried = Json::array();
         bool rejected_child = false;
-        const auto& decks = definition.at("blueprint").at("decks");
+        std::size_t child_index = 0;
+        const auto& decks = blueprint.at("decks");
         for (std::size_t d = 0; d < decks.size(); ++d) {
             const auto& modules = decks[d].at("modules");
             for (std::size_t m = 0; m < modules.size(); ++m) {
                 const auto& module = modules[m];
                 if (!module.contains("craft") || module.at("craft").is_null()) continue;
-                const auto child_path = "/blueprint/decks/" + std::to_string(d) + "/modules/" + std::to_string(m) + "/craft";
-                const auto output_path = "/performance/carriedCraft/" + std::to_string(carried.size()) + "/performance";
-                auto imported = import_definition(canonical_json(module.at("craft")), rules, schemas, limits);
+                const auto suffix = "/decks/" + std::to_string(d) + "/modules/" + std::to_string(m) + "/craft";
+                const auto child_path = "/blueprint" + suffix;
+                const auto totals_path = blueprint_path + suffix;
+                const auto output_path = "/performance/carriedCraft/" + std::to_string(child_index++) + "/performance";
+                auto calculated = calculate_performance(module.at("craft"), carried_totals.at(totals_path),
+                    rules, carried_totals, totals_path);
                 const auto append = [&](std::vector<Issue> child_issues) {
                     const Issue* truncated = nullptr;
                     for (auto& issue : child_issues) {
                         if (issue.code == "issues_truncated") { truncated = &issue; continue; }
-                        if (issue.code == "pending_validation" || issue.code == "pending_performance" ||
-                            issue.code == "pending_docking") continue;
                         if (issue.path.starts_with("/performance")) {
                             issue.path = output_path + issue.path.substr(std::string("/performance").size());
                         } else if (issue.path.starts_with("/blueprint")) {
@@ -291,10 +299,6 @@ Result<Json> calculate_performance(const Json& definition, const RulesSnapshot& 
                         throw IssueLimitReached{};
                     }
                 };
-                append(std::move(imported.issues));
-                if (!imported.ok()) { rejected_child = true; continue; }
-                const auto& child = imported.value->definition;
-                auto calculated = calculate_performance(child, rules, schemas, child.at("blueprint").at("loads"), limits);
                 append(std::move(calculated.issues));
                 if (!calculated.ok()) { rejected_child = true; continue; }
                 carried.push_back({{"deck", d}, {"moduleId", module.at("id")},
