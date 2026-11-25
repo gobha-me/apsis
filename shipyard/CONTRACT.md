@@ -81,13 +81,30 @@ Migration accepts v3 blueprints/wrappers, validates source shape, fills only
 missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
-versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Migration-note overflow handling (F22) is
-**Open for Luna, not guessed**, with no value picked. As an
-**interim interpretation**, the current loader preserves existing full note
-lists and leaves extra changes in the report with a warning; the prototype
-keeps the newest notes instead. This difference is not a settled technical
-encoding contract. Export is always v4.
+versions, rule-identity changes, and deterministic changes. Export is always v4.
+
+**Luna, under owner delegation 2026-11-23** resolved F22 migration-note overflow
+(#82). After adding any generated notes, import applies the active
+`maxMigrationNotes` count to each blueprint independently, including carried
+craft. On overflow it keeps the newest `maxMigrationNotes - 1` ordinary notes
+in their original order and reserves the first slot for a dropped-history
+notice. A cap of one keeps only the notice. Ordinary input notes are checked
+for type, controls, and the active `maxNoteLength` before any cull. Retained
+ordinary notes preserve their text and duplicates.
+
+The optional v4 blueprint field `migrationNotesDropped` accepts only `true`
+and requires the first note to be `Older migration notes were dropped.` or `…`.
+The field identifies that entry as the generated notice. The same text in
+other entries or in a list without the field is ordinary note text. Import
+uses the full notice when it fits the active text cap and the ellipsis
+otherwise. Same-rules reimport preserves the retained list without another
+cull or extra notice.
+
+A cull produces a `migration_note_limit` warning with the active `limit` and
+the `dropped` and `retained` counts of ordinary notes. When a generated
+ordinary note exceeds the active text cap, the import warns and the migration
+report still records the associated change.
+
 Import alone does not approve missing systems, overlaps, hull access, or
 carried-fit legality; call `validate` for these checks. Migration never repairs
 Rustbucket or other structural faults.
@@ -261,10 +278,9 @@ representations remain distinct (1 versus 1.0), floating negative zero becomes
 0.0, and nonfinite programmatic values are rejected. Canonicalization is not
 RFC 8785. No rounding or Unicode normalization occurs during serialization.
 With the same rules bytes, export/reimport preserves the canonical definition
-and adds no migration notes. Rule-file SHA-256 uses original bytes, never this
-canonical form. Later independent tests should lock down the settled contracts;
-the three F22 prototype differences remain open and answer none of F11–F17 or
-F19–F21.
+and adds no migration notes. One-time migration warnings appear in the import
+result outside the exported `validation.issues` cache. Rule-file SHA-256 uses
+the original rules bytes. The F22 decisions leave F11–F17 and F19–F21 open.
 
 ## Deck authoring (#55)
 
@@ -853,21 +869,8 @@ missing optional metadata from active defaults, preserves geometry/IDs/order/
 labels/budget/loads, and recursively migrates carried blueprints. v1/v2 return
 an actionable unsupported-version error. Reports identify source/target
 versions, rule-identity changes, and deterministic changes; notes are deduplicated
-on reimport. Migration-note count overflow retains the newest ordinary notes in order,
-reserving one active slot for exactly one dropped-history notice. This is
-resolved by **Luna, under owner delegation 2026-11-23**. The normal reserved
-notice is `Older migration notes were dropped.`; when the positive active
-note-length cap cannot fit it, reserved `…` has the same meaning and a full
-structured warning explains the drop. A note-count cap of one retains only the
-notice. Ordinary note type, controls and individual length are checked before
-culling, including entries that will be evicted. Duplicate ordinary notes are
-preserved. The optional v4 `migrationNotesDropped: true` field marks only the
-first entry as a generated notice. Matching text elsewhere, or in a list without
-that field, remains ordinary note text. The warning details name
-`limit`, ordinary `dropped` and ordinary `retained` counts. Stable exported lists
-reimport without another cull, duplicate notice or migration change. Generated
-ordinary notes that exceed the active text limit remain in the report with a
-warning rather than bypassing that bound. Export is always v4. Import alone does not approve
+on reimport. Existing full note lists are preserved; extra changes remain in
+the report with a warning. Export is always v4. Import alone does not approve
 missing systems, overlaps, hull access, or carried-fit legality; call `validate`
 for these checks. Migration never repairs Rustbucket or other structural faults.
 

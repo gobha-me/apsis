@@ -49,21 +49,16 @@ void warning(const Result<ImportedDefinition> &result, const std::string &path,
 void stable(const Result<ImportedDefinition> &result, const RulesSnapshot &active,
             const SchemaSet &schema) {
   require(result.ok(), "A bounded note result must export a definition");
-  const auto again = import_definition(result.value->definition.dump(), active, schema);
+  const auto serialized = canonical_json(result.value->definition);
+  const auto again = import_definition(serialized, active, schema);
   require(again.ok() && again.value->migration.changes.empty() &&
               !again.value->migration.rulesIdentityChanged,
           "Canonical notes reimport without another migration change");
-  require(canonical_json(again.value->definition.at("blueprint")) ==
-              canonical_json(result.value->definition.at("blueprint")) &&
-              again.value->definition.at("derived") == result.value->definition.at("derived"),
-          "Reimport preserves exact blueprint bytes and direct totals");
+  require(canonical_json(again.value->definition) == serialized,
+          "The first reimport preserves the entire canonical definition byte for byte");
   require(std::none_of(again.issues.begin(), again.issues.end(), [](const Issue &entry) {
     return entry.code == "migration_note_limit";
   }), "Stable exported notes cannot repeat the count warning");
-  const auto third = import_definition(again.value->definition.dump(), active, schema);
-  require(third.ok() && canonical_json(third.value->definition) ==
-                            canonical_json(again.value->definition),
-          "Stable exported definitions are byte-identical on repeated import");
 }
 
 Result<ImportedDefinition> expect(Json source, const Json &expected,
@@ -300,6 +295,20 @@ int main() {
                 !text_limited.value->migration.changes.empty(),
             "Too-long automatic notes remain explained in the report without breaking ordinary text bounds");
     stable(text_limited, narrow, schema);
+  });
+
+  suite.run("a stale wrapper retains a fresh rule identity note despite an older match", [&] {
+    const auto original = import_definition(blank().dump(), three, schema);
+    require(original.ok(), "A current v4 wrapper must be available");
+    auto stale = original.value->definition;
+    stale["rulesSha256"] = std::string(64, '0');
+    stale["blueprint"]["migrationNotes"] = Json::array({identity_note, "A", "B", "C"});
+    const auto imported = import_definition(stale.dump(), three, schema);
+    require(imported.ok() && imported.value->migration.rulesIdentityChanged &&
+                imported.value->definition.at("blueprint").at("migrationNotes") ==
+                    Json::array({notice, "C", identity_note}),
+            "The current rule change keeps its explanation in the newest slot");
+    stable(imported, three, schema);
   });
 
   suite.run("an exactly fitting rule identity note survives reimport", [&] {

@@ -68,7 +68,6 @@ struct Importer {
 
     void add_note(Json& blueprint, const std::string& note, const std::string& path) {
         auto& notes = blueprint.at("migrationNotes");
-        if (includes(notes, note)) return;
         if (detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
             notes.push_back(note);
             return;
@@ -241,7 +240,10 @@ struct Importer {
             detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
-            add_note(blueprint, "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.", path);
+            const std::string note = "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.";
+            if (!includes(blueprint.at("migrationNotes"), note)) {
+                add_note(blueprint, note, path);
+            }
         }
     }
 
@@ -388,6 +390,7 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         if (importer.report.rulesIdentityChanged) {
             importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
             if (!has_errors(importer.issues)) {
+                // This event is newer than any matching note in the input.
                 importer.add_note(blueprint, "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.", blueprint_path);
             }
         }
@@ -423,8 +426,12 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         detail::add_issue(importer.issues, {"pending_performance", "warning", "Performance is not evaluated by import or structural validation; call perf() for performance results.", "/derived", {{"issue", 51}, {"finding", "F20"}}});
         detail::add_issue(importer.issues, {"pending_docking", "warning", "Docking outcomes await issue #50 and unresolved Luna conventions.", "/derived", {{"issue", 50}, {"findings", {"F17", "F19", "F21"}}}});
         sort_issues(importer.issues);
+        // Migration warnings describe the input history. Keep them in the result
+        // while caching only diagnostics reproducible from the normalized export.
+        auto validation_issues = importer.issues;
+        std::erase_if(validation_issues, [](const Issue& issue) { return issue.code == "migration_note_limit"; });
         Json definition = {{"schema", rules.data().at("schemaIds").at("definition")}, {"blueprint", std::move(blueprint)},
-            {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", importer.issues}}},
+            {"derived", std::move(derived)}, {"validation", {{"ready", nullptr}, {"jumpReady", nullptr}, {"issues", std::move(validation_issues)}}},
             {"rulesVersion", rules.version()}, {"rulesSha256", rules.sha256()}, {"rules", rules.data()}};
         auto output_issues = schemas.validate(definition, "apsis-ship-definition-v4");
         if (!output_issues.empty()) return {std::nullopt, std::move(output_issues)};
