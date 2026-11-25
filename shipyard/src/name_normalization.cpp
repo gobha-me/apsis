@@ -4,7 +4,7 @@
 #include <array>
 
 namespace apsis::shipyard::detail {
-std::string trim_design_name(std::string_view utf8) {
+std::string normalize_design_name(std::string_view utf8) {
     using namespace std::literals;
     // ECMAScript trim margins from the prototype: Zs, FEFF and LS/PS.
     // C0/DEL are rejected before trimming, including tab, LF, CR, VT and FF.
@@ -42,6 +42,7 @@ std::string trim_design_name(std::string_view utf8) {
         if (margin == spaces.end()) break;
         utf8.remove_suffix(margin->size());
     }
+    if (utf8.empty()) return "Unnamed design";
     return std::string(utf8);
 }
 } // namespace apsis::shipyard::detail

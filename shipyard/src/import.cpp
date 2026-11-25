@@ -77,11 +77,7 @@ struct Importer {
         const auto original = value.get<std::string>();
         const auto name_path = at(path, "name");
         if (check_controls(original, name_path)) {
-            auto normalized = detail::trim_design_name(original);
-            if (normalized.empty()) {
-                // The blank-name fallback applies across all supported rules snapshots.
-                normalized = "Unnamed design";
-            }
+            auto normalized = detail::normalize_design_name(original);
             if (normalized != original) {
                 value = std::move(normalized);
                 change(name_path + ": normalized design name");
@@ -354,8 +350,9 @@ struct Importer {
 };
 } // namespace
 
-Result<ImportedDefinition> import_definition(std::string_view bytes, const RulesSnapshot& rules,
-                                             const SchemaSet& schemas, InputLimits limits) {
+Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view bytes,
+    const RulesSnapshot& rules, const SchemaSet& schemas, InputLimits limits,
+    const Json& load_overrides) {
     auto parsed = parse_json(bytes, limits);
     if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
     const auto& input = *parsed.value;
@@ -392,6 +389,7 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         // Validate the normalized target before any rule-dependent arithmetic.
         auto target_issues = schemas.validate(blueprint, "apsis-shipyard-v4");
         if (!target_issues.empty()) return {std::nullopt, std::move(target_issues)};
+        for (const auto& [key, value] : load_overrides.items()) blueprint.at("loads")[key] = value;
         Json derived;
         try {
             derived = importer.totals(blueprint);
@@ -425,5 +423,10 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         sort_issues(importer.issues);
         return {std::nullopt, std::move(importer.issues)};
     }
+}
+
+Result<ImportedDefinition> import_definition(std::string_view bytes, const RulesSnapshot& rules,
+                                             const SchemaSet& schemas, InputLimits limits) {
+    return detail::import_with_load_overrides(bytes, rules, schemas, limits, {});
 }
 } // namespace apsis::shipyard

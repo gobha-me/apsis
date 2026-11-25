@@ -90,16 +90,11 @@ ownership of a label; absence or `false` is explicit, including imported names
 that happen to look generated. Insert, move, and remove update generated labels
 to the ordinary one-based position; explicit labels and retained module geometry
 and IDs are preserved. An explicit rename clears generated ownership, while a
-null optional name restores it. The active rules provide a literal
-`defaults.deckNamePrefix`, followed by the decimal level (`Deck 1`, `Deck 2`, ...
-with bundled rules). Older v4 snapshots without that optional field use their
-existing `defaults.deckName` plus a space as the prefix. This does not choose
-the multi-deck-hold numbering convention in F16 or add hold behavior.
-
-Rules identity note (#55): adding `defaults.deckNamePrefix` changes the bundled
-v4 `rulesSha256` while `rulesVersion` stays `4`. Saved v4 definitions carrying
-the previous SHA report `rulesIdentityChanged: true` in the import migration
-report; active rules are applied and direct totals are recomputed.
+null optional name restores it. Generated labels use the active `defaults.deckName`
+and the decimal level (`Main deck 1`, `Main deck 2`, etc. with bundled rules).
+The authoring operation shortens the stem if needed to fit the full level
+within the name limit. The multi-deck-hold numbering convention remains open
+in F16.
 
 ## F06 — Concealed-cargo tooltip is deferred to a UI
 
@@ -394,10 +389,10 @@ separate issue units:
   the result is empty. The active design-name limit applies after fallback.
   Controls are rejected before trimming, as in prototype `label()`
   (`index.html:3702`). Deck labels and note text preserve their spelling. The
-  blank-design factory uses the trimmed active ship or station default. Both
-  bundled defaults are `Unnamed design`, and configured defaults must be
-  nonblank after trimming and fit the active limit. Normalized names are reported
-  as migration changes and are stable on reimport.
+  blank-design factory applies the same trim and fallback to the active ship
+  or station default. Rules loading checks the resulting name against the
+  active limit. Both bundled defaults are `Unnamed design`. Normalized names
+  are reported as migration changes and are stable on reimport.
 - Migration-note overflow (#82): keep the newest notes with one dropped-history
   notice; the separate unit replaces the legacy preservation/warning policy.
 

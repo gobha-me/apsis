@@ -202,6 +202,17 @@ int main(int argc, char **argv) {
     }
   });
 
+  suite.run("out-of-range integral deck limits return structured errors", [&] {
+    for (const auto *key : {"maxDecks", "maxDeckName"}) {
+      for (const auto value : {0x1p53, 0x1p64}) {
+        auto changed = original;
+        changed["limits"][key] = value;
+        rejected(load_rules(changed.dump(), schema_set),
+                 "/limits/" + std::string(key), "invalid_rules");
+      }
+    }
+  });
+
   suite.run(
       "every formula rejects unknown operators and variables at load time "
       "(F10)",

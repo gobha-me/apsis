@@ -54,8 +54,9 @@ namespace detail {
 Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,
-                                               InputLimits limits) {
-    auto imported = import_definition(bytes, rules, schemas, limits);
+                                               InputLimits limits,
+                                               const Json& load_overrides) {
+    auto imported = import_with_load_overrides(bytes, rules, schemas, limits, load_overrides);
     if (imported.ok() || std::any_of(imported.issues.begin(), imported.issues.end(),
         [](const Issue& issue) { return issue.code == "issues_truncated"; }) ||
         std::none_of(imported.issues.begin(), imported.issues.end(),
@@ -71,7 +72,7 @@ Result<ImportedDefinition> import_for_validation(std::string_view bytes,
     // Only a fully importable shape with holds removed earns pending feature
     // findings. Schema/scalar/grid faults take precedence, without assigning
     // any hold representation, totals, or traversal behavior.
-    auto checked = import_definition(input.dump(), rules, schemas, limits);
+    auto checked = import_with_load_overrides(input.dump(), rules, schemas, limits, load_overrides);
     if (!checked.ok()) return checked;
     std::vector<Issue> issues;
     for (const auto* finding : {"F11", "F12", "F13", "F14", "F15", "F16", "F17"}) {

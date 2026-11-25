@@ -245,5 +245,44 @@ int main() {
     }
   });
 
+  suite.run(
+      "positive calculated blank mass rejects a zero deltaV logarithm", [&] {
+        auto changed = active.data();
+        changed["formulas"]["loadedMass"] = 10;
+        changed["formulas"]["deltaV"] = Json::array({"ln", 0});
+        const auto loaded = load_rules(canonical_json(changed), schema);
+        require(loaded.ok(),
+                "A constant loaded-mass formula must load as rules");
+        for (const auto type : {BlankType::ship, BlankType::station}) {
+          const auto source =
+              canonical_json(blank_blueprint(*loaded.value, type));
+          const auto imported =
+              import_definition(source, *loaded.value, schema);
+          require(imported.ok(),
+                  "The blank must import under the custom rules");
+          const auto &derived = imported.value->definition.at("derived");
+          require(derived.at("dryMass") == 0 && derived.at("currentMass") == 10,
+                  "Blank geometry has zero dry mass but positive loaded mass");
+
+          const auto report = perf(source, *loaded.value, schema);
+          require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                      report.at("data").is_null(),
+                  "The positive-mass design fails on the undefined logarithm");
+          const auto &issues = report.at("issues");
+          require(std::any_of(issues.begin(), issues.end(),
+                              [](const Json &issue) {
+                                return issue.at("code") == "formula_error" &&
+                                       issue.at("severity") == "error" &&
+                                       issue.at("path") == "/formulas/deltaV" &&
+                                       issue.at("details").at("operator") ==
+                                           "ln" &&
+                                       issue.at("details").at("operand") == 0 &&
+                                       issue.at("details").at("outputPath") ==
+                                           "/performance/sublight/deltaV";
+                              }),
+                  "The rejection identifies the invalid logarithm and output");
+        }
+      });
+
   return suite.finish();
 }

@@ -24,8 +24,9 @@ This name decision is resolved by **Luna, under owner delegation 2026-11-23**.
 Interior name bytes are preserved without Unicode normalization. The active
 design-name limit applies after trimming and fallback. Grapheme counting (#80)
 is implemented separately. The blank-design factory trims the active ship or
-station default, which must be nonblank after trimming and fit the same cap.
-Both bundled factory defaults are `Unnamed design`.
+station default and uses `Unnamed design` if the result is empty. Rules loading
+checks the resulting name against the same cap. Both bundled factory defaults
+are `Unnamed design`.
 Integers accept mathematical integral JSON numbers, including
 1.0, within active bounds and the interoperable exact range.
 
@@ -194,9 +195,10 @@ workflow steps are supplied by this implementation session.
 v3/v4 blueprint or definition inputs as import, normalizes with active rules,
 and runs the existing structural checks. Imported `derived`, `validation`, and
 embedded `rules` never supply calculation inputs. Optional `cargo`, `jumpFuel`,
-and `sublightFuel` overrides must be finite fractions in [0, 1]; omitted fields
-retain blueprint loads. Overrides affect only the requested design's current
-loads. Carried craft retain their own current loads; empty/half/full scenario
+and `sublightFuel` overrides must be finite fractions in [0, 1]. Omitted fields
+retain blueprint loads. Overrides are applied to the normalized root before
+direct totals are calculated. Input byte limits apply to the source bytes.
+Carried craft retain their own current loads. Empty, half, and full scenario
 fractions come from the active rules.
 
 Carried craft performance is evaluated recursively and exposed in
@@ -220,16 +222,18 @@ Performance checks read `validation.checks.<code>.severity`, defaulting to
 their own active severities. Malformed input, invalid rules, and non-F20 formula
 failures reject clearly; calculation failure returns null data.
 
-Until Luna answers F20, omit exactly the excluded undefined results: blank
-zero-mass ships/stations' acceleration and range division by `mass`, deltaV
-division by `endMass` and ln(0), and fuel-to-dry-mass ratio division by `dryMass`;
-engine-less designs' full/current burnSeconds and exhaustVelocity division by
-zero `burnRate`. Each case returns structured `pending_F20` details. DeltaV
+Until Luna answers F20, blank ships and stations with zero dry and current mass
+omit acceleration and range when they divide by `mass`, deltaV when it divides
+by `endMass` or evaluates ln(0), and fuel-to-dry-mass ratio when it divides by
+`dryMass`. Engine-less designs omit full and current burnSeconds and
+exhaustVelocity when they divide by zero `burnRate`. Each case returns
+structured `pending_F20` details. DeltaV
 depending on omitted exhaustVelocity is also omitted with a pending dependency
 issue. No zero, null metric, NaN, string placeholder, or successful unavailable
 value substitutes for an excluded result. Other formula errors still reject,
-including unrelated errors beside an excluded operand. Legitimate computed
-zero-thrust/no-drive values remain numeric results.
+including independent operand failures and a known zero divisor when the
+numerator is unavailable. Legitimate computed zero-thrust/no-drive values
+remain numeric results.
 
 `blank_blueprint(rules)` creates a ship using active defaults and minimum deck
 count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly.
@@ -280,19 +284,18 @@ invalid indices return `invalid_deck_index`, and active minimum/maximum deck
 violations return `deck_limit`. Name constraints and input bounds remain active.
 Operations edit a copy, so failed edits leave the caller's source unchanged.
 
-Deck indices are zero-based array positions; generated ordinary deck labels use
-the corresponding one-based decimal level. This does not settle F16's open
-multi-deck-hold convention. Naming is a literal prefix plus that level, with no
-formatting language: bundled rules provide `defaults.deckNamePrefix: "Deck "`.
-The field is optional for earlier v4 snapshots; without it, the prefix is the
-existing `defaults.deckName` followed by one space. Rules loading checks the
-prefix for controls and that generated names through `maxDecks` fit
-`limits.maxDeckName`.
+Deck indices are zero-based array positions. Generated ordinary deck labels
+append one space and the one-based decimal level to `defaults.deckName`. If
+`limits.maxDeckName` leaves less room, authoring shortens the stem at a UTF-8
+character boundary. The label is the decimal level alone when the stem and
+separator do not fit. If the level itself exceeds the limit, a deck edit returns
+`field_limit` at the affected deck name path. Import and rules loading use their
+ordinary text limits. The multi-deck-hold convention remains open in F16.
 
-Adding `defaults.deckNamePrefix` changes the bundled v4 rules bytes and their
-`rulesSha256`, while `rulesVersion` remains `4`. Saved v4 definitions carrying
-the previous SHA report `rulesIdentityChanged: true` in the import migration
-report; active rules are applied and direct totals are recomputed.
+`blank_blueprint` throws `std::length_error` if a generated level exceeds the
+name character limit or the blank would exceed 4,096 decks or 8 MiB of aggregate
+JSON-encoded deck-name content. The byte limit counts the stem, separator,
+decimal level, and any JSON escape expansion.
 
 New generated decks, including those in a blank blueprint, carry
 `nameGenerated: true`. An explicit name sets no ownership marker; absent or
@@ -1427,9 +1430,10 @@ workflow steps are supplied by this implementation session.
 v3/v4 blueprint or definition inputs as import, normalizes with active rules,
 and runs the existing structural checks. Imported `derived`, `validation`, and
 embedded `rules` never supply calculation inputs. Optional `cargo`, `jumpFuel`,
-and `sublightFuel` overrides must be finite fractions in [0, 1]; omitted fields
-retain blueprint loads. Overrides affect only the requested design's current
-loads. Carried craft retain their own current loads; empty/half/full scenario
+and `sublightFuel` overrides must be finite fractions in [0, 1]. Omitted fields
+retain blueprint loads. Overrides are applied to the normalized root before
+direct totals are calculated. Input byte limits apply to the source bytes.
+Carried craft retain their own current loads. Empty, half, and full scenario
 fractions come from the active rules.
 
 Carried craft performance is evaluated recursively and exposed in
@@ -1453,16 +1457,18 @@ Performance checks read `validation.checks.<code>.severity`, defaulting to
 their own active severities. Malformed input, invalid rules, and non-F20 formula
 failures reject clearly; calculation failure returns null data.
 
-Until Luna answers F20, omit exactly the excluded undefined results: blank
-zero-mass ships/stations' acceleration and range division by `mass`, deltaV
-division by `endMass` and ln(0), and fuel-to-dry-mass ratio division by `dryMass`;
-engine-less designs' full/current burnSeconds and exhaustVelocity division by
-zero `burnRate`. Each case returns structured `pending_F20` details. DeltaV
+Until Luna answers F20, blank ships and stations with zero dry and current mass
+omit acceleration and range when they divide by `mass`, deltaV when it divides
+by `endMass` or evaluates ln(0), and fuel-to-dry-mass ratio when it divides by
+`dryMass`. Engine-less designs omit full and current burnSeconds and
+exhaustVelocity when they divide by zero `burnRate`. Each case returns
+structured `pending_F20` details. DeltaV
 depending on omitted exhaustVelocity is also omitted with a pending dependency
 issue. No zero, null metric, NaN, string placeholder, or successful unavailable
 value substitutes for an excluded result. Other formula errors still reject,
-including unrelated errors beside an excluded operand. Legitimate computed
-zero-thrust/no-drive values remain numeric results.
+including independent operand failures and a known zero divisor when the
+numerator is unavailable. Legitimate computed zero-thrust/no-drive values
+remain numeric results.
 
 `blank_blueprint(rules)` creates a ship using active defaults and minimum deck
 count. `blank_blueprint(rules, BlankType::station)` creates a station explicitly.

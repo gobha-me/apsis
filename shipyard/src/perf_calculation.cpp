@@ -58,7 +58,7 @@ struct Calculator {
                 }
             }
         }
-        blank = blank && number("dryMass") == 0;
+        blank = blank && number("dryMass") == 0 && number("currentMass") == 0;
     }
 
     double number(const std::string& key) const { return totals.at(key).get<double>(); }
@@ -237,9 +237,9 @@ struct Calculator {
         for (const auto& [code, rule] : rules.at("advisories").items()) {
             const auto& types = rule.at("buildTypes");
             if (std::find(types.begin(), types.end(), blueprint.at("buildType")) == types.end()) continue;
-            const bool applies = (code == "many_engines" && engine_count >= rule.at("minEngineCount").get<std::size_t>()) ||
+            const bool applies = (code == "many_engines" && engine_count >= rule.at("minEngineCount").get<double>()) ||
                 (code == "large_fuel_capacity" && fuel_ratio && !near_less(*fuel_ratio, rule.at("minFuelToDryMassRatio"))) ||
-                (code == "no_cargo" && module_count >= rule.at("minModuleCount").get<std::size_t>() &&
+                (code == "no_cargo" && module_count >= rule.at("minModuleCount").get<double>() &&
                     number("cargo") + number("hidden") <= rule.at("maxCargoCapacity").get<double>());
             if (applies) advisory(code, rule.at("text"), "/performance");
         }
