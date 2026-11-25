@@ -297,6 +297,49 @@ int main() {
     stable(text_limited, narrow, schema);
   });
 
+  suite.run("v3 root and carried craft reuse conversion notes only when retained", [&] {
+    const auto four = policy(active, schema, 4);
+    struct NoteCase {
+      Json input;
+      Json root;
+      Json carried;
+    };
+    const std::array cases{
+        NoteCase{Json::array({v3_note, "A", "B", "C", "D"}),
+                 Json::array({notice, "D", v3_note, identity_note}),
+                 Json::array({notice, "C", "D", v3_note})},
+        NoteCase{Json::array({"A", "B", v3_note, "C", "D"}),
+                 Json::array({notice, "D", v3_note, identity_note}),
+                 Json::array({notice, v3_note, "C", "D"})},
+        NoteCase{Json::array({"A", "B", "C", v3_note, "D"}),
+                 Json::array({notice, v3_note, "D", identity_note}),
+                 Json::array({notice, "C", v3_note, "D"})},
+        NoteCase{Json::array({v3_note, "A", "B"}),
+                 Json::array({v3_note, "A", "B", identity_note}),
+                 Json::array({v3_note, "A", "B"})},
+        NoteCase{Json::array({"A", "B", v3_note, identity_note, "D"}),
+                 Json::array({notice, v3_note, identity_note, "D"}),
+                 Json::array({notice, v3_note, identity_note, "D"})},
+    };
+    for (const auto &[notes, root, carried] : cases) {
+      auto parent = blank();
+      parent["schema"] = "apsis-shipyard-v3";
+      parent["migrationNotes"] = notes;
+      auto child = parent;
+      parent["decks"][0]["modules"].push_back(
+          {{"id", 1}, {"type", "shuttleDock"}, {"x", 0}, {"y", 0}, {"r", 0}, {"craft", child}});
+      parent["nextId"] = 2;
+      const auto imported = import_definition(parent.dump(), four, schema);
+      require(imported.ok(), "Valid v3 history imports at the active note cap: " + notes.dump());
+      const auto &blueprint = imported.value->definition.at("blueprint");
+      require(blueprint.at("migrationNotes") == root,
+              "Root v3 conversion accounts for any new identity note: " + notes.dump());
+      require(blueprint.at("decks").at(0).at("modules").at(0).at("craft").at("migrationNotes") == carried,
+              "Carried v3 conversion uses its own note capacity: " + notes.dump());
+      stable(imported, four, schema);
+    }
+  });
+
   suite.run("a stale wrapper ensures the rule identity explanation survives retention", [&] {
     const auto original = import_definition(blank().dump(), three, schema);
     require(original.ok(), "A current v4 wrapper must be available");

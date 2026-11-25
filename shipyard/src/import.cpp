@@ -13,6 +13,9 @@ namespace {
 using detail::error;
 using detail::pointer_token;
 
+constexpr std::string_view identity_note =
+    "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.";
+
 bool includes(const Json& values, const Json& value) {
     return std::find(values.begin(), values.end(), value) != values.end();
 }
@@ -66,9 +69,25 @@ struct Importer {
         }
     }
 
-    void add_note(Json& blueprint, const std::string& note, const std::string& path) {
+    bool note_fits(std::string_view note) const {
+        return detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>();
+    }
+
+    bool has_retained_note(const Json& blueprint, std::string_view note, std::size_t pending = 0) const {
+        const auto& notes = blueprint.at("migrationNotes");
+        const auto maximum = rules.at("limits").at("maxMigrationNotes").get<std::size_t>();
+        const auto total = notes.size() + pending;
+        // On overflow, one slot belongs to the notice and only the suffix will survive.
+        const auto keep = total > maximum ? maximum - 1 : total;
+        const auto dropped = std::min(notes.size(), total - keep);
+        const auto first_retained = notes.begin() + static_cast<Json::difference_type>(dropped);
+        return std::find(first_retained, notes.end(), Json(note)) != notes.end();
+    }
+
+    void add_note(Json& blueprint, std::string_view note, const std::string& path, std::size_t pending = 0) {
+        if (has_retained_note(blueprint, note, pending)) return;
         auto& notes = blueprint.at("migrationNotes");
-        if (detail::character_count(note) <= rules.at("limits").at("maxNoteLength").get<std::size_t>()) {
+        if (note_fits(note)) {
             notes.push_back(note);
             return;
         }
@@ -240,10 +259,11 @@ struct Importer {
             detail::add_issue(issues, error("invalid_next_id", "Next module ID must exceed all existing IDs and stay within the active rules limit.", at(path, "nextId")));
         }
         if (version == 3) {
-            const std::string note = "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.";
-            if (!includes(blueprint.at("migrationNotes"), note)) {
-                add_note(blueprint, note, path);
-            }
+            constexpr std::string_view note = "Migrated apsis-shipyard-v3 to apsis-shipyard-v4 with active rules; existing geometry, IDs, names, budget and loads retained.";
+            // If the conversion note is reused, only a new root identity note can move the suffix.
+            const std::size_t pending = depth == 0 && note_fits(identity_note) &&
+                !has_retained_note(blueprint, identity_note) ? 1 : 0;
+            add_note(blueprint, note, path, pending);
         }
     }
 
@@ -390,15 +410,7 @@ Result<ImportedDefinition> import_definition(std::string_view bytes, const Rules
         if (importer.report.rulesIdentityChanged) {
             importer.change("Applied active v4 rules " + rules.sha256() + "; imported caches and rules were not used as authority.");
             if (!has_errors(importer.issues)) {
-                const auto& notes = blueprint.at("migrationNotes");
-                const auto maximum = rules.data().at("limits").at("maxMigrationNotes").get<std::size_t>();
-                // On overflow, one slot belongs to the notice and only the suffix will survive.
-                const auto keep = notes.size() > maximum ? maximum - 1 : notes.size();
-                const auto first_retained = notes.end() - static_cast<Json::difference_type>(keep);
-                const std::string note = "Imported rule identity differed; active v4 rules were applied and direct totals recomputed.";
-                if (std::find(first_retained, notes.end(), note) == notes.end()) {
-                    importer.add_note(blueprint, note, blueprint_path);
-                }
+                importer.add_note(blueprint, identity_note, blueprint_path);
             }
         }
         if (has_errors(importer.issues)) {
