@@ -39,6 +39,8 @@ def record(manifest, case, seed=333860, style="hauler", ended=False):
     times = list(range(0, elapsed + 1, manifest["sampleEvery"]))
     if times[-1] != elapsed:
         times.append(elapsed)
+    stock_tank = case["resolvedParams"]["stockTank"]
+    later_fuel = "3" if ended else "6"
     return {
         "schemaVersion": 1,
         "seed": seed,
@@ -60,7 +62,7 @@ def record(manifest, case, seed=333860, style="hauler", ended=False):
                 "elapsedDays": day,
                 "wallet": str((150 if ended else 100) + day),
                 "debt": str((2 if ended else 0) + day),
-                "fuel": "3" if ended else "6",
+                "fuel": stock_tank if day == 0 else later_fuel,
                 "worth": str((30 if ended else 100) + day),
                 "completedJobs": str((2 if ended else 1) if day else 0),
             }
@@ -122,15 +124,20 @@ class PlanTests(unittest.TestCase):
             {"max_sim_days": 10},
             {"days": 7200, "sample_every": 1},
             {"axis": [("stockTank", [3]), ("stockTank", [6])]},
-            {
-                "axis": [
-                    ("mediumMass", list(range(101))),
-                    ("mediumSpace", list(range(101))),
-                ]
-            },
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 sweep.plan(args(**changes))
+        with self.assertRaisesRegex(ValueError, "design exceeds 10000 points"):
+            sweep.plan(
+                args(
+                    axis=[
+                        ("mediumMass", list(range(20, 121))),
+                        ("mediumSpace", list(range(60, 161))),
+                    ],
+                    max_runs=100_000,
+                    max_sim_days=10_000_000,
+                )
+            )
 
     def test_dry_run_does_not_need_native_binary_or_modify_sources(self):
         before = sweep.sha256(ROOT / "sim/src/core/params.def")
@@ -261,7 +268,7 @@ class EvidenceTests(unittest.TestCase):
                     for p in curves
                 },
                 {
-                    0: (2, 125, 1, 4.5, 65, 0),
+                    0: (2, 125, 1, 6, 65, 0),
                     10: (2, 135, 11, 4.5, 75, 1.5),
                     15: (1, 165, 17, 3, 45, 2),
                     20: (1, 120, 20, 6, 120, 1),
@@ -270,6 +277,29 @@ class EvidenceTests(unittest.TestCase):
             )
             self.assertIn("right-censored", (directory / "summary.md").read_text())
             self.assertTrue((directory / "runs.csv").is_file())
+
+    def test_report_rejects_baseline_fuel_mismatch_with_matching_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.evidence(directory)
+            raw = directory / "runs" / "case-0000-333860-hauler.json"
+            item = sweep.load_json(raw)
+            item["curve"][0]["fuel"] = "3"
+            sweep.write_json(raw, item)
+            self.manifest["runs"][0]["sha256"] = sweep.sha256(raw)
+            sweep.write_json(directory / "manifest.json", self.manifest)
+
+            with (
+                mock.patch.object(sys, "stderr") as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                sweep.main(["report", str(directory)])
+            self.assertEqual(error.exception.code, 1)
+            self.assertIn(
+                "day-zero fuel does not match resolved stockTank",
+                stderr.write.call_args.args[0],
+            )
+            self.assertFalse((directory / "summary.json").exists())
 
     def test_report_uses_verified_artifact_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -351,10 +381,17 @@ class EvidenceTests(unittest.TestCase):
             # Even a matching design must agree with the verified raw settings.
             self.manifest["axes"]["stockTank"] = [12]
             self.manifest["designCandidates"] = [{"stockTank": 12}]
+            self.case["resolvedParams"]["stockTank"] = "12"
             sweep.write_json(path, self.manifest)
-            with self.assertRaises(SystemExit) as error:
+            with (
+                mock.patch.object(sys, "stderr") as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
                 sweep.main(["report", str(directory)])
             self.assertEqual(error.exception.code, 1)
+            self.assertIn(
+                "driver resolved settings mismatch", stderr.write.call_args.args[0]
+            )
             self.assertFalse((directory / "summary.md").exists())
 
     def test_report_rejects_invalid_recipes(self):

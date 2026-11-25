@@ -324,6 +324,8 @@ def validate(record, manifest, case, seed, style):
         if int(point["completedJobs"]) < previous_completed_jobs:
             raise ValueError("job completion counter decreased")
         previous_completed_jobs = int(point["completedJobs"])
+    if curve[0]["fuel"] != case["resolvedParams"]["stockTank"]:
+        raise ValueError("day-zero fuel does not match resolved stockTank")
     if int(curve[0]["completedJobs"]) != 0:
         raise ValueError("job completion counter must start at zero")
     if (first is None) != (int(curve[-1]["completedJobs"]) == 0):
