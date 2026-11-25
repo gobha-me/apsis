@@ -283,12 +283,12 @@ int main() {
               }), "The valid first declaration retains its independent identity");
     }
     auto structural = control;
-    structural["holds"].push_back(hold(0, 2, 2, 7, 2, 2));
-    // Deck 1 has no walkable floor in or next to the second hold. Deck 2
-    // still covers that entire rectangle, independently blocking its opening.
-    for (int x = 2; x <= 4; ++x)
-      for (int y = 6; y <= 9; ++y)
-        structural["decks"][1]["floors"].erase(std::to_string(x) + "," + std::to_string(y));
+    // The middle deck covers this corner and the top deck has no route to it.
+    auto &top_floors = structural["decks"][2]["floors"];
+    for (const auto *cell : {"2,9", "3,9", "2,10", "3,10", "4,10", "2,11", "3,11", "4,11"})
+      top_floors.erase(cell);
+    accepted(structural, active, schema);
+    structural["holds"].push_back(hold(0, 2, 2, 10, 2, 2));
     require(import_definition(structural.dump(), active, schema).ok(),
             "Second hold is a well-shaped declaration requiring real structural inspection");
     const auto checked = validate(structural.dump(), active, schema);
@@ -296,6 +296,9 @@ int main() {
             "Second structural hold failure retains inspectable validation data");
     finding(checked, "hold_access", "/blueprint/holds/1");
     finding(checked, "hold_open_column", "/blueprint/holds/1");
+    require(!has_issue(checked, "hold_access", "/blueprint/holds/0") &&
+                !has_issue(checked, "hold_open_column", "/blueprint/holds/0"),
+            "The later findings must belong only to the second declaration");
   });
   suite.run("partial mezzanines need a single common full-height open column", [&] {
     accepted(volume(), active, schema);
@@ -330,11 +333,11 @@ int main() {
     for (int d : {2, 3}) split["decks"][d]["modules"][0]["y"] = 7;
     finding(validate(split.dump(), active, schema), "hold_access", "/blueprint/holds/0");
   });
-  suite.run("hold access follows real walkways from a paired ladder on every deck", [&] {
+  suite.run("hold access needs a cardinal route around an occupied floor", [&] {
     accepted(volume(), active, schema);
     accepted(volume(3, 8, 5), active, schema);
-    accepted(volume(3, 6, 6), active, schema);
-    accepted(volume(3, 7, 4), active, schema);
+    accepted(volume(3, 5, 6), active, schema); // Several cells from the hold.
+    accepted(volume(3, 6, 4), active, schema); // Offset on both axes.
 
     for (const auto &anchor : {std::pair{9, 7}, std::pair{7, 5}, std::pair{11, 6},
                                std::pair{8, 4}, std::pair{9, 9}}) {
@@ -345,17 +348,21 @@ int main() {
       accepted(sparse, active, schema);
     }
 
-    auto corridor = volume(3, 6, 6);
-    corridor["decks"][1]["floors"] = {{"6,6", true}, {"7,6", true}, {"8,6", true}};
-    accepted(corridor, active, schema);
-    const int id = corridor.at("nextId").get<int>();
-    corridor["nextId"] = id + 1;
-    corridor["decks"][1]["modules"].push_back(
-        {{"id", id}, {"type", "shuttleSeats"}, {"x", 7}, {"y", 6}, {"r", 0}});
-    const auto blocked_route = validate(corridor.dump(), active, schema);
-    require(blocked_route.at("pass") == false && !has_issue(blocked_route, "disconnected_hull"),
-            "An unwalkable module can block hold access on one deck while the hull stays connected");
-    finding(blocked_route, "hold_access", "/blueprint/holds/0");
+    auto catwalk = volume(3, 5, 7);
+    auto &middle_deck = catwalk["decks"][1];
+    middle_deck["floors"] = {{"5,6", true}, {"6,6", true}, {"7,6", true},
+                              {"5,7", true}, {"6,7", true}};
+    accepted(catwalk, active, schema);
+    const auto seats = catwalk.at("nextId").get<int>();
+    catwalk["nextId"] = seats + 1;
+    middle_deck["modules"].push_back(
+        {{"id", seats}, {"type", "shuttleSeats"}, {"x", 6}, {"y", 6}, {"r", 0}});
+    const auto blocked = validate(catwalk.dump(), active, schema);
+    finding(blocked, "hold_access", "/blueprint/holds/0");
+    require(blocked.at("pass") == false && !has_issue(blocked, "disconnected_hull"),
+            "A diagonal step past the seats cannot connect the walkways even on a connected hull");
+    middle_deck["floors"]["7,7"] = true;
+    accepted(catwalk, active, schema);
 
     auto bottom_route = volume(3, 13, 6);
     for (int d : {0, 1, 2}) fill(bottom_route, d, 12, 6, 2, 1);
@@ -396,36 +403,40 @@ int main() {
     require(actual.at("floorCount") == 298 && actual.at("cargo") == 0,
             "Independent real floor count and zero cargo-module capacity stay unchanged");
   });
-  suite.run("public performance preserves a real hold and material totals through load overrides", [&] {
-    auto design = volume();
-    add_module(design, "cargo", 4, 7);
-    auto control = design;
-    control.erase("holds");
+  suite.run("a hold spanning upper decks is neutral to calculated cargo and mass", [&] {
+    auto station = volume(4, 7, 6, hold(1, 3));
+    add_module(station, "cargo", 3, 7);
+    station["loads"]["cargo"] = 0.25;
+    auto without_hold = station;
+    without_hold.erase("holds");
     const double epsilon = active.data().at("numeric").at("epsilon").get<double>();
-    for (const auto &loads : {LoadFractions{}, LoadFractions{.cargo = 0.5}}) {
-      const auto with = perf(design.dump(), active, schema, loads);
-      const auto without = perf(control.dump(), active, schema, loads);
-      require(with.at("pass") == true && without.at("pass") == true &&
-                  with.at("data").at("structuralPass") == true,
-              "Both real station designs must pass public performance and structural checks");
-      const auto &data = with.at("data");
+    for (const auto &[override, fraction] :
+         {std::pair{LoadFractions{}, 0.25}, std::pair{LoadFractions{.cargo = 0.75}, 0.75},
+          std::pair{LoadFractions{.cargo = 0.0}, 0.0}}) {
+      const auto checked = perf(station.dump(), active, schema, override);
+      const auto reference = perf(without_hold.dump(), active, schema, override);
+      const auto &data = checked.at("data");
+      const auto &reference_data = reference.at("data");
+      require(checked.at("pass") == true && reference.at("pass") == true &&
+                  data.at("structuralPass") == true && reference_data.at("structuralPass") == true,
+              "Declaring a hold over the same station must preserve its successful performance report");
       const auto &definition = data.at("definition");
-      const auto &totals = definition.at("derived");
+      auto expected_blueprint = station;
+      expected_blueprint["loads"]["cargo"] = fraction;
+      require(definition.at("blueprint") == expected_blueprint,
+              "The calculated definition must preserve the upper-deck hold and effective cargo load");
+      const auto &derived = definition.at("derived");
       const auto &performance = data.at("performance");
-      const double cargo = loads.cargo.value_or(0);
-      const double cargo_mass = cargo * 10;
-      require(definition.at("blueprint").at("holds") == design.at("holds") &&
-                  definition.at("blueprint").at("loads").at("cargo") == cargo,
-              "The normalized performance definition retains the hold and effective cargo load");
-      require(totals.at("floorCount") == 298 && totals.at("cargo") == 10 &&
-                  totals == without.at("data").at("definition").at("derived") &&
-                  performance == without.at("data").at("performance"),
-              "Declaring the hold leaves every material total and performance scenario unchanged");
-      require(performance.at("cargoMass") == cargo_mass &&
-                  performance.at("currentMass") == totals.at("currentMass") &&
-                  std::abs(totals.at("currentMass").get<double>() -
-                           totals.at("dryMass").get<double>() - cargo_mass) <= epsilon,
-              "Both direct totals and performance include the real catalogue cargo load exactly once");
+      require(derived == reference_data.at("definition").at("derived") &&
+                  performance == reference_data.at("performance"),
+              "Adding the hold must leave all derived values and scenarios equal");
+      const double cargo_mass = fraction * 10;
+      require(derived.at("floorCount") == 397 && derived.at("cargo") == 10 &&
+                  performance.at("cargoMass") == cargo_mass &&
+                  performance.at("currentMass") == derived.at("currentMass") &&
+                  std::abs(derived.at("currentMass").get<double>() -
+                           derived.at("dryMass").get<double>() - cargo_mass) <= epsilon,
+              "Only the 397 real floors and the 10-unit cargo module contribute to these totals");
     }
   });
   suite.run("hangar touching edge is allowed; positive shared-deck overlap rejects", [&] {
@@ -438,40 +449,43 @@ int main() {
     design["holds"][0]["firstDeck"] = 1;
     accepted(design, active, schema);
   });
-  suite.run("hold geometry uses explicit blueprint severity under a warning default", [&] {
-    auto changed = active.data();
-    changed["validation"]["defaultSeverity"] = "warning";
-    const auto warning_default = load_rules(changed.dump(), schema);
-    require(warning_default.ok(), "Rules allow a warning default with an explicit error for invalid blueprints");
-    const auto &policy = *warning_default.value;
-    const auto reject = [&](const Json &design, std::string_view code) {
-      const auto report = validate(design.dump(), policy, schema);
-      const auto &item = finding(report, code, "/blueprint/holds/0");
-      require(report.at("pass") == false && !report.at("data").is_null() &&
-                  item.at("details").at("rule") == "/validation/checks/invalid_blueprint",
-              "Hold geometry rejects structurally under the explicit shape policy");
-      require(std::none_of(report.at("issues").begin(), report.at("issues").end(),
-                           [&](const Json &issue) {
-                             return issue.at("severity") == "error" && issue.at("code") != code;
-                           }),
-              "Each fixture fails only its targeted hold geometry check");
-    };
+  suite.run("hold geometry diagnostics follow the invalid blueprint check", [&] {
+    const auto record = hold(0, 1);
+    auto sealed = volume(2, 7, 6, record);
+    sealed["decks"][1]["floors"]["9,6"] = true;
+    auto isolated = volume(2, 6, 6, record);
+    isolated["decks"][1]["floors"] = {{"6,6", true}};
+    auto hangar = volume(2, 7, 6, record);
+    add_module(hangar, "stationHangar", 10, 7);
+    fill(hangar, 0, 10, 7, 5, 7);
 
-    auto blocked = volume();
-    accepted(blocked, policy, schema);
-    blocked["decks"][1]["floors"]["9,6"] = true;
-    reject(blocked, "hold_open_column");
-
-    auto unreachable = volume();
-    unreachable["holds"][0]["x"] = 13;
-    reject(unreachable, "hold_access");
-
-    auto overlap = volume();
-    add_module(overlap, "stationHangar", 11, 5);
-    fill(overlap, 0, 11, 5, 5, 7);
-    accepted(overlap, policy, schema);
-    overlap["holds"][0]["w"] = 4;
-    reject(overlap, "hold_hangar_overlap");
+    auto rule_data = active.data();
+    auto &validation = rule_data["validation"];
+    validation["defaultSeverity"] = "warning";
+    for (bool reject : {true, false}) {
+      const auto *severity = reject ? "error" : "warning";
+      validation["checks"]["invalid_blueprint"]["severity"] = severity;
+      const auto policy = load_rules(rule_data.dump(), schema);
+      require(policy.ok(), "The default and the explicit shape severity are configurable");
+      accepted(volume(2, 7, 6, record), *policy.value, schema);
+      for (const auto &[design, code] : {std::pair{&sealed, "hold_open_column"},
+                                         std::pair{&isolated, "hold_access"},
+                                         std::pair{&hangar, "hold_hangar_overlap"}}) {
+        const auto report = validate(design->dump(), *policy.value, schema);
+        const auto &diagnostics = report.at("issues");
+        const auto matches = std::count_if(diagnostics.begin(), diagnostics.end(), [&](const Json &item) {
+          return item.at("code") == code && item.at("path") == "/blueprint/holds/0" &&
+                 item.at("severity") == severity && !item.at("message").get<std::string>().empty() &&
+                 item.at("details").at("rule") == "/validation/checks/invalid_blueprint";
+        });
+        const auto errors = std::count_if(diagnostics.begin(), diagnostics.end(), [](const Json &item) {
+          return item.at("severity") == "error";
+        });
+        require(matches == 1 && errors == (reject ? 1 : 0) &&
+                    report.at("pass") == !reject && !report.at("data").is_null(),
+                std::string(code) + " must follow the explicit shape severity: " + diagnostics.dump());
+      }
+    }
   });
   suite.run("hangar overlap on only the inclusive last hold deck is still forbidden", [&] {
     auto design = volume(4, 7, 6, hold(0, 2));

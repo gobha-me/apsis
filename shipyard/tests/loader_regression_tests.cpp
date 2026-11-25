@@ -41,33 +41,27 @@ int main() {
     });
   }
 
-  suite.run("direct import reports F21 as the only pending docking finding", [&] {
-    const auto imported = import_definition(blank().dump(), active, schema_set);
-    require(imported.ok(), "direct import must return a definition");
-    const auto expected_findings = Json::array({"F21"});
-    const auto is_advisory = [](const Issue &item) {
-      return item.code == "pending_docking";
-    };
-    const auto advisory = std::find_if(imported.issues.begin(),
-                                       imported.issues.end(), is_advisory);
-    require(std::count_if(imported.issues.begin(), imported.issues.end(),
-                          is_advisory) == 1 &&
-                advisory->severity == "warning" &&
-                advisory->details.at("findings") == expected_findings,
-            "direct import must return exactly one docking warning for F21");
-
-    const auto &issues =
-        imported.value->definition.at("validation").at("issues");
-    const auto is_serialized_advisory = [](const Json &item) {
-      return item.at("code") == "pending_docking";
-    };
-    const auto serialized =
-        std::find_if(issues.begin(), issues.end(), is_serialized_advisory);
-    require(std::count_if(issues.begin(), issues.end(),
-                          is_serialized_advisory) == 1 &&
-                serialized->at("severity") == "warning" &&
-                serialized->at("details").at("findings") == expected_findings,
-            "exported validation must contain exactly one docking warning for F21");
+  suite.run("current and migrated imports carry only the F21 docking warning", [&] {
+    for (const auto &source : {blank("station").dump(),
+                              read("fixtures/v3/apsis-wren-definition-v3.json")}) {
+      const auto imported = import_definition(source, active, schema_set);
+      require(imported.ok(), "Both source versions must yield a definition");
+      const auto &exported = imported.value->definition.at("validation").at("issues");
+      auto typed_docking = Json::array();
+      auto exported_docking = Json::array();
+      for (const auto &item : imported.issues)
+        if (item.code == "pending_docking")
+          typed_docking.push_back(Json{{"path", item.path}, {"severity", item.severity},
+                                       {"findings", item.details.at("findings")}});
+      for (const auto &item : exported)
+        if (item.at("code") == "pending_docking")
+          exported_docking.push_back(Json{{"path", item.at("path")}, {"severity", item.at("severity")},
+                                          {"findings", item.at("details").at("findings")}});
+      const auto expected = Json::array({{{"path", "/derived"}, {"severity", "warning"},
+                                          {"findings", Json::array({"F21"})}}});
+      require(typed_docking == expected && exported_docking == expected,
+              "Both issue streams must retain exactly one F21 docking advisory at /derived");
+    }
   });
 
   suite.run("module grid capacity is exact even when footprints overlap", [&] {

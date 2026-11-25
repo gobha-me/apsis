@@ -837,36 +837,57 @@ class Geometry(PublicRenderer):
                         (deck, row, column),
                     )
 
-    def test_short_hold_label_stays_inside_the_outline(self):
-        design = self.hold_station(count=3, first=0, last=2)
+    def test_one_cell_hold_label_respects_the_vertical_fit_boundary(self):
+        design = self.hold_station()
         hold = design["holds"][0]
-        hold["h"] = 1
-        for index, deck in enumerate(design["decks"]):
-            deck["modules"][-1]["y"] = 5
-            if index:
-                deck["floors"]["9,6"] = True
-                del deck["floors"]["9,5"]
-
-        for width, height, cell in ((110, 120, 3), (292, 288, 10)):
+        hold.update(y=6, h=1)
+        for width, height, cell in ((110, 120, 3), (266, 264, 9), (292, 288, 10)):
             with self.subTest(cell=cell):
                 options = {"width": width, "height": height}
+                unlabelled = {**options, "labels": False}
                 rendered = self.render(design, options=options, validate=True)
+                control = self.render(design, options=unlabelled, validate=True)
                 manifest, images = self.verify_bundle(rendered, design, options)
-                self.assertEqual(manifest["holds"], [{**hold, "label": "decks 1–3"}])
+                _, plain = self.verify_bundle(control, design, unlabelled)
+                self.assertEqual(manifest["holds"], [{**hold, "label": "decks 2–3"}])
                 camera = manifest["camera"]
                 self.assertEqual(camera["cellPixels"], cell)
-                x = camera["originX"] + hold["x"] * cell
-                y = camera["originY"] + hold["y"] * cell
-                bottom = y + cell - 1
-                for image in images[:-1]:
-                    for px in range(x, x + hold["w"] * cell):
-                        self.assertEqual(image.at(px, bottom), BORDER)
-                        self.assertEqual(image.at(px, bottom + 1), GRID)
+                left = camera["originX"] + hold["x"] * cell
+                top = camera["originY"] + hold["y"] * cell
+                right = left + hold["w"] * cell - 1
+                bottom = top + cell - 1
+                for deck in (1, 2):
+                    image = images[deck]
                     self.assertEqual(
-                        image.at(x + 2, bottom + 2), color(self.rules["floor"]["color"])
+                        {image.at(x, bottom) for x in range(left, right + 1)},
+                        {BORDER},
                     )
+                    self.assertEqual(
+                        {image.at(x, bottom + 1) for x in range(left, right + 1)},
+                        {GRID},
+                    )
+                    changed = {
+                        (x, y)
+                        for x in range(left, right + 1)
+                        for y in range(top, max(top + 9, bottom + 3))
+                        if image.at(x, y) != plain[deck].at(x, y)
+                    }
                     if cell == 10:
-                        self.assertEqual(image.at(x + 2, bottom - 1), TITLE)
+                        self.assertIn((left + 2, bottom - 1), changed)
+                        self.assertTrue(
+                            all(
+                                left < x < right
+                                and top < y < bottom
+                                and image.at(x, y) == TITLE
+                                for x, y in changed
+                            )
+                        )
+                    else:
+                        self.assertEqual(changed, set())
+                    self.assertEqual(
+                        image.at(left + 2, bottom + 2),
+                        color(self.rules["floor"]["color"]),
+                    )
 
 
 class Bounds(PublicRenderer):

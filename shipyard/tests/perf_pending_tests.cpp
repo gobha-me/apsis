@@ -1,4 +1,4 @@
-#include "test_support.hpp"
+#include "dock_test_support.hpp"
 
 #include <apsis/shipyard/perf.hpp>
 #include <apsis/shipyard/validator.hpp>
@@ -151,38 +151,38 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
 
-  suite.run("legal holds survive the exact source byte cap", [&] {
-    // Parsing expands both exponent spellings when the tree is serialized.
-    constexpr std::string_view source =
-        R"({"schema":"apsis-shipyard-v4","name":"Hold","budget":1e8,)"
-        R"("buildType":"station","loads":{"cargo":0,"jumpFuel":1,"sublightFuel":1},)"
-        R"("decks":[{"name":"Main","floors":{"1,2":true,"2,2":true,"3,2":true,"4,2":true,)"
-        R"("1,3":true,"2,3":true,"3,3":true,"4,3":true,"5,3":true},"modules":[)"
-        R"({"id":1,"type":"airlock","x":1,"y":2,"r":1},)"
-        R"({"id":2,"type":"cockpit","x":2,"y":2,"r":0},)"
-        R"({"id":3,"type":"microReactor","x":3,"y":2,"r":0},)"
-        R"({"id":4,"type":"microLifeSupport","x":4,"y":2,"r":0},)"
-        R"({"id":5,"type":"ladder","x":5,"y":3,"r":0}]},)"
-        R"({"name":"Catwalk","floors":{"5,3":true},"modules":[)"
-        R"({"id":6,"type":"ladder","x":5,"y":3,"r":0}]}],)"
-        R"("nextId":1e9,"migrationNotes":[],)"
-        R"("holds":[{"x":5,"y":3,"w":1,"h":2,"firstDeck":0,"lastDeck":1}]})";
+  suite.run("performance preserves an upper hold at the compact source limit", [&] {
+    auto station = dock_test::base("station");
+    station["budget"] = 100000000;
+    dock_test::add_module(station, "ladder", 7, 6);
+    for (const auto *name : {"Access", "Mezzanine"}) {
+      const auto ladder = station.at("nextId").get<int>();
+      station["nextId"] = ladder + 1;
+      station["decks"].push_back(
+          {{"name", name}, {"floors", {{"7,6", true}, {"8,6", true}}},
+           {"modules", Json::array({{{"id", ladder}, {"type", "ladder"},
+                                     {"x", 7}, {"y", 6}, {"r", 0}}})}});
+    }
+    station["holds"] = Json::array({{{"x", 8}, {"y", 6}, {"w", 2}, {"h", 2},
+                                     {"firstDeck", 1}, {"lastDeck", 2}}});
+    auto source = canonical_json(station);
+    constexpr std::string_view budget = R"("budget":100000000)";
+    const auto budget_pos = source.find(budget);
+    require(budget_pos != std::string::npos, "The fixture must have the expected integer budget");
+    source.replace(budget_pos, budget.size(), R"("budget":1e8)");
     const auto expanded_source = canonical_json(Json::parse(source));
     require(expanded_source.size() > source.size(),
             "The fixture must expand when serialized after parsing");
     const auto unrestricted = perf(source, active, schema);
+    const auto &data = unrestricted.at("data");
     require(unrestricted.at("pass") == true &&
-                unrestricted.at("data").at("structuralPass") == true,
-            "The station and its connected two-deck hold must pass performance");
-    const auto &blueprint = unrestricted.at("data").at("definition").at("blueprint");
-    require(blueprint.at("holds") == Json::array({{{"x", 5}, {"y", 3}, {"w", 1},
-                                                 {"h", 2}, {"firstDeck", 0},
-                                                 {"lastDeck", 1}}}),
-            "Public performance retains the normalized hold and its entire span");
-    require(
-        perf(source, active, schema, {},
-             InputLimits{.maxBytes = source.size()}) == unrestricted,
-        "An exact byte cap must apply to the original source bytes");
+                data.at("structuralPass") == true &&
+                data.at("definition").at("blueprint") == station,
+            "Performance must retain the full passing blueprint and its upper-deck hold");
+    const auto compact_at_cap =
+        perf(source, active, schema, {}, InputLimits{.maxBytes = source.size()});
+    require(compact_at_cap == unrestricted,
+            "Reaching the compact source limit must preserve the full performance result");
     require(
         perf(expanded_source, active, schema, {},
              InputLimits{.maxBytes = expanded_source.size()}) == unrestricted,
