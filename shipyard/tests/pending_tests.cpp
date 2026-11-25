@@ -183,6 +183,27 @@ int main() {
       });
 
   suite.run(
+      "hold findings deduplicate both docking inputs at F11 and F17 endpoints",
+      [&] {
+        auto host_request = host;
+        host_request["blueprint"]["holds"] = Json::array();
+        auto visitor_request = wren;
+        visitor_request["blueprint"]["holds"] = Json::array();
+        const auto report = dock(host_request.dump(), 1, 14,
+                                 visitor_request.dump(), active, schema);
+        // Both imports emit the same seven pending findings. Docking retains
+        // their first (host) path once each, including both range endpoints.
+        pending_holds(report, "dock", "/host/blueprint/holds");
+        for (const auto *code : {"pending_F11", "pending_F17"})
+          require(std::count_if(report.at("issues").begin(),
+                                report.at("issues").end(),
+                                [&](const Json &item) {
+                                  return item.at("code") == code;
+                                }) == 1,
+                  "Both inclusive endpoint findings must occur exactly once");
+      });
+
+  suite.run(
       "nested carried hold requests block validate and both dock inputs", [&] {
         auto carrier = blank();
         auto craft = blank();
