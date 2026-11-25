@@ -258,6 +258,17 @@ int main(int argc, char **argv) {
     require(findings(without_drive, "no_jump_fuel").empty() &&
                 findings(with_drive, "no_jump_fuel").size() == 1,
             "The warning requires a classified drive even at zero rating");
+
+    const auto fueled = perf(source, *unrated.value, schema, {.jumpFuel = 1});
+    const auto &rated_zero = performance(fueled);
+    require(fueled.at("data").at("ready") == true &&
+                rated_zero.at("rating") == 0 &&
+                rated_zero.at("jump").at("currentJumps") == 2 &&
+                rated_zero.at("jump").at("driveCosts").size() == 1 &&
+                rated_zero.at("power").at("marginJump").get<double>() >= 0,
+            "The unrated drive is fitted, fueled and powered");
+    require(fueled.at("data").at("jumpReady") == false,
+            "A fitted and fueled drive still needs a positive rating");
   });
 
   suite.run("exactly one loaded jump is sufficient", [&] {
