@@ -82,7 +82,7 @@ bool within_port_alignment(const detail::ModuleState& airlock, const detail::Mod
     // The schema fixes centre-to-centre measurement along a single axis.
     const auto dx = (2 * airlock.x + airlock.width) - (2 * port.x + port.width);
     const auto dy = (2 * airlock.y + airlock.height) - (2 * port.y + port.height);
-    return (dx == 0 || dy == 0) && std::abs(dx) + std::abs(dy) <= 2 * maximum_distance_cells;
+    return (dx == 0 || dy == 0) && std::abs(dx) + std::abs(dy) <= maximum_distance_cells * 2;
 }
 } // namespace
 
