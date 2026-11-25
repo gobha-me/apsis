@@ -227,14 +227,14 @@ class EvidenceTests(unittest.TestCase):
     def assert_report_rejected_before_artifacts(self, directory, message):
         sweep.write_json(directory / "manifest.json", self.manifest)
         with (
-            mock.patch.object(sweep, "sha256", wraps=sweep.sha256) as digest,
+            mock.patch.object(Path, "read_bytes") as read_artifact,
             mock.patch.object(sys, "stderr") as stderr,
             self.assertRaises(SystemExit) as error,
         ):
             sweep.main(["report", str(directory)])
         self.assertEqual(error.exception.code, 1)
         self.assertIn(message, stderr.write.call_args.args[0])
-        digest.assert_not_called()
+        read_artifact.assert_not_called()
         self.assertFalse((directory / "summary.json").exists())
 
     def test_censored_outcomes_and_curve_denominators(self):
@@ -270,6 +270,33 @@ class EvidenceTests(unittest.TestCase):
             )
             self.assertIn("right-censored", (directory / "summary.md").read_text())
             self.assertTrue((directory / "runs.csv").is_file())
+
+    def test_report_uses_verified_artifact_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            self.evidence(directory)
+            raw = directory / "runs" / "case-0000-333860-hauler.json"
+            changed_path = directory / "changed.json"
+            changed_record = deepcopy(self.record)
+            changed_record["curve"][-1]["wallet"] = "230"
+            sweep.write_json(changed_path, changed_record)
+
+            open_path = Path.open
+            raw_reads = 0
+
+            def open_artifact(path, *args, **kwargs):
+                nonlocal raw_reads
+                if path == raw:
+                    raw_reads += 1
+                    if raw_reads > 1:
+                        path = changed_path
+                return open_path(path, *args, **kwargs)
+
+            with mock.patch.object(Path, "open", open_artifact):
+                rows = sweep.summarize(directory, self.manifest)
+
+            self.assertEqual(rows[0]["medianFinalWallet"], 147.5)
+            self.assertEqual(raw_reads, 1)
 
     def test_report_regeneration_preserves_linked_inputs(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -435,18 +462,18 @@ class EvidenceTests(unittest.TestCase):
                     broken[f"{field}s"][0] = value
                 with (
                     self.subTest(field=field, value=value),
-                    mock.patch.object(sweep, "sha256") as digest,
+                    mock.patch.object(Path, "read_bytes") as read_artifact,
                     self.assertRaises(ValueError),
                 ):
                     sweep.summarize(directory, broken)
-                digest.assert_not_called()
+                read_artifact.assert_not_called()
 
             # Python considers the float equal to the planned integer seed.
             self.manifest["runs"][-1]["seed"] = 110478.0
-            with mock.patch.object(sweep, "sha256") as digest:
+            with mock.patch.object(Path, "read_bytes") as read_artifact:
                 with self.assertRaises(ValueError):
                     sweep.summarize(directory, self.manifest)
-                digest.assert_not_called()
+                read_artifact.assert_not_called()
 
     def test_report_rejects_artifacts_resolving_outside_runs(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -457,19 +484,19 @@ class EvidenceTests(unittest.TestCase):
             artifact = runs / "case-0000-333860-hauler.json"
             outside = artifact.rename(directory / artifact.name)
             artifact.symlink_to(outside)
-            with mock.patch.object(sweep, "sha256") as digest:
+            with mock.patch.object(Path, "read_bytes") as read_artifact:
                 with self.assertRaises(ValueError):
                     sweep.summarize(directory, self.manifest)
-                digest.assert_not_called()
+                read_artifact.assert_not_called()
 
             artifact.unlink()
             outside.rename(artifact)
             moved_runs = runs.rename(directory.parent / "external-runs")
             runs.symlink_to(moved_runs, target_is_directory=True)
-            with mock.patch.object(sweep, "sha256") as digest:
+            with mock.patch.object(Path, "read_bytes") as read_artifact:
                 with self.assertRaises(ValueError):
                     sweep.summarize(directory, self.manifest)
-                digest.assert_not_called()
+                read_artifact.assert_not_called()
 
     def test_incomplete_changed_or_duplicate_artifacts_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:

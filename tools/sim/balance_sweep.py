@@ -57,6 +57,10 @@ def write_json(path, value):
 
 
 def load_json(path):
+    return parse_json(path.read_text(encoding="utf-8"))
+
+
+def parse_json(text):
     def reject(value):
         raise ValueError(f"nonfinite JSON constant: {value}")
 
@@ -68,11 +72,7 @@ def load_json(path):
             result[key] = value
         return result
 
-    return json.loads(
-        path.read_text(encoding="utf-8"),
-        parse_constant=reject,
-        object_pairs_hook=unique,
-    )
+    return json.loads(text, parse_constant=reject, object_pairs_hook=unique)
 
 
 def defaults():
@@ -474,10 +474,12 @@ def summarize(output, manifest):
         path = (runs_dir / name).resolve()
         if not path.is_relative_to(runs_dir):
             raise ValueError("run artifact path escapes runs directory")
-        if sha256(path) != run["sha256"]:
+        artifact = path.read_bytes()
+        if hashlib.sha256(artifact).hexdigest() != run["sha256"]:
             raise ValueError("run artifact digest mismatch")
         case = cases[run["case"]]
-        record = validate(load_json(path), manifest, case, run["seed"], run["style"])
+        parsed = parse_json(artifact.decode("utf-8"))
+        record = validate(parsed, manifest, case, run["seed"], run["style"])
         records.append((run, record))
     summaries, curves, rows = [], [], []
     for case in manifest["cases"]:
