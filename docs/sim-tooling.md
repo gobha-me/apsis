@@ -36,6 +36,11 @@ Every state, including initial state, warmup ticks and pilot start, checks:
 - a configurable operational entity bound (`--max-entities`, default 100,000);
 - a one-day clock increment after each tick.
 
+Reports count attempted setup and measured ticks separately from the world clock.
+If a checkpoint check fails, the adapter stops there and records the failing day.
+Pilot scenarios verify startup before measurement, and bot scenarios record
+actions processed by the simulation during measured ticks.
+
 During the measured horizon, the two explicit probes must observe successful
 repayment or terminal bankruptcy respectively. An observed repayment remains a
 success if later upkeep causes a new debt or the idle pilot eventually goes

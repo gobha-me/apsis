@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     static_assert(std::is_integral_v<decltype(World::day)>);
     static_assert(std::is_integral_v<decltype(Pilot::wallet)>);
     World w = create(seed, 4, apsis::Rules{});
-    bool ledger = true, bounded = true, clock = true;
+    bool ledger = true, bounded = true, clock = w.day == 0;
     size_t peak = 0;
     i64 checked = 0, firstFailure = -1;
     const auto check = [&] {
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
         firstFailure = w.day;
       return ledger && bounded && clock;
     };
-    check();
+    bool healthy = check();
     const auto advance = [&](bool pilot) {
       const auto previous = w.day;
       if (pilot)
@@ -81,53 +81,65 @@ int main(int argc, char **argv) {
     };
     // Mature-world fixture for the bankruptcy boundary. Rules and parameters
     // retain defaults; only fixture state (an old, unpayable debt) is injected.
-    if (scenario == "bankruptcy")
-      while (w.day < w.CP.bankruptYears * 360 && ledger && bounded && clock)
-        advance(false);
-    if (scenario != "world" && ledger && bounded) {
-      submit(w, apsis::Action{A_START, {0}});
-      advance(true);
-      if (scenario == "repayment") {
-        w.pl.wallet = 2000;
-        w.pl.debt.push_back(Debt{1, 500});
-        submit(w, apsis::Action{A_REPAY, {500}});
-      } else if (scenario == "bankruptcy") {
-        w.pl.debt.push_back(Debt{1, 1000000000});
-        w.pl.debtFrom = 0;
-      }
+    i64 setup = 0;
+    if (scenario == "bankruptcy") {
+      const i64 warmup = w.CP.bankruptYears * 360;
+      for (; setup < warmup && healthy; ++setup)
+        healthy = advance(false);
     }
+    bool pilotStarted = scenario == "world";
+    if (scenario != "world" && healthy) {
+      submit(w, apsis::Action{A_START, {0}});
+      ++setup;
+      healthy = advance(true);
+      pilotStarted = w.pl.alive;
+    }
+    if (healthy && !pilotStarted)
+      firstFailure = w.day;
+    healthy &= pilotStarted;
+    if (healthy && scenario == "repayment") {
+      w.pl.wallet = 2000;
+      w.pl.debt.push_back(Debt{1, 500});
+      submit(w, apsis::Action{A_REPAY, {500}});
+    } else if (healthy && scenario == "bankruptcy") {
+      w.pl.debt.push_back(Debt{1, 1000000000});
+      w.pl.debtFrom = 0;
+    }
+    const auto logAtSetup = w.log.size();
     uint64_t simulated = 0;
     bool outcome = scenario != "repayment" && scenario != "bankruptcy";
-    for (; simulated < days && ledger && bounded && clock; ++simulated) {
+    for (; simulated < days && healthy; ++simulated) {
       if (style >= 0 && ready(w))
         for (const auto &action : decideBot(w, style))
           submit(w, action);
-      const bool advanced = advance(scenario != "world");
+      healthy = advance(scenario != "world");
       // Reachability is an observed event, not a condition that must persist
       // forever: an idle pilot can incur new upkeep debt after repaying.
       outcome |= scenario == "repayment" && w.pl.debt.empty() && w.pl.alive;
       outcome |=
           scenario == "bankruptcy" && !w.pl.alive && w.pl.end == E_BANKRUPT;
-      if (!advanced) {
-        ++simulated;
-        break;
-      }
     }
-    const bool passed = ledger && bounded && clock && outcome;
+    // The pilot tick records inputs it applies. After setup, the only inputs
+    // in the three bot scenarios come from their corresponding bot.
+    const auto appliedBotActions = style >= 0 ? w.log.size() - logAtSetup : 0;
+    const bool passed = healthy && outcome;
     std::cout << "{\"schema_version\":1,\"seed\":" << seed << ",\"scenario\":\""
               << scenario << "\",\"requested_days\":" << days
+              << ",\"setup_days\":" << setup
               << ",\"simulated_days\":" << simulated
               << ",\"final_day\":" << w.day << ",\"states_checked\":" << checked
               << ",\"peak_entities\":" << peak
               << ",\"first_failure_day\":" << firstFailure
               << ",\"end_state\":" << w.pl.end
               << ",\"deliveries\":" << w.pl.n.done
+              << ",\"applied_bot_actions\":" << appliedBotActions
               << ",\"numeric_domain\":\"integer_checkpoint\",\"state_hash\":\""
               << apsis::hashBytes(checkpoint(w))
               << "\",\"checks\":{\"resource_conservation\":"
               << (ledger ? "true" : "false")
               << ",\"bounded_entities\":" << (bounded ? "true" : "false")
               << ",\"day_progression\":" << (clock ? "true" : "false")
+              << ",\"pilot_started\":" << (pilotStarted ? "true" : "false")
               << ",\"outcome_reachable\":" << (outcome ? "true" : "false")
               << "}}\n";
     return !std::cout ? 2 : passed ? 0 : 1;

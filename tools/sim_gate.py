@@ -13,10 +13,17 @@ import time
 from pathlib import Path
 
 SCENARIOS = ("world", "hauler", "crisis", "pathfinder", "repayment", "bankruptcy")
+BOT_SCENARIOS = ("hauler", "crisis", "pathfinder")
+SETUP_DAYS = {
+    "world": 0,
+    **dict.fromkeys((*BOT_SCENARIOS, "repayment"), 1),
+    "bankruptcy": 10 * 360 + 1,  # Default bankruptYears plus the pilot start tick.
+}
 CHECKS = (
     "resource_conservation",
     "bounded_entities",
     "day_progression",
+    "pilot_started",
     "outcome_reachable",
 )
 MAX_REPORT_BYTES = 65536
@@ -70,18 +77,31 @@ def validate_report(path, seed, scenario, days, limit):
         raise ValueError("scenario does not match invocation")
     if report.get("numeric_domain") != "integer_checkpoint":
         raise ValueError("unsupported numeric domain")
-    final = integer(report.get("final_day"), "final_day")
+    final = report.get("final_day")
+    if type(final) is not int:
+        raise ValueError("final_day must be an integer")
     checked = integer(report.get("states_checked"), "states_checked", 1)
     simulated = integer(report.get("simulated_days"), "simulated_days")
+    setup = integer(report.get("setup_days"), "setup_days")
+    ticks = setup + simulated
+    expected_setup = SETUP_DAYS[scenario]
+    if (
+        checked != ticks + 1
+        or simulated > days
+        or setup > expected_setup
+        or (simulated and setup != expected_setup)
+    ):
+        raise ValueError("inconsistent simulation horizon/check count")
     peak = integer(report.get("peak_entities"), "peak_entities")
     first_failure = report.get("first_failure_day")
-    if type(first_failure) is not int or not -1 <= first_failure <= final:
+    if type(first_failure) is not int:
         raise ValueError("invalid first_failure_day")
-    if checked != final + 1 or simulated > days or final < simulated:
-        raise ValueError("inconsistent simulation horizon/check count")
     if integer(report.get("end_state"), "end_state") > 3:
         raise ValueError("unknown end_state")
     integer(report.get("deliveries"), "deliveries")
+    bot_actions = integer(report.get("applied_bot_actions"), "applied_bot_actions")
+    if bot_actions and (scenario not in BOT_SCENARIOS or not simulated):
+        raise ValueError("bot actions outside bot measurement")
     if not isinstance(report.get("state_hash"), str) or not re.fullmatch(
         r"[0-9a-f]{16}", report["state_hash"]
     ):
@@ -91,6 +111,17 @@ def validate_report(path, seed, scenario, days, limit):
         raise ValueError("missing or unknown invariant checks")
     if any(type(value) is not bool for value in checks.values()):
         raise ValueError("invariant checks must be booleans")
+    if checks["day_progression"]:
+        if final != ticks:
+            raise ValueError("day progression disagrees with tick count")
+        if not -1 <= first_failure <= final:
+            raise ValueError("invalid first_failure_day")
+    elif final == ticks or first_failure != final:
+        raise ValueError("invalid first failure for day progression")
+    if (checks["pilot_started"] and setup != expected_setup) or (
+        not checks["pilot_started"] and (scenario == "world" or simulated)
+    ):
+        raise ValueError("pilot startup disagrees with scenario or tick counts")
     if checks["bounded_entities"] != (peak <= limit):
         raise ValueError("entity count disagrees with bounded_entities")
     if all(checks.values()) and (simulated != days or first_failure != -1):

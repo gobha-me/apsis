@@ -23,6 +23,7 @@ def valid_report():
         "seed": 7,
         "scenario": "world",
         "requested_days": 3,
+        "setup_days": 0,
         "simulated_days": 3,
         "final_day": 3,
         "states_checked": 4,
@@ -30,6 +31,7 @@ def valid_report():
         "first_failure_day": -1,
         "end_state": 0,
         "deliveries": 0,
+        "applied_bot_actions": 0,
         "numeric_domain": "integer_checkpoint",
         "state_hash": "0123456789abcdef",
         "checks": dict.fromkeys(GATE.CHECKS, True),
@@ -98,6 +100,86 @@ class SimGateTests(unittest.TestCase):
         self.assertEqual(self.run_gate().returncode, 1)
         self.assertEqual(self.summary()["counts"]["fail"], 1)
 
+    def test_stalled_and_jumped_clocks_preserve_failure_reports(self):
+        for scenario, setup_days, simulated_days in (
+            ("world", 0, 1),
+            ("bankruptcy", 1, 0),
+        ):
+            for final_day in (0, 2):
+                with self.subTest(scenario=scenario, final_day=final_day):
+                    self.output = self.root / f"clock-{scenario}-{final_day}"
+                    report = dict(
+                        valid_report(),
+                        scenario=scenario,
+                        setup_days=setup_days,
+                        simulated_days=simulated_days,
+                        final_day=final_day,
+                        states_checked=2,
+                        first_failure_day=final_day,
+                    )
+                    report["checks"]["day_progression"] = False
+                    if scenario == "bankruptcy":
+                        report["checks"]["pilot_started"] = False
+                        report["checks"]["outcome_reachable"] = False
+                    self.report_fixture(report, 1)
+                    result = self.run_gate("--scenarios", scenario)
+                    self.assertEqual(
+                        result.returncode, 1, result.stdout + result.stderr
+                    )
+                    case = self.summary()["cases"][0]
+                    self.assertEqual(case["status"], "fail")
+                    self.assertEqual(case["report"], report)
+
+    def test_clock_failure_still_requires_consistent_tick_counts(self):
+        report = dict(
+            valid_report(),
+            simulated_days=1,
+            final_day=2,
+            states_checked=3,
+            first_failure_day=2,
+        )
+        report["checks"]["day_progression"] = False
+        self.report_fixture(report, 1)
+        self.assertEqual(self.run_gate().returncode, 2)
+        self.assertIn(
+            "inconsistent simulation horizon/check count",
+            self.summary()["cases"][0]["error"],
+        )
+
+    def test_passing_reports_require_the_scenario_setup_horizon(self):
+        for scenario, setup_days, end_state in (
+            ("world", 6, 0),
+            ("hauler", 0, 0),
+            ("bankruptcy", 1, 3),
+        ):
+            with self.subTest(scenario=scenario, setup_days=setup_days):
+                self.output = self.root / f"horizon-{scenario}"
+                report = dict(
+                    valid_report(),
+                    scenario=scenario,
+                    setup_days=setup_days,
+                    final_day=setup_days + 3,
+                    states_checked=setup_days + 4,
+                    end_state=end_state,
+                )
+                self.report_fixture(report)
+                self.assertEqual(self.run_gate("--scenarios", scenario).returncode, 2)
+                self.assertEqual(self.summary()["cases"][0]["status"], "error")
+
+    def test_short_bot_horizon_allows_zero_applied_actions(self):
+        report = dict(
+            valid_report(),
+            scenario="hauler",
+            requested_days=1,
+            setup_days=1,
+            simulated_days=1,
+            final_day=2,
+            states_checked=3,
+        )
+        self.report_fixture(report)
+        result = self.run_gate("--scenarios", "hauler", "--days", "1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_exit_failure_cannot_be_hidden_by_passing_json(self):
         for status in (1, 7, -15):
             with self.subTest(status=status):
@@ -114,21 +196,41 @@ class SimGateTests(unittest.TestCase):
         self.assertIn("disagrees", self.summary()["cases"][0]["error"])
 
     def test_timeout_is_recorded_and_later_cases_still_run(self):
-        self.fixture("import time\nprint('partial', flush=True)\ntime.sleep(2)")
-        result = self.run_gate("--timeout-seconds", "0.03", "--seeds", "7,8")
+        passing = dict(valid_report(), seed=8)
+        self.fixture(
+            "import sys, time\n"
+            "if sys.argv[1] == '7':\n"
+            "    print('partial', flush=True)\n"
+            "    time.sleep(2)\n"
+            "else:\n"
+            f"    print({json.dumps(passing)!r})"
+        )
+        result = self.run_gate("--timeout-seconds", "0.5", "--seeds", "7,8")
         self.assertEqual(result.returncode, 2, result.stderr)
         summary = self.summary()
-        self.assertEqual(summary["counts"]["error"], 2)
-        self.assertEqual([case["seed"] for case in summary["cases"]], [7, 8])
+        self.assertEqual(summary["counts"], {"pass": 1, "fail": 0, "error": 1})
+        timed_out, completed = summary["cases"]
+        self.assertEqual(timed_out["seed"], 7)
+        self.assertIn("timed out", timed_out["error"])
+        self.assertEqual(completed["status"], "pass")
+        self.assertEqual(completed["report"], passing)
         self.assertTrue((self.output / "7-world/stderr.txt").exists())
 
-    def test_malformed_missing_and_oversized_reports_are_errors(self):
-        for index, raw in enumerate(("", "garbage", "[]", "{}", "x" * 65537)):
+    def test_malformed_and_missing_reports_are_errors(self):
+        for index, raw in enumerate(("", "garbage", "[]", "{}")):
             with self.subTest(index=index):
                 self.output = self.root / f"malformed-{index}"
                 self.fixture(f"print({raw!r})")
                 self.assertEqual(self.run_gate().returncode, 2)
                 self.assertEqual(self.summary()["counts"]["error"], 1)
+
+    def test_oversized_valid_report_is_rejected(self):
+        raw = json.dumps(valid_report())
+        self.fixture(f"print({raw!r} + ' ' * 65536)")
+        self.assertEqual(self.run_gate().returncode, 2)
+        self.assertIn(
+            "driver report exceeds 64 KiB", self.summary()["cases"][0]["error"]
+        )
 
     def test_report_rejects_duplicate_keys_and_nonfinite_constants(self):
         raw = json.dumps(valid_report())
@@ -149,6 +251,7 @@ class SimGateTests(unittest.TestCase):
             "seed": 8,
             "scenario": "hauler",
             "requested_days": 4,
+            "setup_days": 1,
             "simulated_days": 2,
             "final_day": 2,
             "states_checked": 0,
@@ -156,6 +259,7 @@ class SimGateTests(unittest.TestCase):
             "first_failure_day": 0,
             "end_state": 4,
             "deliveries": -1,
+            "applied_bot_actions": -1,
             "numeric_domain": "float",
             "state_hash": "xyz",
             "checks": {},
@@ -281,6 +385,15 @@ class NativeSimGateTests(unittest.TestCase):
                 self.assertEqual(
                     summary["counts"]["pass" if expected == 0 else "fail"], 12
                 )
+                if expected == 0:
+                    for case in summary["cases"]:
+                        with self.subTest(seed=case["seed"], scenario=case["scenario"]):
+                            report = case["report"]
+                            self.assertTrue(report["checks"]["pilot_started"])
+                            if case["scenario"] in ("hauler", "crisis", "pathfinder"):
+                                self.assertGreater(report["applied_bot_actions"], 0)
+                            else:
+                                self.assertEqual(report["applied_bot_actions"], 0)
 
 
 if __name__ == "__main__":
