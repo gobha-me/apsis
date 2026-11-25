@@ -18,6 +18,13 @@ using Cells = std::set<Cell>;
 
 constexpr Cell neighbors[] = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
 
+void enqueue_neighbors(Cell cell, std::deque<Cell>& queue, auto can_enqueue) {
+    for (const auto& [dx, dy] : neighbors) {
+        const Cell next{cell.first + dx, cell.second + dy};
+        if (can_enqueue(next)) queue.push_back(next);
+    }
+}
+
 struct Rectangle {
     Coordinate x, y, w, h;
     bool contains(Cell c) const {
@@ -53,12 +60,11 @@ Cells hold_walkway(const Rectangle& rectangle, const Cells& walkable) {
         }
     }
     while (!queue.empty()) {
-        const auto [x, y] = queue.front();
+        const auto cell = queue.front();
         queue.pop_front();
-        for (const auto& [dx, dy] : neighbors) {
-            const Cell next{x + dx, y + dy};
-            if (walkable.contains(next) && reached.insert(next).second) queue.push_back(next);
-        }
+        enqueue_neighbors(cell, queue, [&](Cell next) {
+            return walkable.contains(next) && reached.insert(next).second;
+        });
     }
     return reached;
 }
@@ -219,10 +225,7 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                 remainder.erase(remainder.begin());
                 while (!queue.empty()) {
                     const auto cell = queue.front(); queue.pop_front();
-                    for (const auto& [dx, dy] : neighbors) {
-                        const Cell next{cell.first + dx, cell.second + dy};
-                        if (remainder.erase(next) != 0) queue.push_back(next);
-                    }
+                    enqueue_neighbors(cell, queue, [&](Cell next) { return remainder.erase(next) != 0; });
                 }
             }
             // The explicit crew-route test seam retains local hull checks. The
@@ -272,15 +275,15 @@ StructureReport inspect_structure(const Json& blueprint, const RulesSnapshot& sn
                 issue("hold_open_column", "The hold needs one open column through every intervening floor plane.",
                       hold.path, {{"firstDeck", hold.first}, {"lastDeck", hold.last}});
             }
-            std::vector<Cells> routes;
+            std::vector<Cells> routes(decks.size());
             for (auto d = hold.first; d <= hold.last; ++d)
-                routes.push_back(hold_walkway(hold.rectangle, walkable[d]));
+                routes[d] = hold_walkway(hold.rectangle, walkable[d]);
             // The same aligned chain must connect to the hold on each deck.
             const auto access = std::any_of(ladders.begin(), ladders.end(), [&](const auto& entry) {
                 const auto& [deck, x, y] = entry.first;
-                if (deck != hold.first) return false;
-                for (auto d = hold.first; d <= hold.last; ++d)
-                    if (!ladders.contains({d, x, y}) || !routes[d - hold.first].contains({x, y})) return false;
+                if (deck != hold.first || !routes[hold.first].contains({x, y})) return false;
+                for (auto d = hold.first + 1; d <= hold.last; ++d)
+                    if (!ladders.contains({d, x, y}) || !routes[d].contains({x, y})) return false;
                 return true;
             });
             if (!access) {
