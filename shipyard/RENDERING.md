@@ -152,8 +152,9 @@ archive, or HTML is imported, and no unresolved game decision is inferred.
 
 Luna, under owner delegation 2026-11-23 resolved F11–F17 and F19. Each accepted
 hold is outlined in the existing border color after floors and before modules
-on each deck it spans. With labels enabled, the compact ASCII bitmap label `HOLD 02-04` identifies that
-same volume; normal deck titles and filenames retain their original indices.
+on each deck it spans. With labels enabled and room inside the outline, the
+compact ASCII bitmap label `HOLD 02-04` identifies that volume. Normal deck
+titles and filenames retain their original indices.
 The manifest has one `holds` entry per object, carrying its original rectangle,
 inclusive zero-based deck span and one-based `label`. This array is omitted
 when no hold is present. No-hold PNG pixels, compression and font are unchanged.

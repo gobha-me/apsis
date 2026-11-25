@@ -19,8 +19,12 @@ namespace detail {
 Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,
-                                               InputLimits limits) {
-    return import_definition(bytes, rules, schemas, limits);
+                                               InputLimits limits,
+                                               const Json& load_overrides,
+                                               CarriedTotals* performance_totals) {
+    auto parsed = parse_json(bytes, limits);
+    if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
+    return import_parsed_definition(*parsed.value, rules, schemas, load_overrides, performance_totals);
 }
 } // namespace detail
 

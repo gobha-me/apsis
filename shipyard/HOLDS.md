@@ -66,6 +66,5 @@ fails. F21 alignment and F20 undefined-performance handling are separate from
 these resolved hold/rotation decisions.
 
 The exact mutation minimum remains `390/491`. The hold implementation retires
-eight obsolete allowances (the removed pending-hold parser and replaced
-floor-count geometry guard), shifting only 23 byte-identical source-site
-identities. The allowed set tightens from 101 to 93; no new survivor is allowed.
+eight obsolete allowances for the pending-hold parser and floor-count geometry
+guard. The integrated baseline permits 92 previously allowed survivor sites.

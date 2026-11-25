@@ -278,6 +278,15 @@ int main() {
     accepted(volume(3, 6, 6), active, schema);
     accepted(volume(3, 7, 4), active, schema);
 
+    for (const auto &anchor : {std::pair{9, 7}, std::pair{7, 5}, std::pair{11, 6},
+                               std::pair{8, 4}, std::pair{9, 9}}) {
+      auto sparse = volume(3, anchor.first, anchor.second);
+      const auto cell = std::to_string(anchor.first) + "," + std::to_string(anchor.second);
+      for (int d : {1, 2})
+        sparse["decks"][d]["floors"] = {{cell, true}};
+      accepted(sparse, active, schema);
+    }
+
     auto corridor = volume(3, 6, 6);
     corridor["decks"][1]["floors"] = {{"6,6", true}, {"7,6", true}, {"8,6", true}};
     accepted(corridor, active, schema);
@@ -289,6 +298,12 @@ int main() {
     require(blocked_route.at("pass") == false && !has_issue(blocked_route, "disconnected_hull"),
             "An unwalkable module can block hold access on one deck while the hull stays connected");
     finding(blocked_route, "hold_access", "/blueprint/holds/0");
+
+    auto bottom_route = volume(3, 13, 6);
+    for (int d : {0, 1, 2}) fill(bottom_route, d, 12, 6, 2, 1);
+    accepted(bottom_route, active, schema);
+    add_module(bottom_route, "shuttleSeats", 12, 6);
+    finding(validate(bottom_route.dump(), active, schema), "hold_access", "/blueprint/holds/0");
 
     auto missing_floor = volume();
     missing_floor["decks"][1]["floors"].erase("7,6");

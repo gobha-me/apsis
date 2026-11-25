@@ -1,13 +1,12 @@
 #pragma once
 
-#include <apsis/shipyard/loader.hpp>
+#include "internal.hpp"
 
 namespace apsis::shipyard::detail {
-// The definition must come from import_definition with the active snapshot.
-// Load overrides have already passed the same normalization/input checks.
-Result<Json> calculate_performance(const Json& definition,
+bool has_jump_fuel(double charges, const RulesSnapshot& rules);
+// The blueprint and direct totals must come from the same import.
+Result<Json> calculate_performance(const Json& blueprint, const Json& totals,
                                    const RulesSnapshot& rules,
-                                   const SchemaSet& schemas,
-                                   const Json& loads,
-                                   InputLimits limits = {});
+                                   const CarriedTotals& carried_totals,
+                                   const std::string& blueprint_path = "/blueprint");
 } // namespace apsis::shipyard::detail

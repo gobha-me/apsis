@@ -93,6 +93,11 @@ jobs:
         run: |
           cmake -S sim -B "$RUNNER_TEMP/apsis-sim-build" -DCMAKE_CXX_COMPILER=g++-13
           cmake --build "$RUNNER_TEMP/apsis-sim-build" --parallel 2
+      - name: Test-only bounded sim replay and input properties
+        run: |
+          cmake -S tests/sim -B "$RUNNER_TEMP/apsis-replay-build" -DCMAKE_CXX_COMPILER=g++-13 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON "-DCMAKE_CXX_FLAGS_RELEASE=-O2 -DNDEBUG"
+          cmake --build "$RUNNER_TEMP/apsis-replay-build" --target sim_replay_driver sim_input_properties --parallel 2
+          ctest --test-dir "$RUNNER_TEMP/apsis-replay-build" --output-on-failure --parallel 2
       - name: Prepare fresh determinism evidence
         id: determinism_prepare
         run: python tools/determinism.py prepare --report-dir "$RUNNER_TEMP"

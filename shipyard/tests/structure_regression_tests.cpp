@@ -37,13 +37,149 @@ Json &berth(Json &blueprint) {
         return module;
   throw std::runtime_error("Kestrel must have its canonical shuttle berth");
 }
+
+// #50 requires ordinary multi-deck walkability. The public ladder catalogue
+// requires the same coordinate on adjacent decks; no hold rules are involved.
+Json ladder_stack(std::size_t deck_count) {
+  auto source = station();
+  add_module(source, "ladder", 8, 7);
+  for (std::size_t deck = 1; deck < deck_count; ++deck) {
+    auto upper = blank("station");
+    upper["nextId"] = source.at("nextId");
+    upper["decks"][0]["name"] = "Loft " + std::to_string(deck);
+    fill_rectangle(upper, 6, 6, 4, 4);
+    add_module(upper, "ladder", 8, 7);
+    if (deck + 1 == deck_count)
+      add_module(upper, "shuttleSeats", 9, 9);
+    source["decks"].push_back(upper.at("decks")[0]);
+    source["nextId"] = upper.at("nextId");
+  }
+  return source;
+}
+
+Json transformed_ladders(Json source, int dx, int dy, bool reverse_modules) {
+  for (auto &deck : source["decks"]) {
+    Json translated = Json::object();
+    for (const auto &[coordinate, floor] : deck.at("floors").items()) {
+      const auto comma = coordinate.find(',');
+      const auto x = std::stoi(coordinate.substr(0, comma)) + dx;
+      const auto y = std::stoi(coordinate.substr(comma + 1)) + dy;
+      translated[std::to_string(x) + "," + std::to_string(y)] = floor;
+    }
+    deck["floors"] = std::move(translated);
+    auto &modules = deck["modules"];
+    for (auto &module : modules) {
+      module["x"] = module.at("x").get<int>() + dx;
+      module["y"] = module.at("y").get<int>() + dy;
+    }
+    if (reverse_modules)
+      std::reverse(modules.begin(), modules.end());
+  }
+  return source;
+}
+
+std::string module_path(const Json &source, std::size_t deck,
+                        std::uint64_t id) {
+  const auto &modules = source.at("decks")[deck].at("modules");
+  for (std::size_t index = 0; index < modules.size(); ++index)
+    if (modules[index].at("id") == id)
+      return "/blueprint/decks/" + std::to_string(deck) + "/modules/" +
+             std::to_string(index);
+  throw std::runtime_error("Missing fixture module " + std::to_string(id));
+}
+
+void ladder_failure(const Json &source, std::size_t deck, std::uint64_t seat_id,
+                    const RulesSnapshot &active, const SchemaSet &schema,
+                    ValidationOptions options) {
+  const auto report = validate(source.dump(), active, schema, options);
+  const auto &seat = finding(report, "unreachable_component",
+                             module_path(source, deck, seat_id));
+  require(seat.at("details").at("moduleId") == seat_id,
+          "The disconnected upper passenger seats must be identified");
+  require(report.at("pass") == false &&
+              report.at("data").at("structuralPass") == false,
+          "A ladder connection fault must reject structural certification");
+  finding(report, "disconnected_hull",
+          "/blueprint/decks/" + std::to_string(deck) + "/floors");
+  require(has_issue(report, "unpaired_ladder"),
+          "No ordinary ladder may pair across a coordinate or deck gap");
+}
+
+void ladder_properties(Suite &suite, const RulesSnapshot &active,
+                       const SchemaSet &schema, ValidationOptions options) {
+  constexpr std::array translations{std::pair{0, 0}, std::pair{4, 3},
+                                    std::pair{8, 6}};
+  suite.run(
+      "ordinary ladders require exact coordinates on adjacent decks", [&] {
+        const auto connected = ladder_stack(2);
+        const auto seat_id = connected.at("nextId").get<std::uint64_t>() - 1;
+        for (const auto &[dx, dy] : translations) {
+          for (const bool reversed : {false, true}) {
+            const auto control =
+                transformed_ladders(connected, dx, dy, reversed);
+            const auto report =
+                validate(control.dump(), active, schema, options);
+            require(report.at("pass") == true &&
+                        !has_issue(report, "unpaired_ladder"),
+                    "Exact ladder pairs remain valid after translation and "
+                    "module reorder");
+            for (int offset_x = -1; offset_x <= 1; ++offset_x) {
+              for (int offset_y = -1; offset_y <= 1; ++offset_y) {
+                if (offset_x == 0 && offset_y == 0)
+                  continue;
+                // Every neighboring position retains its floor and avoids the
+                // seats, so only the ladder pairing changes.
+                auto shifted = connected;
+                shifted["decks"][1]["modules"][0]["x"] = 8 + offset_x;
+                shifted["decks"][1]["modules"][0]["y"] = 7 + offset_y;
+                ladder_failure(transformed_ladders(shifted, dx, dy, reversed),
+                               1, seat_id, active, schema, options);
+              }
+            }
+          }
+        }
+      });
+
+  suite.run("ordinary ladders cannot jump over a ladderless middle deck", [&] {
+    const auto connected = ladder_stack(3);
+    const auto seat_id = connected.at("nextId").get<std::uint64_t>() - 1;
+    auto missing_middle = connected;
+    missing_middle["decks"][1]["modules"].erase(0);
+    for (const auto &[dx, dy] : translations) {
+      for (const bool reversed : {false, true}) {
+        const auto control = transformed_ladders(connected, dx, dy, reversed);
+        const auto report = validate(control.dump(), active, schema, options);
+        require(report.at("pass") == true &&
+                    !has_issue(report, "unpaired_ladder"),
+                "A ladder on every adjacent deck connects the upper passenger "
+                "seats");
+        ladder_failure(transformed_ladders(missing_middle, dx, dy, reversed), 2,
+                       seat_id, active, schema, options);
+      }
+    }
+  });
+}
 } // namespace
 
-int main() {
+int main(int argc, char **argv) {
   using namespace dock_test;
   Suite suite;
   const auto schema_set = schemas();
   const auto active = rules(schema_set);
+
+  if (argc == 2 && std::string_view(argv[1]) == "--ladder-crew-disabled") {
+    // Red control: run the same enabled-only findings with their real public
+    // check disabled. Both new cases must then fail, without replacing code.
+    ValidationOptions options;
+    options.crewRoutes = false;
+    ladder_properties(suite, active, schema_set, options);
+    return suite.finish();
+  }
+  if (argc != 1) {
+    std::cerr << "Usage: shipyard-structure_regression-tests "
+                 "[--ladder-crew-disabled]\n";
+    return 2;
+  }
 
   suite.run("S07: enclosing the command station removes crew access", [&] {
     auto source = station();
@@ -253,5 +389,6 @@ int main() {
                            "/blueprint/decks/0/modules/1"),
             "The first left service cell reaches the reactor, not both regions");
   });
+  ladder_properties(suite, active, schema_set, {});
   return suite.finish();
 }

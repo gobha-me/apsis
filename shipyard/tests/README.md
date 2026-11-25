@@ -4,7 +4,7 @@ These tests exercise the public APIs in `loader.hpp`, `validator.hpp`, and
 `perf.hpp`, with no mocks. Expectations
 come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
 fixtures. Loader tests cover loading, migration, and direct totals; validator,
-dock, and pending suites cover #50. The three perf suites cover #51 without
+dock, and pending suites cover #50. The five perf suites cover #51 without
 assigning values to open game decisions.
 
 Run with g++-13, C++23, CMake, and OpenSSL 3.x development files:
@@ -68,8 +68,14 @@ promoted to error through public rules loading. F10 failures reject, including
 an independent invalid operand beside an F20 exclusion and a formula that fails
 only in carried Skiff. Parent load overrides preserve the child's current loads.
 
-All three suites use the existing CTest wiring and warning-as-error test flags;
-the existing CI build/test step discovers them without workflow changes.
+`shipyard-perf_issue_cap` checks performance issue saturation for top-level and
+carried designs, including warnings and independent pending F20 evaluations.
+
+`shipyard-perf_review` covers readiness and power thresholds, active advisory
+thresholds, life support, duplicate drive prices, and blank deck generation.
+
+CTest discovers all five suites through the existing CI build and test step.
+Each suite builds with warnings treated as errors.
 
 ## Validation and pending decisions
 
@@ -177,6 +183,57 @@ The r2 public-API suites extend the reviewed fault coverage:
 
 The unchanged `shipyard-validator_cap` inputs retain the 300,000-hold cases;
 the inherited linear SAX parser keeps those calls below existing watchdogs.
+
+## Headless rendering
+
+`shipyard-render-Artifacts`, `shipyard-render-Geometry`, and
+`shipyard-render-Bounds` run a public-header C++ driver linked to the real
+library. Python 3's standard `zlib`, `struct`, `hashlib`, and `zipfile` provide
+independent decoding and hashing. Neither the driver nor the assertions include
+private renderer headers or use miniz to read its own output. CTest discovers
+these suites in the existing build/test step; no workflow changes are needed.
+
+Canonical Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage must produce one
+opaque RGBA8 PNG per deck and an exact vertical stack. PNG signature, chunk
+order and CRCs, complete zlib stream, all five scanline filters, decoded length,
+dimensions, and opacity are checked. ZIP central and local records must agree
+with independent CRCs and exact returned payloads, ordered safe entry names,
+stored compression, fixed 1980-01-01 timestamps, and no comments or extra files.
+The manifest's schema, renderer/rules/definition/font identities, effective
+options, integer camera, fixed time, original deck names/indices, dimensions,
+byte counts, and hashes are checked against independent hashes and public
+validation/canonicalization. Its canonical JSON ends in one LF. Outer metadata
+must include the manifest and ZIP hashes without recursive self-hashes.
+
+Repeated calls, intervening calls with another design/options, and fresh driver
+processes must return identical bytes. Duplicated, path-like, long, and Unicode
+names exercise safe slugs; reversing a valid station's deck array must reverse
+the decoded unlabeled panels. Misleading imported caches and embedded rules may
+not change pixels. Documented uppercase text and Unicode question-mark fallback
+are compared through separate authored inputs, without importing font internals.
+
+Geometry assertions derive the camera, every grid cell's semantic owner, exact
+module perimeters and interior colors from the public rules and blueprint.
+They check all four cardinal rotations of a nonsquare module, arrow direction,
+floor insets, backgrounds and grid extent, active grid/footprint/color changes,
+rotation-index remapping, neutral color fallback, labels off, and cell sizes
+one through four. These are documented pixel expectations from RENDERING.md,
+not an invented prototype oracle. Allowed pixel variance is **zero** in the
+supported g++-13/C++23 runtime. Compressed-byte parity across toolchain or
+dependency changes is outside that contract; semantic geometry remains exact.
+The font hash is checked for valid SHA-256 form and stable identity across
+options, without claiming an independently approved glyph-byte golden.
+
+Rustbucket must retain its missing-airlock and three unreachable-module errors
+and return no artifacts. Hold tests check span records, deck outlines, and
+border and background pixels when a hold is too short for its label.
+Wayfarer retains its structured `pending_F20` advisory. Bounds cover invalid
+dimensions, resolution,
+raised hard caps, lowered deck/dimension/pixel/output limits, exact and one-below
+byte/pixel/input boundaries, parser failures, maximum panel dimensions, and a
+three-deck render at 99.98% of the hard pixel cap. Every failed render must
+return null data and no partial artifacts. The seven historical v3 JSON files
+and their hash manifest remain unchanged.
 
 ## Historical archive: superseded F18 evidence
 
@@ -854,68 +911,14 @@ the inherited linear SAX parser keeps those calls below existing watchdogs.
 
 </details>
 
-## Headless rendering
-
-`shipyard-render-Artifacts`, `shipyard-render-Geometry`, and
-`shipyard-render-Bounds` run a public-header C++ driver linked to the real
-library. Python 3's standard `zlib`, `struct`, `hashlib`, and `zipfile` provide
-independent decoding and hashing. Neither the driver nor the assertions include
-private renderer headers or use miniz to read its own output. CTest discovers
-these suites in the existing build/test step; no workflow changes are needed.
-
-Canonical Wren, Skiff, Kestrel Tender, and Wayfarer Anchorage must produce one
-opaque RGBA8 PNG per deck and an exact vertical stack. PNG signature, chunk
-order and CRCs, complete zlib stream, all five scanline filters, decoded length,
-dimensions, and opacity are checked. ZIP central and local records must agree
-with independent CRCs and exact returned payloads, ordered safe entry names,
-stored compression, fixed 1980-01-01 timestamps, and no comments or extra files.
-The manifest's schema, renderer/rules/definition/font identities, effective
-options, integer camera, fixed time, original deck names/indices, dimensions,
-byte counts, and hashes are checked against independent hashes and public
-validation/canonicalization. Its canonical JSON ends in one LF. Outer metadata
-must include the manifest and ZIP hashes without recursive self-hashes.
-
-Repeated calls, intervening calls with another design/options, and fresh driver
-processes must return identical bytes. Duplicated, path-like, long, and Unicode
-names exercise safe slugs; reversing a valid station's deck array must reverse
-the decoded unlabeled panels. Misleading imported caches and embedded rules may
-not change pixels. Documented uppercase text and Unicode question-mark fallback
-are compared through separate authored inputs, without importing font internals.
-
-Geometry assertions derive the camera, every grid cell's semantic owner, exact
-module perimeters and interior colors from the public rules and blueprint.
-They check all four cardinal rotations of a nonsquare module, arrow direction,
-floor insets, backgrounds and grid extent, active grid/footprint/color changes,
-rotation-index remapping, neutral color fallback, labels off, and cell sizes
-one through four. These are documented pixel expectations from RENDERING.md,
-not an invented prototype oracle. Allowed pixel variance is **zero** in the
-supported g++-13/C++23 runtime. Compressed-byte parity across toolchain or
-dependency changes is outside that contract; semantic geometry remains exact.
-The font hash is checked for valid SHA-256 form and stable identity across
-options, without claiming an independently approved glyph-byte golden.
-
-Rustbucket must retain its missing-airlock and three unreachable-module errors
-and return no artifacts. Requested holds retain blocking structured F11–F17;
-Wayfarer's structured `pending_F20` survives rendering without performance
-stand-ins. F19/F21 remain pending in the existing docking suites. No pending
-game decision is resolved here. Bounds cover invalid dimensions, resolution,
-raised hard caps, lowered deck/dimension/pixel/output limits, exact and one-below
-byte/pixel/input boundaries, parser failures, maximum panel dimensions, and a
-three-deck render at 99.98% of the hard pixel cap. Every failed render must
-return null data and no partial artifacts. The seven historical v3 JSON files
-and their hash manifest remain unchanged.
-
 ## Historical archive: superseded F18 evidence
 
 The following excerpt is preserved verbatim from the pre-merge documentation to
 retain every historical F18 entry and its text. The current **Per-check fault
 coverage** section above is authoritative for reviewed evidence; its concrete
 fault regressions supersede the historical toggle-only evidence and old Mull
-deferral below. The reviewed F19 behavior above (definite unrotated fit, definite
-oversize, and rotation-only `pending_F19`) is authoritative. Any earlier blanket
-F19 deferral remains historical and does not change current expectations. The
-excerpt records the earlier session; it does not claim a current mutation score
-or defer the current reviewed fault coverage.
+deferral below. The current tests use the resolved cardinal hangar fit under
+F19. The excerpt records the earlier session and its mutation evidence.
 
 Historical F19 context accompanying the original F18 evidence:
 
@@ -1032,3 +1035,4 @@ existing 30-second watchdog and 120-second CTest timeout.
 
 </details>
 
+</details>

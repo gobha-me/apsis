@@ -63,7 +63,8 @@ Cells hold_walkway(const Rectangle& rectangle, const Cells& walkable) {
         const auto cell = queue.front();
         queue.pop_front();
         enqueue_neighbors(cell, queue, [&](Cell next) {
-            return walkable.contains(next) && reached.insert(next).second;
+            if (!walkable.contains(next)) return false;
+            return reached.insert(next).second;
         });
     }
     return reached;
