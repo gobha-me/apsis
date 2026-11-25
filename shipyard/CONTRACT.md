@@ -271,6 +271,17 @@ the three F22 prototype differences remain open and answer none of F11–F17 or
 F19–F21.
 
 
+## Headless rendering (#53)
+
+The public `render` operation calls default production validation on the
+normalized model and retains its issues. It emits no artifacts for invalid,
+pending-feature, or over-limit input; successful rendering returns the standard
+result envelope plus owned binary artifacts without writing files.
+[RENDERING.md](RENDERING.md) specifies the fixed integer camera, rule-sourced
+geometry, bundled font, zero allowed pixel variance, hashes, safe deck filenames,
+fixed ZIP order/timestamps, and bounded operational options. Rendering assigns
+no performance value or unresolved game rule.
+
 ## Historical hangar wording before final Argus r2
 
 The following prior F19-related wording is retained verbatim as superseded

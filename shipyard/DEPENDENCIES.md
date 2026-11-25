@@ -15,3 +15,15 @@ JSON Schema vocabulary used by the bundled Draft 2020-12 schemas, with no remote
 reference retrieval; the supported vocabulary is documented in `CONTRACT.md`.
 Python `jsonschema` 4.25.1 was used in disposable session scratch to check schema
 structure and data shapes; it is not a library or build dependency.
+
+- **miniz 3.0.2**, MIT: pinned native RGBA PNG encoder and ZIP writer, from
+  [the official 3.0.2 source](https://github.com/richgel999/miniz/tree/3.0.2),
+  commit `293d4db1b7d0ffee9756d035b9ac6f7431ef8492`. About 385 KiB of upstream
+  source plus license. Stdio and clocks are disabled; all writes are bounded
+  memory callbacks. [The vendoring record](vendor/miniz/README.md) lists source
+  hashes, the static export header, and the two fixed-DOS-date initializers.
+  No other upstream logic is modified. OpenSSL SHA-256 also hashes render
+  artifacts and the normalized rendered definition.
+- **Apsis bitmap font 1**, BSD-3-Clause: the original 5-by-7 glyph table in
+  `src/render_font.hpp` uses the repository license. It is compiled into the
+  renderer and hashed in every manifest; no external font/assets are loaded.

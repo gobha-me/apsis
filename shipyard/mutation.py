@@ -147,6 +147,14 @@ def main():
         )
         if not 0 < timeout <= 120:
             raise RuntimeError(f"Invalid CTest timeout for {test['name']}: {timeout}")
+        # Python CTest adapters execute the instrumented public-API driver.
+        # Discover mutations from that ELF while retaining the full CTest command.
+        command = test["command"]
+        target = (
+            command[command.index("--driver") + 1]
+            if "--driver" in command
+            else command[0]
+        )
         run(
             "mull-runner",
             "--workers",
@@ -163,7 +171,7 @@ def main():
             "shipyard-mull",
             "--test-program",
             sys.executable,
-            test["command"][0],
+            target,
             "--",
             str(Path(__file__).resolve()),
             "--run-test",
