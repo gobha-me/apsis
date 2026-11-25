@@ -222,7 +222,15 @@ struct Importer {
 
     double formula(std::string_view name, const Json& variables, const std::string& blueprint_path) {
         auto result = detail::evaluate_formula(snapshot, name, variables);
-        for (auto& issue : result.issues) add_total_issue(std::move(issue), blueprint_path);
+        Issue* truncated = nullptr;
+        for (auto& issue : result.issues) {
+            if (issue.code == "issues_truncated") truncated = &issue;
+            else add_total_issue(std::move(issue), blueprint_path);
+        }
+        if (truncated) {
+            detail::add_issue(issues, std::move(*truncated));
+            throw detail::IssueLimitReached{};
+        }
         if (!result.value) throw FormulaFailure{};
         return *result.value;
     }
@@ -343,12 +351,9 @@ struct Importer {
 };
 } // namespace
 
-Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view bytes,
-    const RulesSnapshot& rules, const SchemaSet& schemas, InputLimits limits,
+Result<ImportedDefinition> detail::import_parsed_definition(const Json& input,
+    const RulesSnapshot& rules, const SchemaSet& schemas,
     const Json& load_overrides, CarriedTotals* performance_totals) {
-    auto parsed = parse_json(bytes, limits);
-    if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
-    const auto& input = *parsed.value;
     if (!input.is_object() || !input.contains("schema") || !input.at("schema").is_string()) {
         return {std::nullopt, {error("unsupported_schema", "An explicit supported blueprint or definition schema is required.", "/schema")}};
     }
@@ -414,6 +419,8 @@ Result<ImportedDefinition> detail::import_with_load_overrides(std::string_view b
 
 Result<ImportedDefinition> import_definition(std::string_view bytes, const RulesSnapshot& rules,
                                              const SchemaSet& schemas, InputLimits limits) {
-    return detail::import_with_load_overrides(bytes, rules, schemas, limits, {});
+    auto parsed = parse_json(bytes, limits);
+    if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
+    return detail::import_parsed_definition(*parsed.value, rules, schemas, {});
 }
 } // namespace apsis::shipyard

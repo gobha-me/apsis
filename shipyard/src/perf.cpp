@@ -95,9 +95,11 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     auto performance = std::move(*calculated.value);
     const bool ready = !has_errors(issues);
     const double jump_margin = performance.at("power").at("marginJump");
-    const bool jump_ready = ready && !performance.at("jump").at("driveCosts").empty() &&
+    const auto& jump = performance.at("jump");
+    const bool jump_ready = ready && !jump.at("driveCosts").empty() &&
         performance.at("rating").get<double>() > 0 &&
-        performance.at("jump").at("currentJumps").get<double>() >= 1 &&
+        jump.at("currentJumps").get<double>() >= 1 &&
+        detail::has_jump_fuel(jump.at("current"), rules) &&
         (jump_margin >= -rules.data().at("numeric").at("epsilon").get<double>());
     sort_issues(issues);
     definition["derived"]["performance"] = performance;

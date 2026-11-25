@@ -8,6 +8,12 @@
 #include <string>
 
 namespace apsis::shipyard::detail {
+bool has_jump_fuel(double charges, const RulesSnapshot& rules) {
+    const auto fuel_per_jump = rules.data().at("performance").at("jumpFuelPerJump").get<double>();
+    const auto epsilon = rules.data().at("numeric").at("epsilon").get<double>();
+    return charges > 0 && charges - fuel_per_jump >= -epsilon;
+}
+
 namespace {
 struct FormulaFailure {};
 
@@ -231,7 +237,7 @@ struct Calculator {
         if (ship && weak) advisory("weak_acceleration", "Current acceleration is below the active rules' advisory threshold.",
             "/performance/acceleration", {{"acceleration", current.at("acceleration")}, {"threshold", policy.at("underpoweredAcceleration")}});
         if (engine_count && current.at("sublightFuelMass").get<double>() <= 0) advisory("no_sublight_fuel", "Engines are fitted without loaded sublight propellant.", "/performance/sublight/current");
-        if (!drives.empty() && near_less(current.at("jumpCharges"), policy.at("jumpFuelPerJump"))) advisory("no_jump_fuel", "A jump drive is fitted with fewer than one jump's fuel currently loaded.", "/performance/jump/current");
+        if (!drives.empty() && !has_jump_fuel(current.at("jumpCharges"), snapshot)) advisory("no_jump_fuel", "A jump drive is fitted with fewer than one jump's fuel currently loaded.", "/performance/jump/current");
         if (number("shield") > policy.at("advisoryShieldCount").get<double>() || number("weapon") > policy.at("advisoryWeaponCount").get<double>()) advisory("excess_defence", "Defence equipment exceeds the active rules' advisory counts.", "/performance");
         for (const auto& [code, rule] : rules.at("advisories").items()) {
             const auto& types = rule.at("buildTypes");
@@ -256,6 +262,7 @@ Result<Json> calculate_performance(const Json& blueprint, const Json& totals,
         auto performance = calculator.calculate();
         Json carried = Json::array();
         bool rejected_child = false;
+        std::size_t child_index = 0;
         const auto& decks = blueprint.at("decks");
         for (std::size_t d = 0; d < decks.size(); ++d) {
             const auto& modules = decks[d].at("modules");
@@ -265,7 +272,7 @@ Result<Json> calculate_performance(const Json& blueprint, const Json& totals,
                 const auto suffix = "/decks/" + std::to_string(d) + "/modules/" + std::to_string(m) + "/craft";
                 const auto child_path = "/blueprint" + suffix;
                 const auto totals_path = blueprint_path + suffix;
-                const auto output_path = "/performance/carriedCraft/" + std::to_string(carried.size()) + "/performance";
+                const auto output_path = "/performance/carriedCraft/" + std::to_string(child_index++) + "/performance";
                 auto calculated = calculate_performance(module.at("craft"), carried_totals.at(totals_path),
                     rules, carried_totals, totals_path);
                 const auto append = [&](std::vector<Issue> child_issues) {
