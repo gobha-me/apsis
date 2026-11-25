@@ -58,11 +58,11 @@ def record(manifest, case, seed=333860, style="hauler", ended=False):
         "curve": [
             {
                 "elapsedDays": day,
-                "wallet": str(100 + day),
-                "debt": "0",
-                "fuel": "6",
-                "worth": str(100 + day),
-                "completedJobs": "0" if day == 0 else "1",
+                "wallet": str((150 if ended else 100) + day),
+                "debt": str((2 if ended else 0) + day),
+                "fuel": "3" if ended else "6",
+                "worth": str((30 if ended else 100) + day),
+                "completedJobs": str((2 if ended else 1) if day else 0),
             }
             for day in times
         ],
@@ -100,10 +100,12 @@ class PlanTests(unittest.TestCase):
         first = sweep.design(axes, "latin", 10, 19)
         self.assertEqual(first, sweep.design(axes, "latin", 10, 19))
         self.assertNotEqual(first, sweep.design(axes, "latin", 10, 20))
-        self.assertEqual(
-            sorted((p["mediumMass"] - 20) // 10 for p in first), list(range(10))
-        )
-        counts = [sum(p["stockTank"] == tank for p in first) for tank in [3, 4, 6]]
+        strata = [(p["mediumMass"] - 20) // 10 for p in first]
+        self.assertCountEqual(strata, range(10))
+        self.assertNotEqual(strata, sorted(strata))
+        tanks = [p["stockTank"] for p in first]
+        self.assertNotEqual(tanks, sorted(tanks))
+        counts = [tanks.count(tank) for tank in [3, 4, 6]]
         # Discrete projection may produce unequal category counts at boundaries.
         self.assertEqual(sum(counts), 10)
         self.assertTrue(all(2 <= count <= 4 for count in counts))
@@ -226,13 +228,105 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(rows[0]["censoredCount"], 1)
             self.assertEqual(rows[0]["medianTerminalDays"], 15)
             self.assertIsNone(rows[0]["winRate"])
+            resources = [r[0].upper() + r[1:] for r in sweep.RESOURCES]
+            self.assertEqual(
+                tuple(rows[0][f"medianFinal{r}"] for r in resources),
+                (147.5, 23.5, 4.5, 87.5, 1.5),
+            )
             curves = sweep.load_json(directory / "summary.json")["resourceCurves"]
             self.assertEqual(
-                {p["elapsedDays"]: p["observedRuns"] for p in curves},
-                {0: 2, 10: 2, 15: 1, 20: 1, 30: 1},
+                {
+                    p["elapsedDays"]: (
+                        p["observedRuns"],
+                        *(p[f"mean{r}"] for r in resources),
+                    )
+                    for p in curves
+                },
+                {
+                    0: (2, 125, 1, 4.5, 65, 0),
+                    10: (2, 135, 11, 4.5, 75, 1.5),
+                    15: (1, 165, 17, 3, 45, 2),
+                    20: (1, 120, 20, 6, 120, 1),
+                    30: (1, 130, 30, 6, 130, 1),
+                },
             )
             self.assertIn("right-censored", (directory / "summary.md").read_text())
             self.assertTrue((directory / "runs.csv").is_file())
+
+    def test_report_rejects_case_label_drift(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.evidence(directory)
+            self.case["overrides"] = {"stockTank": 12}
+            path = directory / "manifest.json"
+            sweep.write_json(path, self.manifest)
+            with self.assertRaises(SystemExit) as error:
+                sweep.main(["report", str(directory)])
+            self.assertEqual(error.exception.code, 1)
+            self.assertFalse((directory / "summary.md").exists())
+
+            # Even a matching design must agree with the verified raw settings.
+            self.manifest["axes"]["stockTank"] = [12]
+            self.manifest["designCandidates"] = [{"stockTank": 12}]
+            sweep.write_json(path, self.manifest)
+            with self.assertRaises(SystemExit) as error:
+                sweep.main(["report", str(directory)])
+            self.assertEqual(error.exception.code, 1)
+            self.assertFalse((directory / "summary.md").exists())
+
+    def test_manifest_run_identifiers_are_checked_before_artifact_reads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.evidence(directory)
+            for field, value in (
+                ("case", "case-invalid"),
+                ("seed", False),
+                ("seed", 333860.0),
+                ("style", "invalid"),
+            ):
+                broken = deepcopy(self.manifest)
+                broken["runs"][0][field] = value
+                if field == "case":
+                    broken["cases"][0]["id"] = value
+                else:
+                    broken[f"{field}s"][0] = value
+                with (
+                    self.subTest(field=field, value=value),
+                    mock.patch.object(sweep, "sha256") as digest,
+                    self.assertRaises(ValueError),
+                ):
+                    sweep.summarize(directory, broken)
+                digest.assert_not_called()
+
+            # Python considers the float equal to the planned integer seed.
+            self.manifest["runs"][-1]["seed"] = 110478.0
+            with mock.patch.object(sweep, "sha256") as digest:
+                with self.assertRaises(ValueError):
+                    sweep.summarize(directory, self.manifest)
+                digest.assert_not_called()
+
+    def test_report_rejects_artifacts_resolving_outside_runs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "campaign"
+            directory.mkdir()
+            self.evidence(directory)
+            runs = directory / "runs"
+            artifact = runs / "case-0000-333860-hauler.json"
+            outside = artifact.rename(directory / artifact.name)
+            artifact.symlink_to(outside)
+            with mock.patch.object(sweep, "sha256") as digest:
+                with self.assertRaises(ValueError):
+                    sweep.summarize(directory, self.manifest)
+                digest.assert_not_called()
+
+            artifact.unlink()
+            outside.rename(artifact)
+            moved_runs = runs.rename(directory.parent / "external-runs")
+            runs.symlink_to(moved_runs, target_is_directory=True)
+            with mock.patch.object(sweep, "sha256") as digest:
+                with self.assertRaises(ValueError):
+                    sweep.summarize(directory, self.manifest)
+                digest.assert_not_called()
 
     def test_incomplete_changed_or_duplicate_artifacts_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -264,12 +358,25 @@ class EvidenceTests(unittest.TestCase):
                     mock.patch.object(
                         sweep.subprocess, "check_output", return_value="test\n"
                     ),
-                    mock.patch.object(sweep.subprocess, "run", side_effect=error),
+                    mock.patch.object(
+                        sweep.subprocess, "run", side_effect=error
+                    ) as launch,
                     self.assertRaises(SystemExit),
                 ):
                     sweep.main(
-                        ["run", "--output", str(output), "--driver", sys.executable]
+                        [
+                            "run",
+                            "--output",
+                            str(output),
+                            "--driver",
+                            sys.executable,
+                            "--timeout",
+                            "2",
+                        ]
                     )
+                launch.assert_called_once()
+                self.assertEqual(launch.call_args.kwargs.get("timeout"), 2)
+                self.assertIs(launch.call_args.kwargs.get("check"), True)
                 manifest = sweep.load_json(output / "manifest.json")
                 self.assertEqual(manifest["status"], "failed")
                 self.assertEqual(manifest["runs"], [])
@@ -321,9 +428,9 @@ class NativeTests(unittest.TestCase):
                     "--axis",
                     "mediumMass=35,40",
                     "--seeds",
-                    "333860",
+                    "333860,110478",
                     "--styles",
-                    "hauler",
+                    "hauler,crisis",
                     "--days",
                     "30",
                     "--sample-every",
@@ -333,27 +440,43 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(code, 0)
             manifest = sweep.load_json(output / "manifest.json")
             self.assertEqual(manifest["status"], "complete")
-            self.assertEqual(len(manifest["runs"]), 4)
+            cases = {
+                "case-0000": ("35", "3"),
+                "case-0001": ("35", "6"),
+                "case-0002": ("40", "3"),
+                "case-0003": ("40", "6"),
+            }
+            self.assertCountEqual(
+                [(run["case"], run["seed"], run["style"]) for run in manifest["runs"]],
+                [
+                    (case, seed, style)
+                    for case in cases
+                    for seed in (333860, 110478)
+                    for style in ("hauler", "crisis")
+                ],
+            )
             before = (output / "summary.json").read_bytes()
             sweep.main(["report", str(output)])
             self.assertEqual(before, (output / "summary.json").read_bytes())
             for run in manifest["runs"]:
                 repeated = subprocess.check_output(
                     run["command"],
+                    cwd=output / "runs",
                     env={
                         k: v
                         for k, v in os.environ.items()
                         if not k.startswith("APSIS_")
                     },
                 )
-                self.assertEqual(
-                    json.loads(repeated),
-                    sweep.load_json(
-                        output
-                        / "runs"
-                        / f"{run['case']}-{run['seed']}-{run['style']}.json"
-                    ),
+                raw = sweep.load_json(
+                    output / "runs" / f"{run['case']}-{run['seed']}-{run['style']}.json"
                 )
+                self.assertEqual(json.loads(repeated), raw)
+                mass, tank = cases[run["case"]]
+                self.assertEqual(raw["resolvedParams"]["mediumMass"], mass)
+                self.assertEqual(raw["resolvedParams"]["stockTank"], tank)
+                self.assertEqual(raw["curve"][0]["elapsedDays"], 0)
+                self.assertEqual(raw["curve"][0]["fuel"], tank)
 
     def test_native_rejects_unsafe_direct_inputs(self):
         driver = os.environ["APSIS_BALANCE_DRIVER"]
@@ -372,9 +495,21 @@ class NativeTests(unittest.TestCase):
             base, capture_output=True, env=clean | {"APSIS_SET": "stockTank=3"}
         )
         self.assertNotEqual(result.returncode, 0)
-        result = subprocess.run(base, capture_output=True, env=clean)
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(json.loads(result.stdout)["resolvedParams"]["stockTank"], "6")
+        result = subprocess.run(
+            base + ["mediumSpace=60"], capture_output=True, env=clean
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b"")
+        self.assertIn(b"exceeds mediumSpace=60", result.stderr)
+        for overrides, capacity in (([], "120"), (["mediumSpace=96"], "96")):
+            with self.subTest(overrides=overrides):
+                result = subprocess.run(
+                    base + overrides, capture_output=True, env=clean
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                resolved = json.loads(result.stdout)["resolvedParams"]
+                self.assertEqual(resolved["stockTank"], "6")
+                self.assertEqual(resolved["mediumSpace"], capacity)
 
 
 if __name__ == "__main__":

@@ -91,17 +91,21 @@ def axis(text):
         numbers = [int(value) for value in values.split(",")]
     except ValueError as error:
         raise argparse.ArgumentTypeError("axis values must be integers") from error
-    low, high = BOUNDS[name]
-    if (
-        not numbers
-        or len(numbers) != len(set(numbers))
-        or any(not low <= value <= high for value in numbers)
-        or (name == "stockDrivePm" and any(value not in DRIVES for value in numbers))
-    ):
+    if not valid_axis_values(name, numbers):
         raise argparse.ArgumentTypeError(
             f"invalid or duplicate values for {name}; see docs/balance-tooling.md"
         )
     return name, sorted(numbers)
+
+
+def valid_axis_values(name, values):
+    low, high = BOUNDS[name]
+    return (
+        bool(values)
+        and all(type(value) is int and low <= value <= high for value in values)
+        and len(values) == len(set(values))
+        and (name != "stockDrivePm" or all(value in DRIVES for value in values))
+    )
 
 
 def design(axes, method, samples, seed):
@@ -126,6 +130,10 @@ def design(axes, method, samples, seed):
             columns.append(column)
         rows = zip(*columns)
     return [dict(zip(names, row, strict=True)) for row in rows]
+
+
+def unique_points(candidates):
+    return list({tuple(sorted(point.items())): point for point in candidates}.values())
 
 
 def integer_list(text):
@@ -182,9 +190,7 @@ def plan(args):
     if math.ceil(args.days / args.sample_every) > 1000:
         raise ValueError("at most 1001 curve samples per run; increase --sample-every")
     candidates = design(axes, args.method, args.samples, args.design_seed)
-    unique = list(
-        {tuple(sorted(point.items())): point for point in candidates}.values()
-    )
+    unique = unique_points(candidates)
     total = len(unique) * len(args.seeds) * len(args.styles)
     if total > args.max_runs:
         raise ValueError(f"{total} runs exceed --max-runs {args.max_runs}")
@@ -323,31 +329,116 @@ def csv_file(path, fields, rows):
         writer.writerows(rows)
 
 
+def validate_design(manifest):
+    require_int(manifest["schemaVersion"], 1, 1, "manifest schema version")
+    method, axes = manifest["method"], manifest["axes"]
+    if method not in ("grid", "latin") or not isinstance(axes, dict) or not axes:
+        raise ValueError("invalid manifest design")
+    for name, values in axes.items():
+        if (
+            name not in BOUNDS
+            or not isinstance(values, list)
+            or not valid_axis_values(name, values)
+        ):
+            raise ValueError("invalid manifest axis")
+    candidates = manifest["designCandidates"]
+    if not isinstance(candidates, list) or not 1 <= len(candidates) <= 10000:
+        raise ValueError("invalid manifest design candidates")
+    seed = manifest["designSeed"]
+    require_int(seed, 0, 2**32 - 1, "manifest design seed")
+    if method == "grid" and math.prod(map(len, axes.values())) != len(candidates):
+        raise ValueError("manifest design candidate count mismatch")
+    expected = design(axes, method, len(candidates), seed)
+    if candidates != expected or any(
+        type(value) is not int for point in candidates for value in point.values()
+    ):
+        raise ValueError("manifest design candidates mismatch")
+
+    points = unique_points(expected)
+    require_int(
+        manifest["uniquePoints"], len(points), len(points), "unique point count"
+    )
+    cases = manifest["cases"]
+    if not isinstance(cases, list) or len(cases) != len(points):
+        raise ValueError("manifest case count mismatch")
+    cases_by_id = {}
+    for index, (case, point) in enumerate(zip(cases, points, strict=True)):
+        case_id = f"case-{index:04d}"
+        if not isinstance(case, dict) or case.get("id") != case_id:
+            raise ValueError("invalid manifest case ID")
+        overrides = case["overrides"]
+        if overrides != point or any(
+            type(value) is not int for value in overrides.values()
+        ):
+            raise ValueError("manifest case overrides do not match design")
+        resolved = case["resolvedParams"]
+        if not isinstance(resolved, dict) or any(
+            resolved.get(name) != str(value) for name, value in point.items()
+        ):
+            raise ValueError("manifest case overrides do not match resolved settings")
+        cases_by_id[case_id] = case
+    return cases_by_id
+
+
 def summarize(output, manifest):
     if manifest["status"] != "complete":
         raise ValueError("campaign is incomplete; partial evidence is not summarized")
-    planned = {
-        (case["id"], seed, style)
-        for case in manifest["cases"]
-        for seed in manifest["seeds"]
-        for style in manifest["styles"]
-    }
-    records, seen = [], set()
-    for run in manifest["runs"]:
-        key = (run["case"], run["seed"], run["style"])
-        if key not in planned or key in seen:
+    cases = validate_design(manifest)
+    seeds, styles = manifest["seeds"], manifest["styles"]
+    if not isinstance(seeds, list) or not seeds:
+        raise ValueError("invalid manifest seeds")
+    for seed in seeds:
+        require_int(seed, 0, 2**32 - 1, "manifest seed")
+    if len(seeds) != len(set(seeds)):
+        raise ValueError("duplicate manifest seeds")
+    if (
+        not isinstance(styles, list)
+        or not styles
+        or any(style not in STYLES for style in styles)
+        or len(styles) != len(set(styles))
+    ):
+        raise ValueError("invalid manifest styles")
+    seed_set, style_set = set(seeds), set(styles)
+    run_count = len(cases) * len(seeds) * len(styles)
+    require_int(manifest["runCount"], run_count, run_count, "manifest run count")
+    runs = manifest["runs"]
+    if not isinstance(runs, list):
+        raise ValueError("invalid manifest runs")
+    seen = set()
+    for run in runs:
+        if not isinstance(run, dict):
+            raise ValueError("invalid manifest run")
+        case_id, seed, style = run["case"], run["seed"], run["style"]
+        key = (case_id, seed, style)
+        if (
+            not isinstance(case_id, str)
+            or case_id not in cases
+            or type(seed) is not int
+            or seed not in seed_set
+            or not isinstance(style, str)
+            or style not in style_set
+            or key in seen
+        ):
             raise ValueError("unexpected or duplicate run evidence")
         seen.add(key)
+    if len(seen) != run_count:
+        raise ValueError("campaign has missing run evidence")
+
+    runs_dir = output.resolve() / "runs"
+    if runs_dir.is_symlink():
+        raise ValueError("runs directory must not be a symlink")
+    records = []
+    for run in runs:
         # Artifact names are derived from the recipe, never taken from stored paths.
-        name = f"{key[0]}-{key[1]}-{key[2]}.json"
-        path = output / "runs" / name
+        name = f"{run['case']}-{run['seed']}-{run['style']}.json"
+        path = (runs_dir / name).resolve()
+        if not path.is_relative_to(runs_dir):
+            raise ValueError("run artifact path escapes runs directory")
         if sha256(path) != run["sha256"]:
             raise ValueError("run artifact digest mismatch")
-        case = next(case for case in manifest["cases"] if case["id"] == run["case"])
+        case = cases[run["case"]]
         record = validate(load_json(path), manifest, case, run["seed"], run["style"])
         records.append((run, record))
-    if seen != planned or len(seen) != manifest["runCount"]:
-        raise ValueError("campaign has missing run evidence")
     summaries, curves, rows = [], [], []
     for case in manifest["cases"]:
         for style in manifest["styles"]:

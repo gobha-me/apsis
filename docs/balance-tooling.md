@@ -68,6 +68,9 @@ design recommendations:
 | `mediumSpace` | 60–240 | space |
 | `stockDrivePm` | 500, 1000, 1500, 2000, 3000 | per mille J |
 
+The native adapter rejects configurations whose starting ship exceeds the
+medium hull's space capacity.
+
 No rule switches or world-generation overrides are accepted. Unsupported axes,
 duplicate axes, duplicate values, and noncanonical drive classes fail. All
 inherited `APSIS_*` environment variables are stripped from child processes; only
@@ -113,6 +116,8 @@ Final resource summaries use each run's last observation, which can occur early.
 Curve means use only runs observed on the exact plotted day; `observedRuns` exposes
 the changing denominator. No deceased-run carry-forward or interpolation is used.
 Completed jobs are `Pilot.n.done`; independent cargo sales are excluded.
+Worth uses the simulator's `worthOf` metric, which subtracts debt and outstanding
+advances from the wallet and adds accumulated refit spend.
 Money and fuel are descriptive resource measurements, not an economic welfare score.
 
 Small curated samples and bot policy choices cannot establish population-wide

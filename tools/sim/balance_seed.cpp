@@ -1,5 +1,6 @@
 // Read-only experiment adapter over the existing public simulation APIs.
 #include "pilot/bots.hpp"
+#include "pilot/law.hpp"
 
 #include <charconv>
 #include <cstdlib>
@@ -35,7 +36,7 @@ static void sample(std::ostream& out, const World& world, i64 elapsed) {
   // Decimal strings preserve exact integral resources for downstream readers.
   out << "{\"elapsedDays\":" << elapsed << ",\"wallet\":\"" << p.wallet
       << "\",\"debt\":\"" << debtOf(p) << "\",\"fuel\":\"" << p.fuel
-      << "\",\"worth\":\"" << p.wallet - debtOf(p) - p.advance + p.refitSpend
+      << "\",\"worth\":\"" << worthOf(p)
       << "\",\"completedJobs\":\"" << p.n.done << "\"}";
 }
 
@@ -72,6 +73,11 @@ int main(int argc, char** argv) {
     const auto born = world.pl.born;
     if (!world.pl.alive || world.day != born + 1)
       throw std::runtime_error("START did not create a living pilot at station zero");
+    // START installs the stock ship in a medium hull.
+    const auto stockSpace = shipSpace(world, world.pl.ship);
+    if (stockSpace > world.CP.mediumSpace)
+      throw std::invalid_argument("stock ship needs " + std::to_string(stockSpace) +
+                                  " space, exceeds mediumSpace=" + std::to_string(world.CP.mediumSpace));
     std::ostringstream out;
     out << "{\"schemaVersion\":1,\"seed\":" << seed << ",\"majors\":" << majors
         << ",\"startDay\":" << start << ",\"days\":" << days
