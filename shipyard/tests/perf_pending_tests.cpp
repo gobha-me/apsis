@@ -167,7 +167,8 @@ int main() {
         R"({"id":6,"type":"ladder","x":5,"y":3,"r":0}]}],)"
         R"("nextId":1e9,"migrationNotes":[],)"
         R"("holds":[{"x":5,"y":3,"w":1,"h":2,"firstDeck":0,"lastDeck":1}]})";
-    require(canonical_json(Json::parse(source)).size() > source.size(),
+    const auto expanded_source = canonical_json(Json::parse(source));
+    require(expanded_source.size() > source.size(),
             "The fixture must expand when serialized after parsing");
     const auto unrestricted = perf(source, active, schema);
     require(unrestricted.at("pass") == true &&
@@ -182,11 +183,24 @@ int main() {
         perf(source, active, schema, {},
              InputLimits{.maxBytes = source.size()}) == unrestricted,
         "An exact byte cap must apply to the original source bytes");
-    const auto too_long = perf(source, active, schema, {},
-                               InputLimits{.maxBytes = source.size() - 1});
-    require(too_long.at("pass") == false && too_long.at("data").is_null() &&
-                has_issue(too_long, "resource_limit"),
-            "A source one byte above the cap must still be rejected");
+    require(
+        perf(expanded_source, active, schema, {},
+             InputLimits{.maxBytes = expanded_source.size()}) == unrestricted,
+        "The expanded spelling must produce the same report at its own cap");
+    const auto check_rejection = [&](std::string_view bytes, std::size_t cap) {
+      const auto report =
+          perf(bytes, active, schema, {}, InputLimits{.maxBytes = cap});
+      const auto &issues = report.at("issues");
+      require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                  report.at("data").is_null() && issues.size() == 1,
+              "An over-cap source must fail before structural evaluation");
+      const auto &issue = issues.at(0);
+      require(issue.at("code") == "resource_limit" &&
+                  issue.at("severity") == "error" && issue.at("path") == "",
+              "The structured byte-limit error must identify the input root");
+    };
+    check_rejection(source, source.size() - 1);
+    check_rejection(expanded_source, source.size());
   });
 
   suite.run(
