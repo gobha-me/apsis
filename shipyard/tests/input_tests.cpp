@@ -122,6 +122,27 @@ int main() {
         rejected(blueprint, active, schema, "schema_error", "/budget");
       });
 
+  suite.run("F22a UTF-8 name boundaries preserve complete graphemes", [&] {
+    // Each repeated character is one grapheme. U+0080 is a C1 control;
+    // the public text contract rejects C0 and DEL, not C1. U+0100 is a
+    // precomposed letter. Neither needs a combining-sequence interpretation.
+    for (const auto &grapheme :
+         {std::string("\xC2\x80"), std::string("\xC4\x80")}) {
+      for (const std::size_t count : {1, 79, 80}) {
+        auto blueprint = blank();
+        blueprint["name"] = repeated(grapheme, count);
+        preserved(blueprint, active, schema, "name");
+      }
+      auto blueprint = blank();
+      blueprint["name"] = repeated(grapheme, 81);
+      rejected(blueprint, active, schema, "field_limit", "/name");
+    }
+
+    auto blueprint = blank();
+    blueprint["name"] = "A B" + repeated("\xC4\x80", 77);
+    preserved(blueprint, active, schema, "name");
+  });
+
   suite.run(
       "technical input caps come from the active rules in both directions",
       [&] {
