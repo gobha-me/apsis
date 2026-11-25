@@ -6,12 +6,20 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 
 namespace apsis::shipyard::detail {
 namespace {
 struct FormulaFailure {};
+
+bool uses_variable(const Json& expression, std::string_view variable) {
+    if (!expression.is_array()) return expression == variable;
+    return std::any_of(expression.begin() + 1, expression.end(), [&](const Json& operand) {
+        return uses_variable(operand, variable);
+    });
+}
 
 struct Calculator {
     const RulesSnapshot& snapshot;
@@ -77,14 +85,66 @@ struct Calculator {
         return left - right < -snapshot.data().at("numeric").at("epsilon").get<double>();
     }
 
-    bool design_unavailable(const Issue& issue, std::string_view name, const Json& variables) const {
+    // Use the same rounded formula chain as import and scenario calculation.
+    std::optional<double> design_mass(double floors, double components, const Json* load_inputs) const {
+        const auto structure = evaluate_formula(snapshot, "structureMass",
+            {{"floorCount", floors}, {"floorMass", rules.at("floor").at("mass")}});
+        if (!structure.ok()) return std::nullopt;
+        try {
+            const auto dry = evaluate_formula(snapshot, "dryMass",
+                {{"structureMass", round_computed(*structure.value, snapshot)},
+                 {"componentMass", round_computed(components, snapshot)}});
+            if (!dry.ok()) return std::nullopt;
+            const auto dry_mass = round_computed(*dry.value, snapshot);
+            if (!load_inputs) return dry_mass;
+            auto inputs = *load_inputs;
+            inputs.at("dryMass") = dry_mass;
+            const auto loaded = evaluate_formula(snapshot, "loadedMass", inputs);
+            if (loaded.ok()) return round_computed(*loaded.value, snapshot);
+        } catch (const std::overflow_error&) {
+            // A design whose mass cannot be rounded supplies no witness.
+        }
+        return std::nullopt;
+    }
+
+    bool mass_witness(const Json* load_inputs, const auto& resolves) const {
+        const auto& grid = rules.at("grid");
+        const auto capacity = grid.at("w").get<double>() * grid.at("h").get<double>() *
+            rules.at("limits").at("maxDecks").get<double>();
+        // Cover all floor counts on the stock grid and bound the work for large custom grids.
+        const auto limit = static_cast<std::size_t>(std::min(capacity, 4096.0));
+        const auto current_floors = number("floorCount");
+        const auto current_components = number("componentMass");
+        const auto works = [&](double floors, double components) {
+            const auto mass = design_mass(floors, components, load_inputs);
+            return mass && resolves(*mass);
+        };
+        if (std::ranges::any_of(std::views::iota(std::size_t{1}, limit + 1), [&](std::size_t floors) {
+            return works(static_cast<double>(floors), current_components);
+        })) return true;
+        // Also try a part with enough floors for its footprint. Share the probe
+        // budget among parts so invalid formulas stay cheap on large catalogs.
+        const auto& catalog = rules.at("parts");
+        const auto per_part = 1 + limit / std::max(std::size_t{1}, catalog.size());
+        return std::ranges::any_of(catalog, [&](const Json& part) {
+            const auto footprint = part.at("w").get<double>() * part.at("h").get<double>();
+            const auto first = std::max(current_floors, footprint);
+            return std::ranges::any_of(std::views::iota(std::size_t{0}, per_part), [&](std::size_t extra) {
+                const auto floors = first + static_cast<double>(extra);
+                return floors <= capacity && works(floors, part.at("mass").get<double>());
+            });
+        });
+    }
+
+    bool design_unavailable(const Issue& issue, std::string_view name, const Json& variables,
+                            const Json* load_inputs) const {
         if (issue.code != "formula_error") return false;
         const auto& node = rules.at(Json::json_pointer(issue.path));
         if (node == "exhaustVelocity") return name == "deltaV" && exhaust_unavailable;
         const auto operation = issue.details.value("operator", std::string());
         const bool logarithm = operation == "ln";
         if (logarithm) {
-            if (name != "deltaV" || issue.details.at("operand") != 0) return false;
+            if (issue.details.at("operand") != 0) return false;
         } else if (operation != "div") {
             return false;
         }
@@ -97,32 +157,44 @@ struct Calculator {
         else return false;
         if (variables.at(input) != 0) return false;
 
-        // Require a finite witness that changing the eligible zero input resolves the error.
-        // A zero at one scale is inconclusive. Without a witness, keep the formula error.
         const auto& operand = node[logarithm ? 1 : 2];
         const bool delta_v = name == "deltaV";
         const auto start = delta_v ? variables.at("startMass").get<double>() : 0.0;
-        const auto increments = std::array{rules.at("floorMass").get<double>(),
-            policy.at("massReference").get<double>(), 0.5, 1.0, 2.0, start};
-        return std::ranges::any_of(increments, [&](double increment) {
-            if (start == 0 && input != "burnRate") {
-                try {
-                    increment = round_computed(increment, snapshot);
-                } catch (const std::overflow_error&) {
-                    return false;
-                }
-            }
+        if (!uses_variable(operand, input) &&
+            !(delta_v && start == 0 && uses_variable(operand, "startMass"))) return false;
+
+        // A changed operand alone is insufficient: the failed operation must compute.
+        const auto resolves = [&](double replacement) {
+            if (replacement <= 0) return false;
             auto probe = variables;
-            probe.at(input) = increment;
+            probe.at(input) = replacement;
             if (delta_v) {
                 // For a zero-mass pair, add dry mass with no fuel. Otherwise vary
                 // end mass within the actual start mass, holding that input fixed.
-                if (start == 0) probe.at("startMass") = increment;
-                else probe.at("endMass") = start - std::max(0.0, start - increment);
+                if (start == 0) probe.at("startMass") = replacement;
+                else probe.at("endMass") = start - std::max(0.0, start - replacement);
             }
-            const auto result = evaluate_formula_operand(operand, probe);
-            return result.ok() && (logarithm ? *result.value > 0 : *result.value != 0);
-        });
+            if (delta_v && exhaust_unavailable && uses_variable(node, "exhaustVelocity")) {
+                return std::ranges::any_of(rules.at("parts"), [&](const Json& part) {
+                    if (part.value("system", std::string()) != "engine") return false;
+                    const auto exhaust = evaluate_formula(snapshot, "exhaustVelocity",
+                        {{"thrust", part.value("thrustKN", 0.0)}, {"burnRate", part.value("burnRate", 0.0)}});
+                    if (!exhaust.ok()) return false;
+                    probe["exhaustVelocity"] = *exhaust.value;
+                    return evaluate_formula_operand(node, probe).ok();
+                });
+            }
+            return evaluate_formula_operand(node, probe).ok();
+        };
+        if (start == 0 && input != "burnRate") {
+            // The blueprint's own loads may already give a positive mass when
+            // the current scenario has emptied a fuel or cargo hold.
+            if (input == "mass" && resolves(number("currentMass"))) return true;
+            return mass_witness(load_inputs, resolves);
+        }
+        const auto increments = std::array{rules.at("floorMass").get<double>(),
+            policy.at("massReference").get<double>(), 0.5, 1.0, 2.0, start};
+        return std::ranges::any_of(increments, resolves);
     }
 
     static Json metric(const std::optional<double>& value) {
@@ -130,7 +202,8 @@ struct Calculator {
     }
 
     std::optional<double> formula(std::string_view name, const Json& variables,
-                                  const std::string& output_path, bool allow_unavailable = false) {
+                                  const std::string& output_path, bool allow_unavailable = false,
+                                  const Json* load_inputs = nullptr) {
         auto result = evaluate_formula(snapshot, name, variables);
         if (result.ok()) return *result.value;
         Json evaluations = Json::array();
@@ -138,7 +211,7 @@ struct Calculator {
         const Issue* truncated = nullptr;
         for (auto& issue : result.issues) {
             if (issue.code == "issues_truncated") { truncated = &issue; continue; }
-            if (allow_unavailable && design_unavailable(issue, name, variables)) {
+            if (allow_unavailable && design_unavailable(issue, name, variables, load_inputs)) {
                 Json evaluation = {{"formula", name}, {"formulaPath", issue.path}};
                 if (issue.details.contains("operator")) evaluation["operator"] = issue.details.at("operator");
                 if (issue.details.contains("operand")) evaluation["operand"] = issue.details.at("operand");
@@ -178,16 +251,17 @@ struct Calculator {
         const auto jump_mass = required("jumpFuelMass", {{"jumpFuelCharges", charges},
             {"jumpFuelMassPerCharge", policy.at("jumpFuelMassPerCharge")}}, path + "/jumpFuelMass");
         const auto sublight_mass = number("sublightFuel") * fractions.at("sublightFuel").get<double>();
-        const auto mass = round_computed(required("loadedMass", {{"dryMass", totals.at("dryMass")},
+        const Json load_inputs = {{"dryMass", totals.at("dryMass")},
             {"cargoMass", cargo_mass}, {"jumpFuelMass", jump_mass}, {"sublightFuelMass", sublight_mass},
-            {"carriedLoadMass", carried_load}}, path + "/mass"), snapshot);
+            {"carriedLoadMass", carried_load}};
+        const auto mass = round_computed(required("loadedMass", load_inputs, path + "/mass"), snapshot);
         Json result = {{"mass", mass}, {"thrust", thrust}, {"cargoMass", cargo_mass},
             {"jumpFuelMass", jump_mass}, {"sublightFuelMass", sublight_mass}, {"carriedLoadMass", carried_load},
             {"loads", fractions}, {"jumpCharges", charges}, {"endurance", endurance}, {"power", power()}};
-        const auto acceleration = formula("acceleration", {{"thrust", thrust}, {"mass", mass}}, path + "/acceleration", true);
+        const auto acceleration = formula("acceleration", {{"thrust", thrust}, {"mass", mass}}, path + "/acceleration", true, &load_inputs);
         result["acceleration"] = metric(acceleration);
         const auto range = formula("range", {{"rating", totals.at("rating")}, {"massReference", policy.at("massReference")},
-            {"mass", mass}}, path + "/range", true);
+            {"mass", mass}}, path + "/range", true, &load_inputs);
         result["range"] = metric(range);
         result["jumpCount"] = required("jumpCount", {{"fuel", charges}, {"fuelPerJump", policy.at("jumpFuelPerJump")}}, path + "/jumpCount");
         return result;
@@ -228,7 +302,10 @@ struct Calculator {
         Json delta_variables = {{"startMass", current.at("mass")},
             {"endMass", current.at("mass").get<double>() - current.at("sublightFuelMass").get<double>()}};
         if (exhaust) delta_variables["exhaustVelocity"] = *exhaust;
-        const auto delta_v = formula("deltaV", delta_variables, "/performance/sublight/deltaV", true);
+        const Json delta_load_inputs = {{"dryMass", totals.at("dryMass")},
+            {"cargoMass", current.at("cargoMass")}, {"jumpFuelMass", current.at("jumpFuelMass")},
+            {"sublightFuelMass", 0}, {"carriedLoadMass", current.at("carriedLoadMass")}};
+        const auto delta_v = formula("deltaV", delta_variables, "/performance/sublight/deltaV", true, &delta_load_inputs);
         sublight["deltaV"] = metric(delta_v);
         const auto fuel_mass = required("fuelCapacityMass", {{"sublightCapacity", totals.at("sublightFuel")},
             {"jumpCapacity", totals.at("fuel")}, {"jumpFuelMassPerCharge", policy.at("jumpFuelMassPerCharge")}}, "/performance/fuelCapacityMass");

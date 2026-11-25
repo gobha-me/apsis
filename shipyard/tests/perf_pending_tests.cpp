@@ -319,6 +319,115 @@ int main() {
     check_f20(report, true);
   });
 
+  struct BoundedDesign {
+    double lower_mass;
+    double upper_mass;
+    double mass;
+    double acceleration;
+    const char *part;
+  };
+  for (const auto &design : {BoundedDesign{0.15, 0.5, 0.30, 1.0 / 0.15, nullptr},
+                             BoundedDesign{2.29, 2.31, 2.30, 100, "microReactor"}}) {
+    suite.run(design.part ? "two floors and a reactor resolve a bounded acceleration divisor"
+                          : "two floors resolve a bounded acceleration divisor", [&] {
+      auto changed = active.data();
+      const auto divisor = Json::array(
+          {"max", 0,
+           Json::array({"min", Json::array({"sub", "mass", design.lower_mass}),
+                        Json::array({"sub", design.upper_mass, "mass"})})});
+      changed["formulas"]["acceleration"] = Json::array({"div", 1, divisor});
+      const auto loaded = load_rules(canonical_json(changed), schema);
+      require(loaded.ok(), "The bounded divisor must load as real rules");
+      auto blueprint = blank_blueprint(*loaded.value);
+      check_f20(perf(canonical_json(blueprint), *loaded.value, schema), true);
+
+      auto &deck = blueprint["decks"][0];
+      deck["floors"]["0,0"] = true;
+      deck["floors"]["1,0"] = true;
+      if (design.part) {
+        deck["modules"].push_back(
+            {{"id", 1}, {"type", design.part}, {"x", 0}, {"y", 0}, {"r", 0}});
+        blueprint["nextId"] = 2;
+      }
+      const auto control = perf(canonical_json(blueprint), *loaded.value, schema);
+      const auto &performance = control.at("data").at("performance");
+      require(performance.at("currentMass") == design.mass &&
+                  numerically_equal(performance.at("acceleration").get<double>(),
+                                    design.acceleration, *loaded.value),
+              "The design puts the mass inside the interval with a valid divisor");
+    });
+  }
+
+  suite.run("zero design mass leaves an acceleration logarithm unavailable", [&] {
+    auto changed = active.data();
+    changed["formulas"]["acceleration"] =
+        Json::array({"div", "thrust", Json::array({"ln", "mass"})});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "An acceleration logarithm must load as real rules");
+    auto blueprint = blank_blueprint(*loaded.value);
+    const auto report = perf(canonical_json(blueprint), *loaded.value, schema);
+    check_f20(report, true);
+    const auto &evaluations =
+        unavailable_at(report, "/performance/scenarios/current/acceleration")
+            .at("details")
+            .at("evaluations");
+    require(evaluations.size() == 1 &&
+                evaluations[0].at("formulaPath") == "/formulas/acceleration/2" &&
+                evaluations[0].at("operator") == "ln" &&
+                evaluations[0].at("operand") == 0,
+            "The unavailable stat must identify the zero-mass logarithm");
+
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    const auto control = perf(canonical_json(blueprint), *loaded.value, schema);
+    const auto &performance = control.at("data").at("performance");
+    require(performance.at("currentMass") == 0.15 &&
+                performance.at("acceleration") == 0,
+            "One floor permits the logarithm and numeric zero acceleration");
+  });
+
+  suite.run("a divisor that always overflows the quotient remains F10", [&] {
+    auto changed = active.data();
+    changed["formulas"]["acceleration"] =
+        Json::array({"div", 1e308, Json::array({"min", "mass", 0.25})});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The acceleration division must load as real rules");
+    auto blueprint = blank_blueprint(*loaded.value);
+    const auto report = perf(canonical_json(blueprint), *loaded.value, schema);
+    const auto &error = formula_error_at(
+        report, "/formulas/acceleration",
+        "/performance/scenarios/current/acceleration");
+    require(error.at("details").at("operator") == "div" &&
+                error.at("details").at("denominator") == 0,
+            "The blank must retain the structured division-by-zero diagnostic");
+
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    const auto control = perf(canonical_json(blueprint), *loaded.value, schema);
+    const auto &overflow = formula_error_at(
+        control, "/formulas/acceleration",
+        "/performance/scenarios/current/acceleration");
+    require(overflow.at("message") == "Formula result is not finite.",
+            "One floor yields a nonzero divisor and an overflowing quotient");
+  });
+
+  suite.run("floor mass cannot resolve a constant zero loaded mass", [&] {
+    auto changed = active.data();
+    changed["formulas"]["loadedMass"] = 0;
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "A constant loaded mass must load as real rules");
+    const auto check = [&](const Json &blueprint) {
+      const auto report = perf(canonical_json(blueprint), *loaded.value, schema);
+      const auto &error = formula_error_at(
+          report, "/formulas/acceleration",
+          "/performance/scenarios/current/acceleration");
+      require(error.at("details").at("denominator") == 0,
+              "Zero loaded mass must retain the division-by-zero diagnostic");
+    };
+    auto blueprint = blank_blueprint(*loaded.value);
+    check(blueprint);
+    blueprint["decks"][0]["floors"]["0,0"] = true;
+    check(blueprint);
+  });
+
   suite.run("zero start mass leaves deltaV unavailable", [&] {
     auto changed = active.data();
     changed["formulas"]["deltaV"] = Json::array({"div", 1, "startMass"});
@@ -335,6 +444,36 @@ int main() {
     require(control.at("data").at("performance").at("sublight").at("deltaV")
                     .get<double>() > 0,
             "A floor supplies positive start mass and allows deltaV calculation");
+  });
+
+  suite.run("deltaV records both unavailable exhaust velocity and zero end mass", [&] {
+    auto changed = active.data();
+    changed["formulas"]["deltaV"] =
+        Json::array({"div", "exhaustVelocity", "endMass"});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "A composed deltaV division must load as real rules");
+    const auto report = perf(canonical_json(blank_blueprint(*loaded.value)),
+                             *loaded.value, schema);
+    check_f20(report, true);
+    const auto &evaluations =
+        unavailable_at(report, "/performance/sublight/deltaV")
+            .at("details")
+            .at("evaluations");
+    require(evaluations.size() == 2 &&
+                std::any_of(evaluations.begin(), evaluations.end(),
+                            [](const Json &evaluation) {
+                              return evaluation.at("formulaPath") ==
+                                         "/formulas/deltaV/1" &&
+                                     evaluation.value("dependency", std::string()) ==
+                                         "exhaustVelocity";
+                            }) &&
+                std::any_of(evaluations.begin(), evaluations.end(),
+                            [](const Json &evaluation) {
+                              return evaluation.at("formulaPath") == "/formulas/deltaV" &&
+                                     evaluation.at("operator") == "div" &&
+                                     evaluation.at("denominator") == 0;
+                            }),
+            "DeltaV must report the dependency and the actual zero divisor");
   });
 
   suite.run("a second zero of the divisor keeps zero-mass acceleration unavailable",
@@ -474,6 +613,9 @@ int main() {
       {"acceleration", Json::array({"div", "thrust", 0}), "/performance/scenarios/current/acceleration"},
       {"acceleration", Json::array({"div", "thrust", Json::array({"mul", "mass", 0})}),
        "/performance/scenarios/current/acceleration"},
+      {"acceleration", Json::array({"ln", Json::array({"mul", "mass", 0})}),
+       "/performance/scenarios/current/acceleration"},
+      {"acceleration", Json::array({"ln", -1}), "/performance/scenarios/current/acceleration"},
       {"range", Json::array({"div", "rating", 0}), "/performance/scenarios/current/range"},
       {"burnSeconds", Json::array({"div", "fuel", 0}), "/performance/sublight/fullBurnSeconds"},
       {"exhaustVelocity", Json::array({"div", "thrust", 0}), "/performance/sublight/exhaustVelocity"},
