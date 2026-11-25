@@ -13,6 +13,7 @@ import math
 import re
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -132,12 +133,26 @@ def plan(paths: list[Path], axes: list[tuple[str, list]]) -> tuple[list, list]:
     sources, cases = [], []
     for path in paths:
         raw = read_bytes(path)
+        source_path = str(path.resolve())
+        source_hash = digest(raw)
+        sources.append({"path": source_path, "sha256": source_hash})
+        if not axes:
+            cases.append(
+                {
+                    "id": len(cases),
+                    "source": source_path,
+                    "sourceSha256": source_hash,
+                    "candidateSha256": source_hash,
+                    "overrides": {},
+                    "input": raw,
+                }
+            )
+            continue
         source = strict_json(raw.decode("utf-8"))
         if not isinstance(source, dict):
             raise ReportError(f"definition must be a JSON object: {path}")
         for pointer, _ in axes:
             location(source, pointer)
-        sources.append({"path": str(path.resolve()), "sha256": digest(raw)})
         for combination in itertools.product(*(choices for _, choices in axes)):
             candidate = copy.deepcopy(source)
             overrides = {}
@@ -153,8 +168,8 @@ def plan(paths: list[Path], axes: list[tuple[str, list]]) -> tuple[list, list]:
             cases.append(
                 {
                     "id": len(cases),
-                    "source": str(path.resolve()),
-                    "sourceSha256": digest(raw),
+                    "source": source_path,
+                    "sourceSha256": source_hash,
                     "candidateSha256": digest(encoded),
                     "overrides": overrides,
                     "input": encoded,
@@ -339,26 +354,29 @@ def execute(args) -> dict:
     if not cases:
         raise ReportError("at least one definition is required")
     rules_bytes = read_bytes(args.rules)
-    schemas = {
-        path.name: digest(read_bytes(path))
-        for path in sorted(args.schemas.glob("*.json"))
+    schema_directory = args.schemas.resolve()
+    schema_bytes = {
+        path.name: read_bytes(path)
+        for path in sorted(schema_directory.iterdir())
+        if path.name.endswith(".schema.json") and path.is_file()
     }
-    if not schemas:
-        raise ReportError("schema directory contains no JSON files")
+    if not schema_bytes:
+        raise ReportError("schema directory contains no regular *.schema.json files")
     manifest = {
         "schemaVersion": 1,
         "toolSha256": digest(Path(__file__).read_bytes()),
         "status": "planned",
         "rules": str(args.rules.resolve()),
         "rulesSha256": digest(rules_bytes),
-        "schemas": schemas,
+        "schemaDirectory": str(schema_directory),
+        "schemas": {name: digest(data) for name, data in schema_bytes.items()},
         "sources": sources,
         "axes": dict(axes),
         "caseCount": len(cases),
         "timeoutSeconds": args.timeout,
         "command": [
             str(args.driver.resolve()),
-            str(args.schemas.resolve()),
+            str(schema_directory),
             str(args.rules.resolve()),
         ],
         "cases": [
@@ -377,29 +395,38 @@ def execute(args) -> dict:
         return manifest
     try:
         manifest["driverSha256"] = digest(args.driver.read_bytes())
-        manifest["status"] = "running"
-        save()
         rows = []
-        for case in cases:
-            result = subprocess.run(
-                manifest["command"],
-                input=case["input"],
-                capture_output=True,
-                timeout=args.timeout,
-                check=False,
-            )
-            if result.returncode != 0:
-                raise ReportError(
-                    f"case {case['id']}: adapter exited {result.returncode}: "
-                    f"{result.stderr[:2000].decode('utf-8', errors='replace')}"
+        with tempfile.TemporaryDirectory(
+            prefix=".schema-snapshot-", dir=args.output.resolve()
+        ) as directory:
+            snapshot = Path(directory)
+            for name, data in schema_bytes.items():
+                (snapshot / name).write_bytes(data)
+            manifest["command"][1] = str(snapshot)
+            manifest["status"] = "running"
+            save()
+            for case in cases:
+                result = subprocess.run(
+                    manifest["command"],
+                    input=case["input"],
+                    capture_output=True,
+                    timeout=args.timeout,
+                    check=False,
                 )
-            if len(result.stdout) > 4 * MAX_BYTES:
-                raise ReportError("adapter response exceeds 32 MiB")
-            rows.append(
-                summarize(
-                    case, strict_json(result.stdout.decode()), manifest["rulesSha256"]
+                if result.returncode != 0:
+                    raise ReportError(
+                        f"case {case['id']}: adapter exited {result.returncode}: "
+                        f"{result.stderr[:2000].decode('utf-8', errors='replace')}"
+                    )
+                if len(result.stdout) > 4 * MAX_BYTES:
+                    raise ReportError("adapter response exceeds 32 MiB")
+                rows.append(
+                    summarize(
+                        case,
+                        strict_json(result.stdout.decode()),
+                        manifest["rulesSha256"],
+                    )
                 )
-            )
         manifest["summary"] = write_reports(args.output, rows)
         manifest["artifacts"] = {
             name: digest((args.output / name).read_bytes())

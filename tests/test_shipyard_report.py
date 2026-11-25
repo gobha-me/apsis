@@ -7,6 +7,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -239,14 +240,75 @@ class ReportPlanningTests(unittest.TestCase):
             self.assertEqual("100", rows[0]["cost"])
             self.assertIn("does not certify", (output / "report.md").read_text())
 
+    def test_campaign_validates_with_manifest_schema_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            schemas = root / "schemas"
+            schemas.mkdir()
+            schema = schemas / "blueprint.schema.json"
+            initial = b"{}\n"
+            schema.write_bytes(initial)
+            (schemas / "notes.json").write_bytes(b"unrelated")
+            (schemas / "archive.json").mkdir()
+            (schemas / "archive.schema.json").mkdir()
+            driver = root / "adapter"
+            driver.write_bytes(b"fake test adapter")
+            output = root / "report"
+            observed = []
+
+            def run_adapter(command, **kwargs):
+                adapter_schemas = Path(command[1])
+                observed.append(
+                    {path.name: path.read_bytes() for path in adapter_schemas.iterdir()}
+                )
+                schema.write_bytes(initial + b"\n")
+                return subprocess.CompletedProcess(
+                    [], 0, json.dumps(response()).encode(), b""
+                )
+
+            with (
+                patch.object(report.subprocess, "run", side_effect=run_adapter),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                status = report.main(
+                    [
+                        str(SKIFF),
+                        str(SKIFF),
+                        "--driver",
+                        str(driver),
+                        "--schemas",
+                        str(schemas),
+                        "--output",
+                        str(output),
+                    ]
+                )
+            self.assertEqual(0, status, stderr.getvalue())
+            self.assertEqual(initial + b"\n", schema.read_bytes())
+            self.assertEqual([{schema.name: initial}] * 2, observed)
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertEqual("completed", manifest["status"])
+            self.assertEqual(str(schemas.resolve()), manifest["schemaDirectory"])
+            self.assertFalse(Path(manifest["command"][1]).exists())
+            self.assertEqual({schema.name: report.digest(initial)}, manifest["schemas"])
+            self.assertEqual(2, manifest["summary"]["structuralPass"])
+
     def test_adapter_failures_record_failed_manifest(self):
-        for outcome in (
-            subprocess.CompletedProcess([], 2, b"", b"bad rules"),
-            subprocess.CompletedProcess([], 0, b"not json", b""),
-            subprocess.TimeoutExpired("adapter", 1),
+        timeout = 1.25
+        valid_stdout = json.dumps(response()).encode()
+        for outcome, diagnostic in (
+            (
+                subprocess.CompletedProcess([], 2, valid_stdout, b"bad rules"),
+                "case 0: adapter exited 2: bad rules",
+            ),
+            (subprocess.CompletedProcess([], 0, b"not json", b""), "Expecting value"),
+            (
+                subprocess.TimeoutExpired("adapter", timeout),
+                f"timed out after {timeout} seconds",
+            ),
         ):
             with (
-                self.subTest(outcome=type(outcome).__name__),
+                self.subTest(diagnostic=diagnostic),
                 tempfile.TemporaryDirectory() as directory,
             ):
                 driver = Path(directory) / "adapter"
@@ -258,8 +320,8 @@ class ReportPlanningTests(unittest.TestCase):
                     else {"return_value": outcome}
                 )
                 with (
-                    patch.object(report.subprocess, "run", **kwargs),
-                    redirect_stderr(io.StringIO()),
+                    patch.object(report.subprocess, "run", **kwargs) as run,
+                    redirect_stderr(io.StringIO()) as stderr,
                 ):
                     self.assertEqual(
                         2,
@@ -270,12 +332,17 @@ class ReportPlanningTests(unittest.TestCase):
                                 str(driver),
                                 "--output",
                                 str(output),
+                                "--timeout",
+                                str(timeout),
                             ]
                         ),
                     )
+                self.assertEqual(timeout, run.call_args.kwargs["timeout"])
+                manifest = json.loads((output / "manifest.json").read_text())
+                self.assertEqual("failed", manifest["status"])
+                self.assertIn(diagnostic, manifest["error"])
                 self.assertEqual(
-                    "failed",
-                    json.loads((output / "manifest.json").read_text())["status"],
+                    f"shipyard-report: {manifest['error']}\n", stderr.getvalue()
                 )
                 self.assertFalse((output / "results.json").exists())
 
@@ -303,6 +370,28 @@ class NativeReportTests(unittest.TestCase):
             check=False,
         )
 
+    def run_report(self, output, *arguments):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/shipyard_report.py"),
+                *map(str, arguments),
+                "--driver",
+                str(self.driver),
+                "--output",
+                str(output),
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        manifest = json.loads((output / "manifest.json").read_text())
+        self.assertEqual("completed", manifest["status"])
+        results = json.loads((output / "results.json").read_text())
+        self.assertEqual(results["summary"], manifest["summary"])
+        return results
+
     def test_canonical_corpus_uses_existing_validator(self):
         results = {}
         for path in sorted(FIXTURES.glob("*definition-v3.json")):
@@ -325,6 +414,83 @@ class NativeReportTests(unittest.TestCase):
         completed = self.invoke(SKIFF.read_bytes(), SKIFF)
         self.assertEqual(2, completed.returncode)
         self.assertEqual("rules_loading", json.loads(completed.stderr)["error"])
+
+    def test_report_corpus_measures_original_source_bytes(self):
+        sources = {
+            "bom.json": b"\xef\xbb\xbf" + SKIFF.read_bytes(),
+            "malformed.json": b"not json",
+            "array.json": b"[]",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for name, raw in sources.items():
+                source = Path(directory) / name
+                source.write_bytes(raw)
+                paths.append(source)
+            results = self.run_report(Path(directory) / "corpus", *paths)
+        cases = results["cases"]
+        self.assertEqual(["PASS", "FAIL", "FAIL"], [case["status"] for case in cases])
+        for case, raw in zip(cases, sources.values(), strict=True):
+            self.assertEqual(report.digest(raw), case["sourceSha256"])
+            self.assertEqual(report.digest(raw), case["candidateSha256"])
+        self.assertEqual(
+            ["invalid_json"], [issue["code"] for issue in cases[1]["issues"]]
+        )
+        self.assertEqual(
+            ["unsupported_schema"], [issue["code"] for issue in cases[2]["issues"]]
+        )
+
+    def test_mixed_report_exports_readiness_and_totals(self):
+        rustbucket = FIXTURES / "apsis-rustbucket-definition-v3.json"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "mixed"
+            results = self.run_report(
+                output, SKIFF, rustbucket, "--axis", "/blueprint/loads/cargo=[0,99]"
+            )
+            with (output / "results.csv").open(newline="") as stream:
+                rows = list(csv.DictReader(stream))
+        self.assertEqual(
+            {
+                "cases": 4,
+                "structuralPass": 1,
+                "structuralFail": 3,
+                "issueOccurrences": {
+                    "missing_airlock": 1,
+                    "pending_performance": 2,
+                    "schema_error": 2,
+                    "unreachable_component": 3,
+                },
+            },
+            results["summary"],
+        )
+        expected = [
+            ("PASS", None, "", True),
+            ("FAIL", None, "", False),
+            ("FAIL", False, "False", True),
+            ("FAIL", None, "", False),
+        ]
+        for case, row, (status, ready, csv_ready, has_totals) in zip(
+            results["cases"], rows, expected, strict=True
+        ):
+            with self.subTest(case=case["id"]):
+                self.assertEqual(status, case["status"])
+                self.assertEqual(status, row["status"])
+                self.assertIs(ready, case["ready"])
+                self.assertEqual(csv_ready, row["ready"])
+                self.assertIsNone(case["jumpReady"])
+                self.assertEqual("", row["jumpReady"])
+                self.assertEqual(
+                    ";".join(issue["code"] for issue in case["issues"]), row["issues"]
+                )
+                if has_totals:
+                    for key in report.TOTALS:
+                        self.assertIn(type(case["totals"][key]), (int, float))
+                        self.assertEqual(str(case["totals"][key]), row[key])
+                else:
+                    self.assertEqual({}, case["totals"])
+                    self.assertEqual(
+                        [""] * len(report.TOTALS), [row[key] for key in report.TOTALS]
+                    )
 
     def test_imported_caches_cannot_forge_report(self):
         source = json.loads(SKIFF.read_bytes())

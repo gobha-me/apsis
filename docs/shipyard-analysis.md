@@ -9,9 +9,11 @@ neither recommends designs nor changes shipped values.
 The standalone adapter calls public `validate()` with its default checks. It
 recomputes imported caches using active rules. Structural PASS describes those
 checks; it does not certify complete or jump readiness. On the current library,
-complete readiness is null on structural PASS and false on structural FAIL,
-while jump readiness remains null. Reports preserve these values. Performance
-checks from the separate Shipyard work are not required or invoked.
+complete readiness is null on structural PASS and false when structural checks
+fail on a loaded definition. If the validator returns no definition data,
+complete readiness is null and direct totals are unavailable. Jump readiness
+remains null throughout. Performance evaluation belongs to separate Shipyard
+tooling.
 
 Build from the repository root, using the host's heavy-work wrapper:
 
@@ -37,7 +39,8 @@ python3 tools/shipyard_report.py shipyard/fixtures/v3/*definition-v3.json \
 
 The default rules and schema directory are `shipyard/rules/apsis-rules-v4.json`
 and `shipyard/schemas`. `--rules` and `--schemas` select other existing inputs;
-these flags never edit them. Each input is at most 8 MiB. At most 64 total
+these flags never edit them. The adapter reads a per-campaign snapshot of the
+regular `*.schema.json` files. Each input is at most 8 MiB. At most 64 total
 source × grid cases are allowed, with a default 30-second timeout per case
 (`--timeout`, bounded to 300 seconds). Larger analyses should use the host's
 heavy-work controls and separate bounded plans.
@@ -61,25 +64,31 @@ embedded rules. Raw blueprints use pointers such as `/loads/cargo`. No field is
 created and no invalid value is clamped. The unchanged validator reports any
 schema or structural failure in a hypothetical candidate. Axis order, input
 order, and value order determine the Cartesian grid order; duplicate axes and
-duplicate values are rejected. With no axes, each source is measured once.
+duplicate values are rejected. With no axes, each source is measured once from
+its original bytes, including sources the native validator rejects as invalid.
 
 Every completed output directory contains:
 
-- `manifest.json`: input/rules/schema hashes, exact adapter command, binary and
-  Python-tool hashes, candidate hashes and scalar overrides, status, summary,
-  and report artifact hashes. The candidate hash covers compact JSON actually
-  supplied to stdin; the source hash covers original file bytes.
-- `results.json`: per-case status, complete/jump readiness, recomputed direct
-  totals, migration metadata, and every bounded validator issue.
-- `results.csv`: case, source, overrides, status, readiness, issue codes, and
+- `manifest.json` records input/rules/schema hashes, original schema directory, exact
+  adapter command, binary and Python-tool hashes, candidate hashes and scalar
+  overrides, status, summary, and report artifact hashes. The adapter command
+  records the temporary schema snapshot path used for the run. The candidate
+  hash covers the bytes supplied to stdin. It equals the source hash in corpus
+  mode and covers the compact JSON candidate in grid mode.
+- `results.json` records per-case status, complete/jump readiness, recomputed direct
+  totals, migration metadata, and every bounded validator issue. Cases without
+  definition data show `"ready": null`, `"jumpReady": null`, and `"totals": {}`.
+- `results.csv` records case, source, overrides, status, readiness, issue codes, and
   selected direct totals (`cost`, `dryMass`, `currentMass`, `cargo`, `fuel`).
-  Empty readiness cells represent null/unknown. `currentMass` is the active
-  loader's loaded-mass result; `cargo` and `fuel` are capacities, not load ratios.
+  Empty readiness cells represent null/unknown, and `False` records failed
+  complete readiness. Empty total cells indicate unavailable totals.
+  `currentMass` is the active loader's loaded-mass result. `cargo` and `fuel`
+  report capacities.
 - `report.md`: a compact observation table. Issue occurrences count findings,
   including repeats within a case, rather than affected-case prevalence.
 
 A structural FAIL is a completed measurement and exits zero, including malformed
-candidate definitions returned as validator failures with null totals. Operational
+or out-of-range definitions for which the validator returns no data. Operational
 errors (bad rules/schema files, process failure, invalid responses, timeout) exit
 2 and leave a failed manifest when a run directory was created. A partially
 failed campaign has no completed summary. Existing output directories are
@@ -107,5 +116,5 @@ APSIS_SHIPYARD_VALIDATE="$TMPDIR/shipyard-analysis/shipyard-validate" \
 ```
 
 The native cases skip when the environment variable is absent. They cover the
-canonical corpus, source immutability, ignored forged caches, a six-point grid,
-and operational versus measured failures. No workflow configuration is changed.
+canonical corpus, original source bytes, source immutability, ignored forged
+caches, scalar grids, and reports containing both valid and invalid measurements.
