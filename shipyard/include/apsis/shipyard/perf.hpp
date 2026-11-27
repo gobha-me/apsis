@@ -14,6 +14,8 @@ struct LoadFractions {
 enum class BlankType { ship, station };
 // An empty blueprint using active defaults and the minimum deck count. This
 // authoring source does not imply structural approval or assign F20 values.
+// Throws std::length_error if generation would exceed 4096 decks or 8 MiB of
+// deck names in total.
 Json blank_blueprint(const RulesSnapshot& rules, BlankType type = BlankType::ship);
 
 // DESIGN.md result envelope, including a freshly normalized definition and

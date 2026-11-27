@@ -491,9 +491,9 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Independent performance tests remain for the later tests session. F11–F17,
-F19, F20, and hangar F21 remain **Open for Luna, not guessed**. Port F03/F21
-alignment is resolved above.
+Five independent suites cover performance. F11–F17, F19, F20, and hangar
+F21 remain **Open for Luna, not guessed**. Port F03/F21 alignment is resolved
+above.
 
 
 ## Historical boundary notes preserved by the #63/#65 integration

@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <stdexcept>
 
 namespace apsis::shipyard {
 namespace {
@@ -27,9 +29,16 @@ Json envelope(const RulesSnapshot& rules, std::vector<Issue> issues, Json data) 
 Json blank_blueprint(const RulesSnapshot& rules, BlankType type) {
     const auto& active = rules.data();
     const auto& defaults = active.at("defaults");
+    constexpr std::size_t max_generated_decks = 4096;
+    constexpr std::size_t max_deck_name_bytes = 8 * 1024 * 1024;
+    const auto deck_count = active.at("limits").at("minDecks").get<std::uint64_t>();
+    const auto& deck_name = defaults.at("deckName").get_ref<const std::string&>();
+    if (deck_count > max_generated_decks || deck_name.size() > max_deck_name_bytes / deck_count) {
+        throw std::length_error("Blank blueprint exceeds the operational deck allocation limit.");
+    }
     Json decks = Json::array();
-    for (std::size_t d = 0; d < active.at("limits").at("minDecks").get<std::size_t>(); ++d) {
-        decks.push_back({{"name", defaults.at("deckName")},
+    for (std::size_t d = 0; d < deck_count; ++d) {
+        decks.push_back({{"name", deck_name},
                          {"floors", Json::object()}, {"modules", Json::array()}});
     }
     return {{"schema", active.at("schemaIds").at("blueprint")},
@@ -55,21 +64,11 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     override_load("sublightFuel", loads.sublightFuel);
     if (has_errors(issues)) return envelope(rules, std::move(issues), nullptr);
 
-    auto imported = detail::import_for_validation(bytes, rules, schemas, limits);
+    detail::CarriedTotals carried_totals;
+    auto imported = detail::import_for_validation(bytes, rules, schemas, limits, overrides, &carried_totals);
     if (!imported.ok()) return envelope(rules, std::move(imported.issues), nullptr);
     auto definition = std::move(imported.value->definition);
     issues = std::move(imported.issues);
-    if (!overrides.empty()) {
-        for (const auto& [key, value] : overrides.items()) definition["blueprint"]["loads"][key] = value;
-        // Recompute every direct total after overrides, including currentMass.
-        auto updated = import_definition(canonical_json(definition.at("blueprint")), rules, schemas, limits);
-        if (!updated.ok()) return envelope(rules, std::move(updated.issues), nullptr);
-        definition = std::move(updated.value->definition);
-    }
-    std::erase_if(issues, [](const Issue& issue) {
-        return issue.code == "pending_validation" || issue.code == "pending_performance" ||
-               issue.code == "pending_docking";
-    });
     auto structure = detail::inspect_structure(definition.at("blueprint"), rules);
     const bool structural_pass = !has_errors(structure.issues);
     const auto append = [&](const std::vector<Issue>& additions) {
@@ -86,8 +85,8 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     Result<Json> calculated;
     try {
         append(structure.issues);
-        calculated = detail::calculate_performance(definition, rules, schemas,
-            definition.at("blueprint").at("loads"), limits);
+        calculated = detail::calculate_performance(definition.at("blueprint"), definition.at("derived"),
+            rules, carried_totals);
         append(calculated.issues);
     } catch (const detail::IssueLimitReached&) {
         return envelope(rules, std::move(issues), nullptr);
@@ -96,8 +95,11 @@ Json perf(std::string_view bytes, const RulesSnapshot& rules,
     auto performance = std::move(*calculated.value);
     const bool ready = !has_errors(issues);
     const double jump_margin = performance.at("power").at("marginJump");
-    const bool jump_ready = ready && performance.at("rating").get<double>() > 0 &&
-        performance.at("jump").at("currentJumps").get<double>() >= 1 &&
+    const auto& jump = performance.at("jump");
+    const bool jump_ready = ready && !jump.at("driveCosts").empty() &&
+        performance.at("rating").get<double>() > 0 &&
+        jump.at("currentJumps").get<double>() >= 1 &&
+        detail::has_jump_fuel(jump.at("current"), rules) &&
         (jump_margin >= -rules.data().at("numeric").at("epsilon").get<double>());
     sort_issues(issues);
     definition["derived"]["performance"] = performance;

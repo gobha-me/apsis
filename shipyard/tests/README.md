@@ -4,7 +4,7 @@ These tests exercise the public APIs in `loader.hpp`, `validator.hpp`, and
 `perf.hpp`, with no mocks. Expectations
 come from DESIGN.md, CONTRACT.md, the owner decisions, and the unchanged v3
 fixtures. Loader tests cover loading, migration, and direct totals; validator,
-dock, and pending suites cover #50. The three perf suites cover #51 without
+dock, and pending suites cover #50. The five perf suites cover #51 without
 assigning values to open game decisions.
 
 Run with g++-13, C++23, CMake, and OpenSSL 3.x development files:
@@ -68,8 +68,14 @@ promoted to error through public rules loading. F10 failures reject, including
 an independent invalid operand beside an F20 exclusion and a formula that fails
 only in carried Skiff. Parent load overrides preserve the child's current loads.
 
-All three suites use the existing CTest wiring and warning-as-error test flags;
-the existing CI build/test step discovers them without workflow changes.
+`shipyard-perf_issue_cap` checks performance issue saturation for top-level and
+carried designs, including warnings and independent pending F20 evaluations.
+
+`shipyard-perf_review` covers readiness and power thresholds, active advisory
+thresholds, life support, duplicate drive prices, and blank deck generation.
+
+CTest discovers all five suites through the existing CI build and test step.
+Each suite builds with warnings treated as errors.
 
 ## Validation and pending decisions
 

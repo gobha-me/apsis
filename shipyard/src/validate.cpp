@@ -54,16 +54,18 @@ namespace detail {
 Result<ImportedDefinition> import_for_validation(std::string_view bytes,
                                                const RulesSnapshot& rules,
                                                const SchemaSet& schemas,
-                                               InputLimits limits) {
-    auto imported = import_definition(bytes, rules, schemas, limits);
+                                               InputLimits limits,
+                                               const Json& load_overrides,
+                                               CarriedTotals* performance_totals) {
+    auto parsed = parse_json(bytes, limits);
+    if (!parsed.ok()) return {std::nullopt, std::move(parsed.issues)};
+    auto& input = *parsed.value;
+    auto imported = import_parsed_definition(input, rules, schemas, load_overrides, performance_totals);
     if (imported.ok() || std::any_of(imported.issues.begin(), imported.issues.end(),
         [](const Issue& issue) { return issue.code == "issues_truncated"; }) ||
         std::none_of(imported.issues.begin(), imported.issues.end(),
         [](const Issue& issue) { return issue.code == "schema_error"; })) return imported;
 
-    auto parsed = parse_json(bytes, limits);
-    if (!parsed.ok()) return imported;
-    auto& input = *parsed.value;
     const bool wrapped = input.is_object() && input.contains("blueprint");
     std::optional<std::string> first;
     if (!strip_holds(wrapped ? input.at("blueprint") : input, rules.data(), 0,
@@ -71,7 +73,7 @@ Result<ImportedDefinition> import_for_validation(std::string_view bytes,
     // Only a fully importable shape with holds removed earns pending feature
     // findings. Schema/scalar/grid faults take precedence, without assigning
     // any hold representation, totals, or traversal behavior.
-    auto checked = import_definition(input.dump(), rules, schemas, limits);
+    auto checked = import_parsed_definition(input, rules, schemas, load_overrides, performance_totals);
     if (!checked.ok()) return checked;
     std::vector<Issue> issues;
     for (const auto* finding : {"F11", "F12", "F13", "F14", "F15", "F16", "F17"}) {

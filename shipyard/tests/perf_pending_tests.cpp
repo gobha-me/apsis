@@ -1,6 +1,7 @@
 #include "test_support.hpp"
 
 #include <apsis/shipyard/perf.hpp>
+#include <apsis/shipyard/validator.hpp>
 
 #include <set>
 
@@ -103,7 +104,12 @@ void check_f20(const Json &report, bool zero_mass) {
               !has_issue(report, "nonfinite_total") &&
               !has_issue(report, "nonfinite_performance"),
           "Pending F20 must not become a formula/nonfinite rejection");
-  import_identities(report, zero_mass);
+  require(std::none_of(report.at("issues").begin(), report.at("issues").end(),
+                       [](const Json &item) {
+                         return item.at("code") == "pending_F20" &&
+                                item.at("path") == "/blueprint";
+                       }),
+          "Perf replaces provisional F20 with output-specific diagnostics");
   const auto &data = report.at("data");
   const auto &performance = data.at("performance");
   require(performance == data.at("definition").at("derived").at("performance"),
@@ -145,6 +151,37 @@ int main() {
   const auto active = rules(schema);
   Suite suite;
 
+  suite.run("holds stay pending at the exact source byte cap", [&] {
+    // Parsing expands both exponent spellings when the tree is serialized.
+    constexpr std::string_view source =
+        R"({"schema":"apsis-shipyard-v3","name":"Hold","budget":1e8,)"
+        R"("decks":[{"name":"D","floors":{},"modules":[]}],)"
+        R"("nextId":1e9,"holds":[]})";
+    const auto unrestricted = perf(source, active, schema);
+    const auto &issues = unrestricted.at("issues");
+    require(unrestricted.at("pass") == false &&
+                unrestricted.at("data").is_null() && issues.size() == 7,
+            "A valid hold request returns exactly the seven pending findings");
+    for (const auto number : {11, 12, 13, 14, 15, 16, 17}) {
+      const auto finding = "F" + std::to_string(number);
+      require(std::any_of(issues.begin(), issues.end(),
+                          [&](const Json &item) {
+                            return item.at("code") == "pending_" + finding &&
+                                   item.at("path") == "/holds" &&
+                                   item.at("severity") == "error";
+                          }),
+              "The hold request must report " + finding);
+    }
+    require(
+        perf(source, active, schema, {},
+             InputLimits{.maxBytes = source.size()}) == unrestricted,
+        "An exact byte cap must apply to the source and retain pending holds");
+    require(has_issue(perf(source, active, schema, {},
+                           InputLimits{.maxBytes = source.size() - 1}),
+                      "resource_limit"),
+            "A source one byte above the cap must still be rejected");
+  });
+
   suite.run(
       "public blank sources use active defaults and remain inspectable", [&] {
         for (const auto type : {BlankType::ship, BlankType::station}) {
@@ -162,7 +199,11 @@ int main() {
                                                           .at("minDecks")
                                                           .get<std::size_t>(),
                   "Blank authoring defaults must come from active rules");
-          const auto report = perf(canonical_json(blueprint), active, schema);
+          const auto source = canonical_json(blueprint);
+          const auto imported = import_definition(source, active, schema);
+          require(imported.ok(), "A public blank must import normally");
+          import_identities(Json{{"issues", imported.issues}}, true);
+          const auto report = perf(source, active, schema);
           check_f20(report, true);
           require(report.at("data").at("structuralPass") == false &&
                       has_issue(report, "required_system"),
@@ -182,6 +223,7 @@ int main() {
             read("fixtures/v3/apsis-wayfarer-anchorage-definition-v3.json"),
             active, schema);
         require(imported.ok(), "Wayfarer must import normally");
+        import_identities(Json{{"issues", imported.issues}}, false);
         const auto report =
             perf(canonical_json(imported.value->definition.at("blueprint")),
                  active, schema);
@@ -204,7 +246,11 @@ int main() {
         for (const auto type : {BlankType::ship, BlankType::station}) {
           auto blueprint = blank_blueprint(active, type);
           blueprint["decks"][0]["floors"]["0,0"] = true;
-          const auto report = perf(canonical_json(blueprint), active, schema);
+          const auto source = canonical_json(blueprint);
+          const auto imported = import_definition(source, active, schema);
+          require(imported.ok(), "The engine-less design must import normally");
+          import_identities(Json{{"issues", imported.issues}}, false);
+          const auto report = perf(source, active, schema);
           check_f20(report, false);
           const auto &performance = report.at("data").at("performance");
           require(performance.at("dryMass").get<double>() > 0 &&
@@ -216,6 +262,66 @@ int main() {
                   "and ordinary structural faults");
         }
       });
+
+  suite.run("computed station metrics do not carry provisional F20", [&] {
+    const auto source =
+        read("fixtures/v3/apsis-wayfarer-anchorage-definition-v3.json");
+    auto changed = active.data();
+    changed["formulas"]["burnSeconds"] = 1;
+    changed["formulas"]["exhaustVelocity"] = 2;
+    changed["formulas"]["deltaV"] = 3;
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "Constant sublight formulas must load as rules");
+
+    const auto imported = import_definition(source, *loaded.value, schema);
+    require(imported.ok(), "Wayfarer must import under the custom rules");
+    import_identities(Json{{"issues", imported.issues}}, false);
+    import_identities(validate(source, *loaded.value, schema), false);
+
+    const auto report = perf(source, *loaded.value, schema);
+    require(report.at("pass") == true, "Wayfarer must remain accepted");
+    const auto &sublight = report.at("data").at("performance").at("sublight");
+    require(
+        sublight.at("burnRate") == 0 && sublight.at("fullBurnSeconds") == 1 &&
+            sublight.at("currentBurnSeconds") == 1 &&
+            sublight.at("exhaustVelocity") == 2 && sublight.at("deltaV") == 3,
+        "Accepted constants produce all four engine-less outputs");
+    require(!has_issue(report, "pending_F20"),
+            "Perf has no F20 issue when all the outputs were evaluated");
+  });
+
+  for (const auto *operation : {"add", "mul"}) {
+    suite.run(
+        "F20 does not hide a nonfinite " + std::string(operation) + " prefix",
+        [&] {
+          auto changed = active.data();
+          changed["formulas"]["acceleration"] =
+              Json::array({operation, 1e308, 1e308,
+                           Json::array({"div", "thrust", "mass"})});
+          const auto loaded = load_rules(canonical_json(changed), schema);
+          require(loaded.ok(),
+                  "Finite operands must load as an active formula");
+          const auto source = canonical_json(blank_blueprint(*loaded.value));
+          require(import_definition(source, *loaded.value, schema).ok(),
+                  "The blank must import before the acceleration calculation");
+
+          const auto report = perf(source, *loaded.value, schema);
+          require(report.at("status") == "FAIL" && report.at("data").is_null(),
+                  "A known intermediate overflow must reject even beside F20");
+          const auto &issues = report.at("issues");
+          require(
+              std::any_of(
+                  issues.begin(), issues.end(),
+                  [](const Json &item) {
+                    return item.at("code") == "formula_error" &&
+                           item.at("severity") == "error" &&
+                           item.at("path") == "/formulas/acceleration" &&
+                           item.at("details").at("outputPath") ==
+                               "/performance/scenarios/current/acceleration";
+                  }),
+              "The failed intermediate must identify its formula and output");
+        });
+  }
 
   suite.run("blank deltaV logarithm at zero stays explicitly pending F20", [&] {
     auto changed = active.data();
@@ -242,6 +348,42 @@ int main() {
               "The pending report must identify the excluded zero logarithm");
       no_excluded_keys(report.at("data").at("performance"), true);
       no_excluded_keys(report.at("data").at("definition").at("derived"), true);
+    }
+  });
+
+  suite.run("a blank with positive current mass rejects undefined deltaV", [&] {
+    constexpr double current_mass = 3.25;
+    auto changed = active.data();
+    changed["formulas"]["loadedMass"] = current_mass;
+    changed["formulas"]["deltaV"] = Json::array({"ln", 0});
+    const auto loaded = load_rules(canonical_json(changed), schema);
+    require(loaded.ok(), "The adjusted mass and deltaV formulas must load");
+    for (const auto *type : {"ship", "station"}) {
+      const auto source = canonical_json(blank(type));
+      const auto imported = import_definition(source, *loaded.value, schema);
+      require(imported.ok(), "Direct totals succeed for the empty blueprint");
+      const auto &totals = imported.value->definition.at("derived");
+      require(totals.at("dryMass") == 0 &&
+                  totals.at("currentMass") == current_mass,
+              "The case must have positive current mass and zero dry mass");
+
+      const auto report = perf(source, *loaded.value, schema);
+      require(report.at("status") == "FAIL" && report.at("pass") == false &&
+                  report.at("data").is_null(),
+              "F10 rejects ln(0) at positive current mass");
+      const auto &issues = report.at("issues");
+      const auto failure =
+          std::find_if(issues.begin(), issues.end(), [](const Json &item) {
+            return item.at("code") == "formula_error" &&
+                   item.at("path") == "/formulas/deltaV";
+          });
+      require(failure != issues.end(), "The error identifies the deltaV rule");
+      const auto &details = failure->at("details");
+      require(failure->at("severity") == "error" &&
+                  details.at("operator") == "ln" &&
+                  details.at("operand") == 0 &&
+                  details.at("outputPath") == "/performance/sublight/deltaV",
+              "The error identifies the failed deltaV calculation");
     }
   });
 
