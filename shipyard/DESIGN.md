@@ -77,7 +77,7 @@ definitions and stock identifiers, never caller-selected server paths or URLs.
 | `build` | Exactly one source: blueprint/definition, stock ID, or blank design options. Normalize, derive totals, and run validation. Blank defaults to a ship; station creation is explicit. Pending-F20 formula cases must not reject a blank build; return the definition and structural validation report without assigning those formula results. Bots can author blueprint JSON directly; no editing script language is required. | v4 definition and structural validation report, including warnings and repair issues |
 | `validate` | Blueprint or definition; check schema, hull, parts, required systems, crew routes, adjacent-deck ladders, station modules, carried craft, and approaches using active rules. | PASS/FAIL and structured issues; recomputed definition when normalization succeeds |
 | `perf` | Normalized design and optional load fractions; report current, empty, half, and full scenarios. | Thrust/mass, acceleration, jump range, propellant/endurance, jump charges, and supply/demand at idle, cruise, and jump, subject to the F20 gate below; issues with rule-defined severity (default `warning`) |
-| `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks using any compatible matching visitor airlock meeting F03; the tool does not pick an airlock. | PASS/FAIL, structured issues, and measured check details; hangar dimensions/decks only for hangars |
+| `dock` | Host station, target deck index/module ID, and visiting ship. Evaluate all F18 checks. For ports, any compatible visitor airlock meeting F03 can satisfy alignment. | PASS/FAIL, structured issues, and measured check details, including hangar dimensions and decks for hangars |
 | `render` | Valid design plus bounded render options (deck/stack, dimensions). | One PNG per deck, `stack.png`, a manifest, and a stack ZIP containing those artifacts |
 | `selftest` | Installed, versioned example suite; no arbitrary test code supplied by callers. | Per-case expected/actual results and aggregate PASS/FAIL |
 
@@ -189,15 +189,22 @@ deck-count limits. Global definition limits still apply through the validator.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
 
-**Interpretation (F03), pending F21:** The v4 model must expose the information
-needed to check same deck, exterior position, outward facing, and "within 1 cell".
-Which visitor deck is "the same deck", the distance measure, and its reference
-point remain Open for Luna, not guessed (F21). Treating the 1-cell bound as
-inclusive is an interpretation pending that answer, not a settled rule. The
-validator and `dock` require all four owner-picked conditions once clarified;
-interface-label equality alone is insufficient. These conditions are part of
-F18's complete port-dock pass rule below. Hold-specific
-docking/airlock rules remain open in F17.
+**Resolved by Luna, under owner delegation 2026-11-23.** For ports, the
+visitor airlock's deck index equals the port's deck index. Measure between the
+centres of the rotated footprints in grid cells. A qualifying offset is zero on
+at least one axis and at most one cell on the other, including the boundary.
+Doubled integer centres preserve exact half-cell offsets. The stock 2×2 port
+and 1×1 airlock have different centre parity on each axis, so integer-grid
+placements of that pair always fail the orthogonal test.
+
+The optional `docking.alignment` policy is scoped to `targetKind: port` and
+requires `sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking uses the loaded policy and
+applies the same convention when an older v4 snapshot omits it. Any compatible
+exterior outward-facing airlock satisfying the port alignment rule passes
+check (c). Visitor crew access and approach remain structural check (a)
+requirements. Hangar check (c) retains `pending_F21` for a compatible exterior
+outward-facing airlock. F19 governs hangar envelope and rotation separately.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F07: Rustbucket stays a deliberate failing example"
 
@@ -338,8 +345,9 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (c) At least one compatible matching visitor airlock meets F03: same deck,
   exterior, facing out, within 1 cell. That airlock must also be crew-reachable
   and clear, as v3 requires; violations tie to check (a) at the rules' `error`
-  severity (v3). F21 leaves the visitor-deck mapping, distance measure, and
-  reference point open for Luna.
+  severity (v3). The decision by Luna, under owner delegation 2026-11-23,
+  requires the port deck and footprint centres at most one cell apart along
+  a single axis, including coincident centres.
 - (d) Approach clearance.
 
 Each check needs its own independent test in #50. Any matching airlock works;
@@ -352,7 +360,7 @@ Prototype evidence: `index.html:3791-3792` rejects host/visitor structural
 errors; `:3636-3640` records visitor-airlock reachability and clearance, and
 `:3793` filters for both before `:3800` requires a matching interface; `:3801`
 requires station crew reachability. F03 adds geometric alignment conditions,
-with their unresolved details in F21; F02 removes the prototype's port size envelope. Issue #50 already
+with F03/F21 resolved by Luna, under owner delegation 2026-11-23; F02 removes the prototype's port size envelope. Issue #50 already
 contains these acceptance items and remains open.
 
 ## Multi-deck cargo holds
@@ -520,7 +528,7 @@ independent verification before declaring that capability complete.
 | Loader/migration (#49) | Malformed rules/formulas, unknown fields/versions, numeric and nesting bounds; all five canonical definitions; preservation of geometry/IDs/names/loads; v4 import/export equivalence and migration idempotence |
 | Validator (#50) | Overlap, missing floors/systems, disconnected hull, crew routes, ladder pairing and deck reorder, station modules, carried craft; exact expected errors and warning severities |
 | Owner-pick interpretation | All five drive prices; Rustbucket rejected; 80-character name and 100M cr technical input boundaries read from rules; no shipyard affordability enforcement; undefined/invalid formulas fail clearly except the exact blank ship/station and engine-less evaluations listed in F20 (Open for Luna, not guessed); those pending cases must not reject a blank build; legitimate zero remains valid |
-| Docking (#50; F02/F03/F18/F19/F21) | Each F18 condition has its own test: (a) structural faults in either ship, (b) station crew reachability, (c) at least one compatible matching visitor airlock that is crew-reachable and clear (violations tied to (a) at the rules' `error` severity (v3)) and meets same-deck/exterior/outward alignment and the 1-cell bound, (d) approach clearance. Each (a)-(d) test must fail when its own check is disabled, with mutation evidence and no mocking of the unit under test. Treat inclusive 1-cell boundary coverage as an interpretation pending F21's visitor-deck mapping, distance measure, and reference point (Open for Luna, not guessed); finalize at/beyond-bound expectations after that answer. Include a combined pass case, any matching airlock and no tool airlock picking; 20×34 m visitor and a valid visitor exceeding former port caps; hangar width, length and deck boundaries; allowed rotations after rule clarification in F19 (Open for Luna, not guessed) |
+| Docking (#50; F02/F03/F18/F19/F21) | Keep independent F18(a)–(d) fault and switch tests. For ports, cover same and different decks, coincident rotated footprint centres, exact and beyond-limit axial offsets, and diagonal rejection. Any aligned airlock satisfies check (c). Ports have no size cap. Hangar alignment remains pending F21 for eligible airlocks, with independent envelope and F19 checks. |
 | Performance (#51) | Independently calculated thrust/mass, empty/half/full/current range, separate fuel pools and charges, idle/cruise/jump power; rules file sets severity, default for perf checks is `warning`; verify warnings and rule-defined errors; until Luna answers, #51 must hold on F20 by returning a structured `pending F20` issue rather than outputting any excluded values, with no numeric stand-ins |
 | Adapters (#52) | CLI/HTTP parity, exit/status mapping, clean JSON stdout, malformed/oversized input, no request path/URL loading, and import/export round trip |
 | Renderer (#53) | PNG dimensions/deck count, manifest and ZIP contents, repeated-output hashes, geometry checks and approved pixel comparisons |

@@ -44,21 +44,27 @@ v3 fixtures unchanged and test beyond the former port caps as well.
 
 Owner pick, 2026-11-20 5:12 PM ET (Luna question card): "F03: same deck, exterior, facing out, within 1 cell"
 
-**Interpretation pending F21:** The pick requires the same deck, exterior hull
-placement, outward facing, and alignment within 1 cell. Which visitor deck is
-"the same deck" and the distance measure and reference point remain Open for
-Luna, not guessed. F02 sets the port/hangar size distinction; F18 settles the
-complete port pass rule and use of any compatible matching visitor airlock.
+**Resolved for ports by Luna, under owner delegation 2026-11-23.** The
+visitor airlock's deck index must equal the port's deck index. Measure between
+the centres of the rotated footprints in grid cells. At least one axis must
+have zero displacement, and the other may differ by up to one cell, inclusive.
+Doubled integer centres preserve half-cell offsets exactly. The bundled 2×2
+port and 1×1 airlock have different centre parity on both axes, which makes
+every integer-grid placement of that pair diagonal.
 
-`index.html:checkDocking` collects interface labels from any
-reachable, clear visitor airlock and checks label equality. It does not compare
-transformed airlock positions or facing. The v4 docking check must evaluate
-same-deck placement, exterior hull position, outward facing, and the 1-cell
-alignment rule, alongside approach clearance (#50/#52). Treating the 1-cell
-limit as inclusive is an interpretation pending Luna's F21 answer, along with
-the visitor-deck mapping, distance measure, and reference point. Interface-label
-equality alone does not prove alignment. Remove port size caps; retain hangar
-width, length, and deck-count limits.
+The optional `docking.alignment` policy requires `targetKind: port`,
+`sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking uses these policy values
+and applies the same convention to v4 snapshots without the policy. Any
+eligible, compatible exterior outward-facing airlock satisfies port check (c).
+Without one, the check fails with `dock_no_matching_airlock`. Visitor crew
+access and approach remain structural check (a) requirements. Eligible hangar
+candidates retain `pending_F21`.
+
+Historical prototype checkDocking compared compatible interface labels but
+did not compare airlock/target centres. Interface equality alone does not prove
+the resolved alignment. Ports retain no size cap; hangars retain their active
+width, length and deck limits.
 
 ## F04 — Blank action inherits station mode
 
@@ -255,8 +261,8 @@ and visiting ship, `dock` passes only if all four conditions hold:
 - (a) No structural fault in either ship (station host or visitor).
 - (b) Station crew can reach the port.
 - (c) At least one compatible matching visitor airlock is crew-reachable and
-  clear, and meets F03: same deck, exterior, facing out, within 1 cell (F21
-  remains open for the deck mapping and distance convention). A visitor
+  clear, and meets F03: same port deck, exterior, facing out, and within one
+  cell by orthogonal centre distance. A visitor
   reachability or clearance failure ties to check (a) at the rules' `error`
   severity (v3).
 - (d) Approach clearance.
@@ -274,9 +280,9 @@ errors; `:3636-3640` records visitor-airlock crew reachability and clearance,
 and `:3793` filters matches to reachable, clear airlocks; `:3800` requires a
 matching reachable exterior visitor airlock; `:3801` requires station crew
 reachability. Visitor reachability and clearance also feed check (a) at the rules'
-`error` severity (v3). F03 adds geometric alignment requirements, with its deck
-mapping and distance convention still pending F21; F02 removes the prototype's
-port size envelope. Issue #50 already contains these acceptance items and remains open.
+`error` severity (v3). F03 adds port alignment requirements resolved by Luna,
+under owner delegation 2026-11-23. F02 removes the prototype's port size
+envelope. Issue #50 already contains these acceptance items and remains open.
 
 ## F19 — Allowed docking rotations
 
@@ -332,13 +338,11 @@ rule here.
 
 ## F21 — Same-deck mapping and 1-cell measurement
 
-**Open for Luna, not guessed.** For F03, which visitor deck counts as 'the same
-deck', and how is 'within 1 cell' measured, from what reference point?
-
-The owner pick gives the alignment requirements but does not define the visitor
-deck mapping, distance measure, or reference point. An inclusive 1-cell limit
-is an interpretation pending this answer, not a settled rule. Keep F03's other
-requirements and F18's port checks; do not guess the missing convention.
+**Resolved for ports by Luna, under owner delegation 2026-11-23.** Match the
+visitor airlock deck to the port deck and measure the rotated footprint centres
+using the exact, inclusive one-cell orthogonal bound in F03. Hangar check (c)
+continues to return `pending_F21` when a compatible exterior outward-facing
+airlock exists. Hangar rotation and envelope handling remain under F19.
 
 ## F22 — Loader boundary and open prototype differences (#49)
 
@@ -405,17 +409,17 @@ The #49 blank-design F20 exclusions remain unchanged.
 
 The prototype required structural validity, a reachable and clear visitor
 airlock, a clear approach, the size envelope, deck limits, and station crew
-reachability. In v4 a compatible port candidate returns FAIL with `pending_F21`
-until Luna defines same-deck mapping and the distance/reference/inclusivity
-convention. Hangars report `widthLengthFit: true` without `pending_F19` when the
-visitor fits unrotated. A visitor satisfying either rotation-proof bound from
-F19 reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
+reachability. For ports, check (c) certifies the same deck and inclusive
+one-cell orthogonal centre distance decided by Luna, under owner delegation
+2026-11-23. Hangars retain `pending_F21` when an eligible airlock exists.
+Hangars report `widthLengthFit: true` without `pending_F19` when the visitor
+fits unrotated. A visitor satisfying either rotation-proof bound from F19
+reports `widthLengthFit: false` with `dock_hangar_size_limit` at the active
 docking severity (v3: error), including measured dimensions and limits, without
 `pending_F19`. Every other case that does not fit unrotated remains uncertified
-with `widthLengthFit: null` and `pending_F19`; the rule-defined deck cap is
+with `widthLengthFit: null` and `pending_F19`. The rule-defined deck cap is
 enforced. Failure in both axis-aligned orientations alone does not prove that
 the visitor exceeds the hangar. These bounds do not choose allowed rotations.
-The remaining pending results preserve F03/F18 without inventing F19/F21 answers.
 Ports have no size envelope and the API selects no visitor airlock. F18(a)–(d)
 have independent public switches, with selected-target access/approach rule
 families disabled consistently when (b)/(d) is disabled; defaults retain all
@@ -436,7 +440,7 @@ structured pending F11–F17 issues once per finding kind before any guessed hol
 totals, access, traversal, or ordinary missing-floor finding. No hold schema or
 geometry is invented, and no opening is filled. The independent tests session must cover
 the public switches with mutation evidence and the remaining pending gates.
-F11–F17, F19, F20, and F21 remain Open for Luna.
+F11–F17, F19, F20, and hangar F21 remain open for Luna.
 
 ## F24 — Performance implementation boundary and canonical comparison (#51)
 
@@ -487,9 +491,9 @@ beside an F20 exclusion. Complete readiness, jump readiness, and theoretical
 range are separate outputs. The blank source defaults to a ship; station
 creation is explicit, without editor history.
 
-Five independent suites cover performance. F11–F17,
-F19, F20, and F21 remain **Open for Luna, not guessed**. No hold, docking
-rotation, or same-deck distance convention is assigned here.
+Five independent suites cover performance. F11–F17, F19, F20, and hangar
+F21 remain **Open for Luna, not guessed**. Port F03/F21 alignment is resolved
+above.
 
 
 ## Historical boundary notes preserved by the #63/#65 integration

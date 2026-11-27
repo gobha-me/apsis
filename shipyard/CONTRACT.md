@@ -146,13 +146,32 @@ the active `unreachable_component` and `blocked_approach` severities (v3: error)
 They are not duplicated under (c). This permits independent mutation evidence
 for each check without mocking. Disabled checks are explicit in the output.
 
-Check (c) counts compatible, exterior, outward-facing airlocks without choosing
-one. If a candidate exists, it returns `pending_F21` and status `PENDING` rather
-than guessing visitor-deck mapping, a distance measure, reference point, or
-inclusivity of the 1-cell bound. Overall docking is FAIL while certification is
-pending (`data.pending=true`), even though the pending issue is a warning.
-Ports have no size fields or envelope checks. Hangars report active width,
-length, and deck limits and enforce the exact deck limit. Unrotated fit uses
+**Resolved by Luna, under owner delegation 2026-11-23.** For ports, the
+visitor airlock's deck index must equal the port's deck index. Measure between
+the centres of the rotated footprints in grid cells. A qualifying offset has
+zero displacement on at least one axis and an inclusive distance of at most
+one cell along the other. Doubled integer centres preserve exact half-cell
+offsets even on large sparse grids. The stock 2×2 port and 1×1 airlock differ
+by half a cell on both axes at their nearest integer-grid placements, so they
+fail the orthogonal test.
+
+The optional `docking.alignment` policy requires `targetKind: port`,
+`sameDeck: true`, `referencePoint: centres`, `distanceMetric: manhattan`,
+`singleAxis: true`, and `maxDistanceCells: 1`. Docking reads the policy from the
+loaded rules and uses the same values for older v4 snapshots without it. Port
+check (c) details and the `dock_no_matching_airlock` issue details both report
+these values, with the limit named `maximumDistanceCells` in the response.
+Check (c) passes for any compatible exterior outward-facing airlock that
+satisfies port alignment. Otherwise it fails with `dock_no_matching_airlock`.
+The API reports candidate counts without selecting an airlock or transforming
+the visitor. Visitor crew access and approach remain structural check (a)
+requirements.
+
+Ports have no size fields or envelope checks. For hangars, check (c) reports
+`PENDING` with `pending_F21` if a compatible exterior outward-facing airlock
+exists and reports `FAIL` with `dock_no_matching_airlock` otherwise. Hangars
+report active width, length, and deck limits and enforce the exact deck limit.
+Unrotated fit uses
 exact input bounds, `w <= W && l <= L`, and reports `widthLengthFit: true`
 without `pending_F19`. A definite size error requires a rotation-proof bound:
 the exact input-bound comparison `min(w,l) > min(W,L)` or the computed diagonal
@@ -236,7 +255,9 @@ bounds apply only to blank generation.
 Serialize either with `canonical_json` and pass it to `perf`; no prior editor
 state is inherited. F20 does not reject these sources or Wayfarer Anchorage;
 ordinary structural issues remain inspectable. Holds still return pending
-F11–F17 before guessed totals. F19/F21 docking conventions remain unchanged.
+F11–F17 before guessed totals. Ports use the resolved F03/F21 same-deck
+orthogonal centre rule. Hangar alignment and F19 rotation handling remain pending
+where applicable.
 
 The five independent performance suites cover all four scenarios, load
 overrides, carried loads and child-specific formula failures, all five explicit

@@ -50,9 +50,11 @@ int main() {
   Suite suite;
 
   suite.run("K05 matching airlock must face exterior rather than floor", [&] {
-    const auto baseline = dock_at_port(station(), visitor(), active, schema);
+    const auto station = orthogonal_station();
+    const auto rules = orthogonal_rules(active, schema);
+    const auto baseline = dock_at_port(station, aligned_visitor(), rules, schema);
     require(baseline.at("data").at("checks").at("c").at("status") ==
-                "PENDING" &&
+                "PASS" &&
                 baseline.at("data")
                         .at("checks")
                         .at("c")
@@ -61,7 +63,8 @@ int main() {
             "baseline visitor must have one compatible exterior airlock");
     auto inward = visitor();
     inward["decks"][0]["floors"]["1,5"] = true;
-    const auto report = dock_at_port(station(), inward, active, schema);
+    const auto report =
+        dock_at_port(station, aligned_visitor(std::move(inward)), rules, schema);
     const auto &check = report.at("data").at("checks").at("c");
     require(check.at("status") == "FAIL" &&
                 check.at("details").at("airlockCount") == 1 &&
@@ -135,14 +138,14 @@ int main() {
   });
 
   suite.run("K14 failed docking checks block even at warning severity", [&] {
-    auto changed = active.data();
+    auto changed = orthogonal_rules(active, schema).data();
     changed["validation"]["checks"]["docking"]["severity"] = "warning";
     auto loaded = load_rules(changed.dump(), schema);
     require(loaded.ok(), "warning docking severity must load as real rules");
-    auto ship = visitor();
+    auto ship = aligned_visitor();
     ship["decks"][0]["modules"][3]["interface"] = "cargo";
     const auto report =
-        dock_at_port(station(), ship, *loaded.value, schema);
+        dock_at_port(orthogonal_station(), ship, *loaded.value, schema);
     require(has_issue(report, "dock_no_matching_airlock"),
             "the compatible-interface check must detect the authored fault");
     require(std::all_of(report.at("issues").begin(), report.at("issues").end(),
@@ -165,6 +168,7 @@ int main() {
     const auto report =
         dock(anchorage.dump(), 1, 15, skiff.dump(), active, schema);
     const auto &hangar = report.at("data").at("hangar");
+    const auto &matching = report.at("data").at("checks").at("c");
     require(hangar.at("visitorWidthM") == 6 &&
                 hangar.at("visitorLengthM") == 10 &&
                 hangar.at("maxWidthM") == 10 &&
@@ -174,6 +178,11 @@ int main() {
                 !has_issue(report, "pending_F19") &&
                 has_issue(report, "pending_F21"),
             "definite unrotated fit must leave only alignment uncertified");
+    require(matching.at("status") == "PENDING" &&
+                matching.at("details") == Json{{"airlockCount", 1},
+                                               {"compatibleInterfaceCount", 1},
+                                               {"exteriorOutwardCount", 1}},
+            "hangar alignment stays pending with its candidate counts");
   });
 
   suite.run("S2 only a fit requiring rotation remains pending_F19", [&] {

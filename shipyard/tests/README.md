@@ -93,21 +93,30 @@ station imports succeed with `pending_F20`; structural validation may still
 report missing required systems. Wayfarer structurally passes with that warning.
 Excluded performance values are absent rather than numeric substitutes.
 
-Ports admit compatible candidates from Wren (20×34 m) and a structurally valid
-visitor wider than the former v3 cap without a size-envelope failure. Multiple
-compatible exterior airlocks are counted without selecting one. These cases
-remain `PENDING` under check (c), with `pending_F21`, `data.pending=true`, and
-overall FAIL: alignment has not been certified. Hangar tests distinguish a
-definite unrotated fit, a definite oversize error, and a fit possible only after
-rotation (`pending_F19`), while retaining active dimensions and deck limits.
+`shipyard-alignment` checks same-deck candidates with coincident centres, exactly
+one cell of displacement along either axis, larger axial offsets, half-cell
+diagonals at the Manhattan limit, and rotated footprints. It checks the
+port-only, single-axis policy in the shipped rules, check (c), and failure
+details. The schema rejects altered values and incomplete policy blocks.
+Omitting the entire block preserves the same geometry and diagnostics for older
+v4 snapshots. Compatible exterior airlocks are counted without selecting one.
+The stock 2×2 port and 1×1 airlock have different centre parity on both axes.
+Positive controls load test-only footprints through the public rules schema. A
+structurally valid 52 m visitor with an aligned airlock verifies that ports have
+no size envelope.
+
+Hangar candidates retain `pending_F21` under check (c). Separate hangar size
+tests distinguish a definite unrotated fit, a definite oversize error, and a fit
+possible only after rotation (`pending_F19`), while retaining active dimensions
+and deck limits.
 
 ## Per-check fault coverage
 
 These public API tests author concrete faults in real blueprints and assert the
 responsible issue or measured check. The table maps the review mutants to those
 faults; no mutation-run score is claimed. Positive controls establish that the
-baseline reaches the intended check. Each fixture uses the installed schemas,
-rules, catalogue footprints, and library implementation.
+baseline reaches the intended check. The fixtures use the real schemas, rules
+loader, catalogue, and library implementation.
 
 | Reviewed fault | Authored input | Required public result | Suite |
 | --- | --- | --- | --- |

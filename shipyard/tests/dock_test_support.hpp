@@ -48,9 +48,48 @@ inline Json station() {
   return blueprint;
 }
 
+inline RulesSnapshot orthogonal_rules(const RulesSnapshot &active,
+                                      const SchemaSet &schema) {
+  auto data = active.data();
+  for (auto &part : data["parts"]) {
+    if (part.at("id") == "dockingPort") {
+      part["w"] = 1;
+      part["h"] = 1;
+    }
+  }
+  auto loaded = load_rules(data.dump(), schema);
+  require(loaded.ok(), "The test-only 1x1 port must load through the real schema");
+  return std::move(*loaded.value);
+}
+
+inline Json orthogonal_station() {
+  auto blueprint = base("station");
+  add_module(blueprint, "dockingPort", 6, 11);
+  return blueprint;
+}
+
 inline Json visitor() {
   auto blueprint = base("ship");
   add_module(blueprint, "microEngine", 9, 10);
+  return blueprint;
+}
+
+// Translate the complete visitor (+4,+5) so its airlock is one cell above
+// the test-only 1x1 port, preserving its structure and clear approaches.
+inline Json aligned_visitor(Json blueprint = visitor()) {
+  for (auto &deck : blueprint["decks"]) {
+    Json floors = Json::object();
+    for (const auto &[key, value] : deck["floors"].items()) {
+      const auto comma = key.find(',');
+      floors[std::to_string(std::stoi(key.substr(0, comma)) + 4) + "," +
+             std::to_string(std::stoi(key.substr(comma + 1)) + 5)] = value;
+    }
+    deck["floors"] = std::move(floors);
+    for (auto &module : deck["modules"]) {
+      module["x"] = module.at("x").get<int>() + 4;
+      module["y"] = module.at("y").get<int>() + 5;
+    }
+  }
   return blueprint;
 }
 

@@ -80,7 +80,18 @@
       "properties": {
         "interfaces": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"}, "minItems": 1},
         "defaultInterface": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$"},
-        "targetKinds": {"type": "array", "items": {"enum": ["port", "hangar"]}, "minItems": 1}
+        "targetKinds": {"type": "array", "items": {"enum": ["port", "hangar"]}, "minItems": 1},
+        "alignment": {
+          "type": "object",
+          "properties": {
+            "targetKind": {"const": "port"},
+            "sameDeck": {"const": true}, "referencePoint": {"const": "centres"},
+            "distanceMetric": {"const": "manhattan"}, "singleAxis": {"const": true},
+            "maxDistanceCells": {"type": "integer", "const": 1}
+          },
+          "required": ["targetKind", "sameDeck", "referencePoint", "distanceMetric", "singleAxis", "maxDistanceCells"],
+          "additionalProperties": false
+        }
       },
       "required": ["interfaces", "defaultInterface", "targetKinds"], "additionalProperties": false
     },

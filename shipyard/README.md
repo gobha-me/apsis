@@ -31,8 +31,8 @@ Rules are the sole balance authority. Names and budgets are never trimmed or
 clamped. `technicalLimits.maxBlueprintNameCharacters` is 80;
 `technicalLimits.maxBudgetInputCr` is 100000000, solely an input sanity limit.
 The shipyard does not enforce player affordability. Ports have no size envelope;
-hangars retain their rule-defined dimensions and deck count. No docking
-rotation or F03 distance convention is implemented.
+hangars retain their rule-defined dimensions and deck count. Port F03 alignment
+uses same-deck orthogonal centre distance. Hangar rotation remains pending F19.
 
 Include `<apsis/shipyard/validator.hpp>` for the public operations:
 
@@ -48,9 +48,15 @@ Docking reports each F18 check separately; `DockOptions` independently controls
 `structural` (a), `portReachability` (b), `matchingAirlock` (c), and
 `approachClearance` (d). CLI and HTTP always use defaults and never map request
 fields to these switches; the public types remain for independent tests of the
-real checks. Pending F21 prevents certifying a port dock; hangar rotations remain
-pending F19. No visitor airlock is selected. See the precise pending and switch
-semantics in CONTRACT.md.
+real checks. The F03/F21 decision by Luna, under owner delegation 2026-11-23,
+applies to ports. A compatible exterior outward-facing airlock on the port
+deck satisfies check (c) if the exact footprint centres coincide or differ by
+at most one cell along a single axis. Docking reads the port-only
+`docking.alignment` policy from the loaded rules. The schema fixes the same-deck,
+single-axis one-cell convention, which also applies to older v4 snapshots
+without the policy. Hangar check (c) reports `pending_F21` for an eligible
+airlock, independently of F19 rotation handling.
+See CONTRACT.md for complete check and diagnostic semantics.
 
 Include `<apsis/shipyard/perf.hpp>` for performance and blank authoring sources:
 
