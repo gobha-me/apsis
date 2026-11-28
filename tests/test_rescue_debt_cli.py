@@ -16,9 +16,10 @@ SAMPLER = REPO_ROOT / "tools" / "rescue_debt_sampler.py"
 OVERRIDES = ("APSIS_SET", "APSIS_OFF", "APSIS_DRIVE", "APSIS_MSPACE", "APSIS_MMASS")
 
 
-def seed_record(index, years=40):
+def seed_record(index, years=40, *, seed=None):
     """A complete fixture sweep, following the documented metadata schedule."""
-    seed = 1000 + index
+    if seed is None:
+        seed = 1000 + index
     start = 20 + 60 * (index % 3)
     return {
         "schemaVersion": 1,
@@ -100,7 +101,7 @@ class RescueDebtCliTests(unittest.TestCase):
         )
         self.driver.chmod(0o755)
 
-    def invoke(self, *arguments, output=None, driver=None, extra_env=None):
+    def invoke(self, *arguments, output=None, driver=None, extra_env=None, cwd=None):
         env = {key: value for key, value in os.environ.items() if key not in OVERRIDES}
         env.update(extra_env or {})
         return subprocess.run(
@@ -123,7 +124,7 @@ class RescueDebtCliTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
-            cwd=REPO_ROOT,
+            cwd=cwd or REPO_ROOT,
             env=env,
             timeout=10,
             check=False,
@@ -215,6 +216,57 @@ class RescueDebtCliTests(unittest.TestCase):
         self.assertEqual(self.calls(), [[40, 0]])
         self.assertIn("lower bounds at career observation end", result.stdout)
         self.assertIn("| Pathfinder | 6 | 1 | 1 | 0 | 1 | 0.00 | 0.00 |", result.stdout)
+
+    def test_target_at_seed_cap_on_last_uint32_index(self):
+        last = 2**32 - 1
+        first = seed_record(last - 1, years=2, seed=last - 1)
+        second = seed_record(last, years=2, seed=last)
+        first["careers"][0]["debtClear"] = [360]
+        second["careers"][0]["debtOpen"] = 0
+        second["careers"][1]["debtOpen"] = 720
+        self.make_driver({last - 1: {"record": first}, last: {"record": second}})
+
+        result = self.invoke(
+            "--start-index",
+            str(last - 1),
+            "--max-seeds",
+            "2",
+            "--years",
+            "2",
+            cwd=self.root,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), [[2, last - 1], [2, last]])
+        summary = self.read_summary()
+        self.assertEqual(summary["outcome"], "target_reached")
+        self.assertEqual(summary["targetDebts"], 3)
+        self.assertEqual(summary["actualDebts"], 3)
+        self.assertEqual(summary["overshoot"], 0)
+        self.assertEqual(summary["completedSeeds"], 2)
+        self.assertEqual(summary["nextSeedIndex"], 2**32)
+        self.assertEqual(summary["horizonYears"], 2)
+        self.assertEqual(
+            [
+                (entry["seedIndex"], entry["seed"], entry["start"], entry["tanks"])
+                for entry in summary["manifest"]
+            ],
+            [(last - 1, last - 1, 140, [3, 4, 6]), (last, last, 20, [3, 4, 6])],
+        )
+        pooled = next(
+            row
+            for row in summary["groups"]
+            if (row["style"], row["tank"]) == ("hauler", "all")
+        )
+        self.assertEqual(pooled["openAtObservationEnd"], 2)
+        self.assertEqual(
+            pooled["observedDurationsAndLowerBounds"],
+            {"count": 3, "p50Years": 1, "p90Years": 2},
+        )
+        self.assertEqual(
+            pooled["completedDurationsOnly"],
+            {"count": 1, "p50Years": 1, "p90Years": 1},
+        )
 
     def test_failures_preserve_only_the_completed_seed_prefix(self):
         first = seed_record(0)

@@ -5,7 +5,7 @@ import json
 import math
 import unittest
 
-from tools.seed_runner import SeedOutcome, run_seeds, wilson_interval
+from tools.seed_runner import SeedOutcome, iter_seed_runs, run_seeds, wilson_interval
 
 
 class WilsonIntervalTests(unittest.TestCase):
@@ -142,6 +142,64 @@ class WilsonIntervalTests(unittest.TestCase):
                     )
                     self.assertIs(type(interval["confidence"]), float)
                     self.assertEqual(interval["confidence"], float(confidence))
+
+
+class IterSeedRunsTests(unittest.TestCase):
+    def test_reads_only_through_the_current_distinct_seed(self):
+        events = []
+
+        def seeds():
+            for seed in (5, 5, 2):
+                events.append(("input", seed))
+                yield seed
+            self.fail("an unrequested seed was read")
+
+        def adapter(seed):
+            events.append(("hook", seed))
+            return {"label": f"seed {seed}"}
+
+        runs = iter_seed_runs(seeds(), adapter)
+        self.assertEqual(events, [])
+        self.assertEqual(next(runs), (5, {"label": "seed 5"}))
+        self.assertEqual(events, [("input", 5), ("hook", 5)])
+        self.assertEqual(next(runs), (2, {"label": "seed 2"}))
+        self.assertEqual(
+            events,
+            [("input", 5), ("hook", 5), ("input", 5), ("input", 2), ("hook", 2)],
+        )
+
+    def test_hook_failure_propagates_before_reading_the_next_seed(self):
+        calls = []
+        failure = RuntimeError("seed adapter failed")
+
+        def seeds():
+            yield 4
+            yield 9
+            self.fail("a seed after the hook failure was read")
+
+        def adapter(seed):
+            calls.append(seed)
+            if seed == 9:
+                raise failure
+            return seed * 2
+
+        runs = iter_seed_runs(seeds(), adapter)
+        self.assertEqual(next(runs), (4, 8))
+        with self.assertRaises(RuntimeError) as raised:
+            next(runs)
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(calls, [4, 9])
+
+    def test_invalid_later_seed_respects_validation_mode(self):
+        for validate_all, expected_calls in ((False, [1]), (True, [])):
+            with self.subTest(validate_all=validate_all):
+                calls = []
+                runs = iter_seed_runs(
+                    [1, 1, True, 7], calls.append, validate_all=validate_all
+                )
+                with self.assertRaisesRegex(TypeError, "seeds must be integers"):
+                    list(runs)
+                self.assertEqual(calls, expected_calls)
 
 
 class RunSeedsTests(unittest.TestCase):
