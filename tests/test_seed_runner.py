@@ -4,7 +4,9 @@ from fractions import Fraction
 import json
 import math
 import unittest
+from unittest.mock import patch
 
+from tools import seed_runner
 from tools.seed_runner import SeedOutcome, run_seeds, wilson_interval
 
 
@@ -41,6 +43,34 @@ class WilsonIntervalTests(unittest.TestCase):
         self.assertEqual(interval["confidence"], confidence)
         self.assertAlmostEqual(interval["lower"], 0.5 - math.sqrt(3) / 6, places=12)
         self.assertAlmostEqual(interval["upper"], 0.5 + math.sqrt(3) / 6, places=12)
+
+    def test_shared_bounds_receive_the_confidence_quantile(self):
+        confidence = math.erf(1 / math.sqrt(2))
+        with patch.object(
+            seed_runner, "wilson_bounds", return_value=(0.25, 0.7)
+        ) as bounds:
+            interval = wilson_interval(1, 2, confidence)
+
+        bounds.assert_called_once()
+        passed, completed, z = bounds.call_args.args
+        self.assertEqual((passed, completed), (1, 2))
+        self.assertAlmostEqual(z, 1.0, places=12)
+        self.assertEqual(
+            interval,
+            {"method": "wilson", "confidence": confidence, "lower": 0.25, "upper": 0.7},
+        )
+
+    def test_empty_and_invalid_samples_bypass_shared_bounds(self):
+        with patch.object(seed_runner, "wilson_bounds") as bounds:
+            interval = wilson_interval(0, 0)
+            with self.assertRaisesRegex(ValueError, "counts must be integers"):
+                wilson_interval(2, 1)
+            with self.assertRaisesRegex(ValueError, "confidence must be"):
+                wilson_interval(1, 1, 1.0)
+
+        self.assertIsNone(interval["lower"])
+        self.assertIsNone(interval["upper"])
+        bounds.assert_not_called()
 
     def test_wider_confidence_expands_interval(self):
         narrow = wilson_interval(3, 10, 0.8)

@@ -4,12 +4,16 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
+
+if __package__:
+    from .seed_runner import wilson_bounds
+else:
+    from seed_runner import wilson_bounds
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -17,17 +21,14 @@ Z = 1.96  # Preserve sim/gates_l2.sh's existing 95% Wilson calculation.
 
 
 def wilson_interval(passed: int, completed: int) -> dict:
-    """Use PR #3's interval object shape, with the legacy gate's fixed z."""
-    p = passed / completed
-    d = 1 + Z * Z / completed
-    center = (p + Z * Z / (2 * completed)) / d
-    half = Z * math.sqrt(p * (1 - p) / completed + Z * Z / (4 * completed**2)) / d
+    """Use the shared Wilson calculation with the legacy gate's fixed z."""
+    lower, upper = wilson_bounds(passed, completed, Z)
     return {
         "method": "wilson",
         "confidence": 0.95,
         "z": Z,
-        "lower": max(0.0, center - half),
-        "upper": min(1.0, center + half),
+        "lower": lower,
+        "upper": upper,
     }
 
 
