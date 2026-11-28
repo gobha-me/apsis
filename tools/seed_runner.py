@@ -12,7 +12,7 @@ import os
 import re
 from statistics import NormalDist
 import sys
-from typing import Callable, Iterable, Literal
+from typing import Callable, Iterable, Iterator, Literal, TypeVar
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class SeedOutcome:
 
 
 SeedHook = Callable[[int], SeedOutcome]
+_SeedResult = TypeVar("_SeedResult")
 
 
 def _validate_confidence(confidence: Real) -> float:
@@ -91,23 +92,41 @@ def _validate_outcome(outcome: SeedOutcome) -> None:
         raise TypeError("note must be a string or None")
 
 
-def run_seeds(
-    seeds: Iterable[int], hook: SeedHook | None = None, confidence: Real = 0.95
-) -> dict[str, object]:
-    """Run each distinct seed in input order; adapter errors remain explicit."""
-    confidence = _validate_confidence(confidence)
-    unique_seeds = []
+def _distinct_seeds(seeds: Iterable[int]) -> Iterator[int]:
     seen = set()
     for seed in seeds:
         if type(seed) is not int:
             raise TypeError("seeds must be integers")
         if seed not in seen:
             seen.add(seed)
-            unique_seeds.append(seed)
+            yield seed
 
-    results = []
-    counts = dict.fromkeys(("passed", "failed", "skipped", "error"), 0)
-    for seed in unique_seeds:
+
+def iter_seed_runs(
+    seeds: Iterable[int],
+    hook: Callable[[int], _SeedResult],
+    *,
+    validate_all: bool = False,
+) -> Iterator[tuple[int, _SeedResult]]:
+    """Run distinct seeds in order, yielding after each hook call.
+
+    Hook errors propagate. Iteration can stop at any seed boundary. With
+    validate_all, all seeds are checked before the first hook runs.
+    """
+    ordered: Iterable[int] = _distinct_seeds(seeds)
+    if validate_all:
+        ordered = list(ordered)
+    for seed in ordered:
+        yield seed, hook(seed)
+
+
+def run_seeds(
+    seeds: Iterable[int], hook: SeedHook | None = None, confidence: Real = 0.95
+) -> dict[str, object]:
+    """Run each distinct seed in input order; adapter errors remain explicit."""
+    confidence = _validate_confidence(confidence)
+
+    def record_seed(seed: int) -> dict:
         try:
             outcome = (
                 hook(seed)
@@ -115,7 +134,7 @@ def run_seeds(
                 else SeedOutcome("skipped", note="No simulation hook configured.")
             )
             _validate_outcome(outcome)
-            record = {
+            return {
                 "seed": seed,
                 "status": outcome.status,
                 "metrics": dict(outcome.metrics),
@@ -124,12 +143,16 @@ def run_seeds(
         except Exception as exc:
             # Keep adapter errors outside the statistical sample. Exception text
             # can contain adapter-specific data, so record only its type.
-            record = {
+            return {
                 "seed": seed,
                 "status": "error",
                 "metrics": {},
                 "note": f"Hook raised {type(exc).__name__}.",
             }
+
+    results = []
+    counts = dict.fromkeys(("passed", "failed", "skipped", "error"), 0)
+    for _, record in iter_seed_runs(seeds, record_seed, validate_all=True):
         results.append(record)
         counts[record["status"]] += 1
 

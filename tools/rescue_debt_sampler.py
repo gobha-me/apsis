@@ -2,17 +2,25 @@
 
 import argparse
 import json
-import math
 import os
 from pathlib import Path
 import signal
-import statistics
 import subprocess
 import sys
 
+if __package__:
+    from sim.tools import aggwide
+    from tools.seed_runner import iter_seed_runs
+else:
+    # Support running this file directly from any working directory.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from sim.tools import aggwide
+    from tools.seed_runner import iter_seed_runs
 
-STYLES = ("hauler", "crisis", "pathfinder")
-TANKS = (3, 4, 6)
+
+STYLES = aggwide.STYLES
+TANKS = aggwide.TANKS
+quantiles = aggwide.quantiles
 INDEX_LIMIT = 2**32
 OVERRIDES = ("APSIS_SET", "APSIS_OFF", "APSIS_DRIVE", "APSIS_MSPACE", "APSIS_MMASS")
 
@@ -62,29 +70,13 @@ def validate_seed(data: object, index: int, years: int) -> dict:
     return data
 
 
-def quantiles(days: list[int]) -> dict:
-    """Match aggwide.py: median p50 and nearest-rank p90, 360 days/year."""
-    values = sorted(day / 360 for day in days)
-    return {
-        "count": len(values),
-        "p50Years": statistics.median(values) if values else None,
-        "p90Years": values[math.ceil(0.9 * len(values)) - 1] if values else None,
-    }
-
-
 def aggregate(careers: list[dict]) -> list[dict]:
-    """Adapt aggwide's mixed distribution, including zero-day open episodes."""
+    """Summarize observed and completed durations for each style and tank."""
     rows = []
     for style in STYLES:
         for tank in (*TANKS, "all"):
-            group = [
-                career
-                for career in careers
-                if career["style"] == style
-                and (tank == "all" or career["tank"] == tank)
-            ]
-            cleared = [days for career in group for days in career["debtClear"]]
-            opened = [career["debtOpen"] for career in group if career["debtOpen"] >= 0]
+            group = aggwide.career_group(careers, style, tank)
+            cleared, opened = aggwide.debt_durations(group)
             rows.append(
                 {
                     "style": style,
@@ -218,6 +210,17 @@ def main() -> int:
         "manifest": [],
     }
 
+    def sample_seed(index: int) -> dict:
+        result = subprocess.run(
+            [str(driver), str(args.years), str(index)],
+            cwd=output,
+            capture_output=True,
+            text=True,
+            timeout=args.seed_timeout,
+            check=True,
+        )
+        return validate_seed(json.loads(result.stdout), index, args.years)
+
     def handle_sigterm(_signum, _frame):
         # Let cleanup finish even if another termination request arrives.
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -227,16 +230,8 @@ def main() -> int:
     try:
         signal.signal(signal.SIGTERM, handle_sigterm)
         checkpoint(output, summary, careers)
-        for index in range(args.start_index, args.start_index + args.max_seeds):
-            result = subprocess.run(
-                [str(driver), str(args.years), str(index)],
-                cwd=output,
-                capture_output=True,
-                text=True,
-                timeout=args.seed_timeout,
-                check=True,
-            )
-            seed = validate_seed(json.loads(result.stdout), index, args.years)
+        indices = range(args.start_index, args.start_index + args.max_seeds)
+        for index, seed in iter_seed_runs(indices, sample_seed):
             if seed["seed"] in {entry["seed"] for entry in summary["manifest"]}:
                 raise ValueError("duplicate seed; refusing to recount episodes")
             filename = f"seed-{index:010d}.json"
@@ -248,7 +243,8 @@ def main() -> int:
             )
             summary["completedSeeds"] += 1
             summary["nextSeedIndex"] = index + 1
-            actual = sum(len(c["debtClear"]) + (c["debtOpen"] >= 0) for c in careers)
+            cleared, opened = aggwide.debt_durations(seed["careers"])
+            actual = summary["actualDebts"] + len(cleared) + len(opened)
             if actual >= args.target_debts:
                 summary["outcome"] = "target_reached"
             elif summary["completedSeeds"] == args.max_seeds:
