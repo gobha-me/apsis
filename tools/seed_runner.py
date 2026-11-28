@@ -41,6 +41,19 @@ def _validate_confidence(confidence: Real) -> float:
     return converted
 
 
+def wilson_bounds(passed: int, completed: int, z: float) -> tuple[float, float]:
+    """Calculate Wilson bounds for validated counts and a positive sample size."""
+    rate = passed / completed
+    denominator = 1 + z * z / completed
+    center = (rate + z * z / (2 * completed)) / denominator
+    radius = (
+        z
+        * math.sqrt(rate * (1 - rate) / completed + z * z / (4 * completed * completed))
+        / denominator
+    )
+    return max(0.0, center - radius), min(1.0, center + radius)
+
+
 def wilson_interval(
     passed: int, completed: int, confidence: Real = 0.95
 ) -> dict[str, str | float | None]:
@@ -62,16 +75,7 @@ def wilson_interval(
         return interval
     # The lower tail avoids rounding (1 + confidence) / 2 up to exactly 1.
     z = -NormalDist().inv_cdf((1 - confidence) / 2)
-    rate = passed / completed
-    denominator = 1 + z * z / completed
-    center = (rate + z * z / (2 * completed)) / denominator
-    radius = (
-        z
-        * math.sqrt(rate * (1 - rate) / completed + z * z / (4 * completed * completed))
-        / denominator
-    )
-    interval["lower"] = max(0.0, center - radius)
-    interval["upper"] = min(1.0, center + radius)
+    interval["lower"], interval["upper"] = wilson_bounds(passed, completed, z)
     return interval
 
 
