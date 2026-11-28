@@ -1,7 +1,10 @@
 """Known aggregate contracts for the real world-wide gate and its summary."""
 
+from importlib.util import find_spec, module_from_spec
 import unittest
+from unittest.mock import call, patch
 
+from tools import seed_runner
 from tools.world_wide_gate import evaluate, summary, wilson_interval
 
 
@@ -49,6 +52,36 @@ class WilsonAndWarGateTests(unittest.TestCase):
                 self.assertEqual(interval["z"], 1.96)
                 self.assertAlmostEqual(interval["lower"], lower, places=12)
                 self.assertAlmostEqual(interval["upper"], upper, places=12)
+
+    def test_both_war_intervals_use_seed_runner_bounds_at_legacy_z(self):
+        spec = find_spec("tools.world_wide_gate")
+        gate = module_from_spec(spec)
+        shared_bounds = [(0.0, 0.0005), (0.00075, 0.003)]
+        # Patch before loading the gate so its import sees the instrumented helper.
+        with patch.object(
+            seed_runner, "wilson_bounds", side_effect=shared_bounds
+        ) as bounds:
+            spec.loader.exec_module(gate)
+            result = gate.evaluate(aggregate(1000, 0, 1))
+
+        self.assertEqual(
+            bounds.call_args_list, [call(0, 1000, 1.96), call(1, 1000, 1.96)]
+        )
+        for arm, (lower, upper) in zip(("off", "on"), shared_bounds):
+            interval = result["arms"][arm]["war"]["interval"]
+            self.assertEqual((interval["lower"], interval["upper"]), (lower, upper))
+        self.assertFalse(result["war_gate"]["intervals_overlap"])
+        self.assertEqual(result["war_gate"]["status"], "fail")
+
+    def test_fixed_z_preserves_war_decision_at_overlap_boundary(self):
+        # At 75/999 versus 111/999, z=1.96 gives a sliver of overlap.
+        # The ordinary 95% normal quantile gives disjoint intervals.
+        for on, overlap, status in ((111, True, "pass"), (112, False, "fail")):
+            with self.subTest(on=on):
+                gate = evaluate(aggregate(999, 75, on))["war_gate"]
+                self.assertFalse(gate["ratio_in_range"])
+                self.assertEqual(gate["intervals_overlap"], overlap)
+                self.assertEqual(gate["status"], status)
 
     def test_ratio_alone_passes_with_nonoverlapping_intervals(self):
         result = evaluate(aggregate(800, 400, 480))

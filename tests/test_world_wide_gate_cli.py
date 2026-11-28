@@ -56,6 +56,7 @@ class WorldWideGateCliTests(unittest.TestCase):
         self.binary.chmod(0o755)
 
     def run_cli(self, *extra, seeds=2, binary=None):
+        seed_args = [] if seeds is None else ["--seeds", str(seeds)]
         return subprocess.run(
             [
                 sys.executable,
@@ -64,8 +65,7 @@ class WorldWideGateCliTests(unittest.TestCase):
                 str(binary or self.binary),
                 "--output-dir",
                 str(self.output),
-                "--seeds",
-                str(seeds),
+                *seed_args,
                 *extra,
             ],
             cwd=REPO_ROOT,
@@ -151,6 +151,24 @@ class WorldWideGateCliTests(unittest.TestCase):
         self.assertEqual(result["arms"]["off"]["war"]["denominator"], 2)
         self.assertEqual(result["arms"]["on"]["war"]["count"], 1)
         self.assertIn("War gate PASS", completed.stdout)
+
+    def test_default_campaign_reports_legacy_bounds_for_both_thousand_seed_arms(self):
+        self.write_binary(json.dumps(aggregate(1000, 0, 1)), seeds=1000)
+        result = self.assert_saved_result(self.run_cli(seeds=None), 0, "pass")
+        self.assertEqual(result["command"], [str(self.binary), "1000"])
+        self.assertEqual(result["sample"]["kind"], "campaign")
+        self.assertEqual(result["sample"]["seeds_per_arm"], 1000)
+        for arm, count, lower, upper in (
+            ("off", 0, 0.0, 0.003826898586390522),
+            ("on", 1, 0.0001765418290572715, 0.00564270296016047),
+        ):
+            with self.subTest(arm=arm):
+                war = result["arms"][arm]["war"]
+                self.assertEqual(war["count"], count)
+                self.assertEqual(war["denominator"], 1000)
+                self.assertEqual(war["interval"]["z"], 1.96)
+                self.assertAlmostEqual(war["interval"]["lower"], lower, places=12)
+                self.assertAlmostEqual(war["interval"]["upper"], upper, places=12)
 
     def test_separated_war_intervals_exit_one_with_valid_report(self):
         self.write_binary(json.dumps(aggregate(20, 2, 18)), seeds=20)
